@@ -3,7 +3,7 @@ import { Expense, PaymentStatus } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
 import { isInstallmentInMonth, getInstallmentAmount } from '../utils/expenseCalculations';
 import { getCategoryIcon } from './ExpenseGrid';
-import { XMarkIcon } from './icons';
+import { XMarkIcon, Cog6ToothIcon } from './icons';
 
 
 
@@ -11,9 +11,9 @@ interface DashboardProps {
     expenses: Expense[];
     paymentStatus: PaymentStatus;
     displayYear: number;
-    displayMonth?: number; // 0-11 opcional; si no viene, usamos el mes actual
     isOpen: boolean;
     onClose: () => void;
+    onOpenCategoryManager: () => void;
 }
 
 const stringToHslColor = (str: string, s: number, l: number) => {
@@ -26,45 +26,52 @@ const stringToHslColor = (str: string, s: number, l: number) => {
 };
 
 
-const Dashboard: React.FC<DashboardProps> = ({ expenses, paymentStatus, displayYear, displayMonth, isOpen, onClose }) => {
+const Dashboard: React.FC<DashboardProps> = ({ expenses, paymentStatus, displayYear, isOpen, onClose, onOpenCategoryManager }) => {
         const { t, formatClp } = useLocalization();
-        const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-        const totalMonthlyLabel = React.useMemo(() => {
-            const label = t('dashboard.totalMonthly');
-            return label === 'dashboard.totalMonthly' ? 'Total mensual' : label;
-        }, [t]);
 
-    // Resumen mensual (seleccionado o mes actual)
-    const monthlySummary = useMemo(() => {
-        const mi = typeof displayMonth === 'number' ? displayMonth : new Date().getMonth();
-        let total = 0;
-        let paid = 0;
-        const catTotals: Record<string, number> = {};
+    const summary = useMemo(() => {
+        let totalAnnualAmountInBase = 0;
+        let totalPaidAmountInBase = 0;
+        const categoryTotalsInBase: Record<string, number> = {};
 
         expenses.forEach(expense => {
             const category = expense.category || t('grid.uncategorized');
-            if (!catTotals[category]) catTotals[category] = 0;
-            if (isInstallmentInMonth(expense, displayYear, mi)) {
-                const paymentDetails = paymentStatus[expense.id]?.[`${displayYear}-${mi}`];
-                const installmentAmount = getInstallmentAmount(expense);
-                const amountInBase = paymentDetails?.overriddenAmount ?? installmentAmount;
-                total += amountInBase;
-                catTotals[category] += amountInBase;
-                if (paymentDetails?.paid) paid += amountInBase;
+            if (!categoryTotalsInBase[category]) {
+                categoryTotalsInBase[category] = 0;
+            }
+
+            for (let month = 0; month < 12; month++) {
+                if (isInstallmentInMonth(expense, displayYear, month)) {
+                    const paymentDetails = paymentStatus[expense.id]?.[`${displayYear}-${month}`];
+                                                                                const installmentAmount = getInstallmentAmount(expense);
+                    const amountInBase = paymentDetails?.overriddenAmount ?? installmentAmount;
+                    
+                    totalAnnualAmountInBase += amountInBase;
+                    categoryTotalsInBase[category] += amountInBase;
+
+                    if (paymentDetails?.paid) {
+                        totalPaidAmountInBase += amountInBase;
+                    }
+                }
             }
         });
-        const catSorted = Object.entries(catTotals)
+
+        const sortedCategories = Object.entries(categoryTotalsInBase)
             .sort(([, a], [, b]) => b - a)
-            .map(([name, totalInBase]) => ({ name, totalInBase, percentage: total > 0 ? (totalInBase / total) * 100 : 0 }));
+            .map(([name, totalInBase]) => ({
+                name,
+                totalInBase,
+                percentage: totalAnnualAmountInBase > 0 ? (totalInBase / totalAnnualAmountInBase) * 100 : 0,
+            }));
+
         return {
-            monthIndex: mi,
-            total,
-            paid,
-            pending: total - paid,
-            paidPercentage: total > 0 ? (paid / total) * 100 : 0,
-            categories: catSorted,
+            totalAnnualAmountInBase,
+            totalPaidAmountInBase,
+            totalPendingAmountInBase: totalAnnualAmountInBase - totalPaidAmountInBase,
+            paidPercentage: totalAnnualAmountInBase > 0 ? (totalPaidAmountInBase / totalAnnualAmountInBase) * 100 : 0,
+            categories: sortedCategories,
         };
-    }, [expenses, paymentStatus, displayYear, displayMonth, t]);
+    }, [expenses, paymentStatus, displayYear, t]);
 
 
 
@@ -77,36 +84,43 @@ const Dashboard: React.FC<DashboardProps> = ({ expenses, paymentStatus, displayY
                 </button>
             </div>
 
-            {/* Resumen mensual */}
+            {/* Annual Summary */}
             <div className="bg-slate-100 dark:bg-slate-900/70 p-4 rounded-lg ring-1 ring-slate-200 dark:ring-slate-700/50">
-                <div className="flex items-baseline justify-between gap-2 mb-2">
-                    <div className="min-w-0">
-                        <span className="text-slate-500 dark:text-slate-400 text-sm font-medium truncate block">{totalMonthlyLabel} — {MONTHS_ES[monthlySummary.monthIndex]} {displayYear}</span>
-                    </div>
-                    <span className="text-xl lg:text-2xl font-bold font-mono text-slate-800 dark:text-white shrink-0">{formatClp(monthlySummary.total)}</span>
+                <div className="flex justify-between items-baseline mb-2">
+                    <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">{t('dashboard.totalAnnual')}</span>
+                    <span className="text-2xl font-bold font-mono text-slate-800 dark:text-white">{formatClp(summary.totalAnnualAmountInBase)}</span>
                 </div>
                 <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 mb-4">
-                    <div className="bg-teal-500 h-2.5 rounded-full" style={{ width: `${monthlySummary.paidPercentage}%` }}></div>
+                    <div className="bg-teal-500 h-2.5 rounded-full" style={{ width: `${summary.paidPercentage}%` }}></div>
                 </div>
                 <div className="flex justify-between text-sm">
                     <div>
                         <div className="text-slate-500 dark:text-slate-400">{t('dashboard.paid')}</div>
-                        <div className="font-mono text-green-600 dark:text-green-400">{formatClp(monthlySummary.paid)}</div>
+                        <div className="font-mono text-green-600 dark:text-green-400">{formatClp(summary.totalPaidAmountInBase)}</div>
                     </div>
                      <div className="text-right">
                         <div className="text-slate-500 dark:text-slate-400">{t('dashboard.pending')}</div>
-                        <div className="font-mono text-amber-600 dark:text-amber-500">{formatClp(monthlySummary.pending)}</div>
+                        <div className="font-mono text-amber-600 dark:text-amber-500">{formatClp(summary.totalPendingAmountInBase)}</div>
                     </div>
                 </div>
             </div>
+
 
             {/* Category Breakdown */}
             <div className="mt-6">
                 <div className="flex justify-between items-center mb-3">
                     <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">{t('dashboard.byCategory')}</h3>
+                    <button 
+                        onClick={onOpenCategoryManager}
+                        className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800"
+                        aria-label={t('dashboard.manageCategories')}
+                    >
+                        <Cog6ToothIcon className="w-4 h-4" />
+                        <span className="hidden sm:inline">{t('dashboard.manageCategories')}</span>
+                    </button>
                 </div>
                 <div className="space-y-4 max-h-[calc(100vh-500px)] overflow-y-auto pr-2">
-                    {monthlySummary.categories.length > 0 ? monthlySummary.categories.map(cat => (
+                    {summary.categories.length > 0 ? summary.categories.map(cat => (
                         <div key={cat.name} className="text-sm group">
                             <div className="flex justify-between items-center mb-1.5">
                                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">

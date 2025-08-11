@@ -35,8 +35,16 @@ export interface Expense {
   // New currency and amount fields
   expenseDate: string; // YYYY-MM-DD
   originalAmount: number;
-  originalCurrency: PaymentUnit; // The original currency or unit (CLP, USD, UF, UTM)
+  originalCurrency: string; // The original currency or unit (CLP, USD, UF, UTM)
   exchangeRate: number; // The exchange rate applied at the time of creation
+
+  // Versioning fields for recurring expenses
+  parentId?: string; // ID of the original expense (for versions)
+  versionDate?: string; // YYYY-MM-DD when this version becomes effective
+  endDate?: string; // YYYY-MM-DD when this version ends (optional)
+  isActive?: boolean; // Whether this version is currently active
+  // Historical amounts for versioned expenses (key: "year-month", value: amount)
+  historicalAmounts?: { [key: string]: number };
 }
 
 export interface PaymentDetails {

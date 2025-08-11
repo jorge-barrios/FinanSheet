@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS public.expenses (
     name TEXT NOT NULL,
     category TEXT NOT NULL REFERENCES categories(name),
     total_amount DECIMAL(10,2) NOT NULL,
-    type TEXT NOT NULL CHECK (type IN ('Fixed', 'Variable')),
+    type TEXT NOT NULL CHECK (type IN ('Fixed', 'Variable', 'RECURRING', 'INSTALLMENT', 'VARIABLE')),
     start_date DATE NOT NULL,
     installments INTEGER NOT NULL DEFAULT 1,
     payment_frequency TEXT NOT NULL CHECK (payment_frequency IN (
@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS public.expenses (
     )),
     is_important BOOLEAN NOT NULL DEFAULT false,
     due_date INTEGER NOT NULL CHECK (due_date BETWEEN 1 AND 31),
+    -- Additional fields for enhanced functionality
+    expense_date DATE,
+    original_amount DECIMAL(10,2),
+    original_currency TEXT CHECK (original_currency IN ('CLP', 'USD', 'EUR', 'UF', 'UTM')),
+    exchange_rate DECIMAL(10,4) DEFAULT 1.0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

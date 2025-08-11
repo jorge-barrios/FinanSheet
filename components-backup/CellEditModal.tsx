@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Expense, PaymentDetails, PaymentUnit } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
 import { getInstallmentAmount } from '../utils/expenseCalculations';
@@ -12,7 +12,6 @@ interface CellEditModalProps {
     paymentDetails: PaymentDetails | undefined;
     year: number;
     month: number;
-    onDelete?: () => void;
 }
 
 const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
@@ -20,7 +19,7 @@ const formSelectClasses = `${formInputClasses} appearance-none`;
 const formLabelClasses = "block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5";
 
 
-const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, expense, paymentDetails, year, month, onDelete }) => {
+const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, expense, paymentDetails, year, month }) => {
     const { t, currency, getLocalizedMonths, fromBase, toBaseFromUnit } = useLocalization();
 
     const [displayAmount, setDisplayAmount] = useState('');
@@ -28,26 +27,6 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
     const [isPaid, setIsPaid] = useState(false);
     const [paymentDate, setPaymentDate] = useState(''); // YYYY-MM-DD format
     const [unit, setUnit] = useState<PaymentUnit>(currency);
-
-    // Robust overlay click handling to prevent accidental close on drag/select
-    const overlayRef = useRef<HTMLDivElement | null>(null);
-    const [mouseDownOnOverlay, setMouseDownOnOverlay] = useState(false);
-
-    const handleOverlayMouseDown: React.MouseEventHandler<HTMLDivElement> = (e) => {
-        if (e.target === overlayRef.current) {
-            setMouseDownOnOverlay(true);
-        } else {
-            setMouseDownOnOverlay(false);
-        }
-    };
-
-    const handleOverlayMouseUp: React.MouseEventHandler<HTMLDivElement> = (e) => {
-        // Only close if both mousedown and mouseup happened on the overlay (true backdrop click)
-        if (e.target === overlayRef.current && mouseDownOnOverlay) {
-            onClose();
-        }
-        setMouseDownOnOverlay(false);
-    };
 
     const defaultAmountInBase = getInstallmentAmount(expense);
 
@@ -71,18 +50,6 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
         }
     }, [isOpen, paymentDetails, defaultAmountInBase, expense.dueDate, fromBase, currency]);
 
-
-    useEffect(() => {
-        if (!isOpen) return;
-        const onKey = (ev: KeyboardEvent) => {
-            if (ev.key === 'Escape') {
-                ev.stopPropagation();
-                onClose();
-            }
-        };
-        document.addEventListener('keydown', onKey, { capture: true });
-        return () => document.removeEventListener('keydown', onKey, { capture: true } as any);
-    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
@@ -126,16 +93,8 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
     const title = `${expense.name} - ${monthName} ${year}`;
 
     return (
-         <div
-            ref={overlayRef}
-            className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4"
-            onMouseDown={handleOverlayMouseDown}
-            onMouseUp={handleOverlayMouseUp}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cell-edit-title"
-        >
-            <div className="bg-slate-50 dark:bg-slate-850 rounded-xl shadow-2xl p-6 w-full max-w-md ring-1 ring-slate-200 dark:ring-slate-700/50" onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
+         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="cell-edit-title">
+            <div className="bg-slate-50 dark:bg-slate-850 rounded-xl shadow-2xl p-6 w-full max-w-md ring-1 ring-slate-200 dark:ring-slate-700/50" onClick={e => e.stopPropagation()}>
                 <h2 id="cell-edit-title" className="text-xl font-bold mb-1 text-slate-800 dark:text-white">{t('cell_edit.title')}</h2>
                 <p className="text-slate-500 dark:text-slate-400 mb-6">{title}</p>
                 <div className="space-y-4">
@@ -197,22 +156,9 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
                         </div>
                     )}
                 </div>
-                 <div className="flex items-center justify-between pt-6 mt-4 border-t border-slate-200 dark:border-slate-700/50">
-                    <div>
-                        {onDelete && (
-                            <button
-                                type="button"
-                                onClick={onDelete}
-                                className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors font-medium"
-                            >
-                                Eliminar pago
-                            </button>
-                        )}
-                    </div>
-                    <div className="flex gap-4">
-                        <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors font-medium">{t('cell_edit.cancel')}</button>
-                        <button type="button" onClick={handleSave} className="px-4 py-2 rounded-lg bg-teal-500 hover:bg-teal-600 dark:hover:bg-teal-400 text-white transition-colors font-medium">{t('cell_edit.save')}</button>
-                    </div>
+                 <div className="flex justify-end gap-4 pt-6 mt-4 border-t border-slate-200 dark:border-slate-700/50">
+                    <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors font-medium">{t('cell_edit.cancel')}</button>
+                    <button type="button" onClick={handleSave} className="px-4 py-2 rounded-lg bg-teal-500 hover:bg-teal-600 dark:hover:bg-teal-400 text-white transition-colors font-medium">{t('cell_edit.save')}</button>
                 </div>
             </div>
         </div>

@@ -1,0 +1,368 @@
+/* 
+ * Sticky Grid Optimization - Critical UI/UX Improvements
+ * Implementa paneles fijos bidireccionales según análisis experto
+ */
+
+/* Contenedor principal con contexto de scroll */
+.expense-grid-container {
+  overflow: auto;
+  max-height: 80vh;
+  position: relative;
+}
+
+/* Headers fijos (scroll vertical) - Z-index hierarchy crítica */
+.expense-grid thead th {
+  position: sticky !important;
+  top: 0 !important;
+  background: rgb(248 250 252) !important; /* slate-50 - FORZAR OPACIDAD TOTAL */
+  background-color: rgb(248 250 252) !important;
+  z-index: 100 !important; /* ALTO PERO MENOR QUE ESQUINA */
+  border-bottom: 2px solid rgb(203 213 225) !important; /* slate-300 */
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.dark .expense-grid thead th {
+  background: rgb(30 41 59) !important; /* slate-800 - FORZAR OPACIDAD TOTAL */
+  background-color: rgb(30 41 59) !important;
+  border-bottom-color: rgb(71 85 105) !important; /* slate-600 */
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Primera columna fija (scroll horizontal) */
+.expense-grid tbody td:first-child,
+.expense-grid tbody th:first-child {
+  position: sticky;
+  left: 0;
+  background-color: white !important;
+  z-index: 10;
+  opacity: 1 !important;
+  backdrop-filter: none;
+}
+
+.dark .expense-grid tbody td:first-child,
+.dark .expense-grid tbody th:first-child {
+  background-color: rgb(15 23 42) !important; /* slate-900 */
+  opacity: 1 !important;
+  backdrop-filter: none;
+}
+
+/* CRÍTICO: Celda de esquina superior izquierda - Z-index más alto */
+/* Múltiples selectores para máxima especificidad */
+.expense-grid thead th:first-child,
+table.expense-grid thead tr th:first-child,
+.expense-grid-container .expense-grid thead th:first-child {
+  position: sticky !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 999 !important; /* MÁXIMA PRIORIDAD ABSOLUTA */
+  background: rgb(248 250 252) !important; /* slate-50 - FORZAR OPACIDAD TOTAL */
+  background-color: rgb(248 250 252) !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.15) !important;
+  border-right: 1px solid rgb(203 213 225) !important;
+  border-bottom: 2px solid rgb(203 213 225) !important;
+}
+
+.dark .expense-grid thead th:first-child,
+.dark table.expense-grid thead tr th:first-child,
+.dark .expense-grid-container .expense-grid thead th:first-child {
+  background: rgb(30 41 59) !important; /* slate-800 - FORZAR OPACIDAD TOTAL */
+  background-color: rgb(30 41 59) !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4) !important;
+  border-right-color: rgb(71 85 105) !important;
+  border-bottom-color: rgb(71 85 105) !important;
+}
+
+/* Filas de categoría sticky */
+.expense-grid .category-row {
+  position: sticky;
+  top: 64px; /* Debajo del header */
+  z-index: 25;
+  background-color: rgb(241 245 249); /* slate-100 */
+}
+
+.dark .expense-grid .category-row {
+  background-color: rgb(30 41 59); /* slate-800 */
+}
+
+/* Footer sticky */
+.expense-grid tfoot th {
+  position: sticky;
+  bottom: 0;
+  background-color: rgb(241 245 249); /* slate-100 */
+  z-index: 20;
+}
+
+.dark .expense-grid tfoot th {
+  background-color: rgb(30 41 59); /* slate-800 */
+}
+
+/* Footer primera columna - Z-index más alto para esquina inferior */
+.expense-grid tfoot th:first-child {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  background-color: rgb(241 245 249); /* slate-100 */
+}
+
+.dark .expense-grid tfoot th:first-child {
+  background-color: rgb(30 41 59); /* slate-800 */
+}
+
+/* Hover states que respetan sticky elements */
+.expense-grid tbody tr:hover td {
+  background-color: rgb(248 250 252) !important; /* slate-50 */
+}
+
+.dark .expense-grid tbody tr:hover td {
+  background-color: rgba(30 41 59, 0.8) !important; /* slate-800/80 - MÁS OPACO */
+}
+
+/* Hover para primera columna sticky */
+.expense-grid tbody tr:hover td:first-child {
+  background-color: rgb(248 250 252) !important; /* slate-50 */
+  opacity: 1 !important;
+}
+
+.dark .expense-grid tbody tr:hover td:first-child {
+  background-color: rgba(30 41 59, 0.9) !important; /* slate-800/90 - MÁS OPACO */
+  opacity: 1 !important;
+}
+
+/* Tipografía tabular para números - Mejora legibilidad */
+.expense-grid .numeric-cell {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-feature-settings: "tnum";
+  text-align: right;
+  color: rgb(15 23 42) !important; /* slate-900 - FORZAR VISIBILIDAD */
+  font-weight: 600;
+  opacity: 1 !important;
+}
+
+.dark .expense-grid .numeric-cell {
+  color: rgb(248 250 252) !important; /* slate-50 - FORZAR VISIBILIDAD */
+  font-weight: 600;
+  opacity: 1 !important;
+}
+
+/* Divisiones sutiles entre filas */
+.expense-grid tbody tr {
+  border-bottom: 1px solid rgb(226 232 240); /* slate-200 */
+}
+
+.dark .expense-grid tbody tr {
+  border-bottom: 1px solid rgb(51 65 85); /* slate-700 */
+}
+
+/* Scrollbar personalizada para mejor UX */
+.expense-grid-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.expense-grid-container::-webkit-scrollbar-track {
+  background: rgb(248 250 252); /* slate-50 */
+}
+
+.expense-grid-container::-webkit-scrollbar-thumb {
+  background: rgb(203 213 225); /* slate-300 */
+  border-radius: 4px;
+}
+
+.expense-grid-container::-webkit-scrollbar-thumb:hover {
+  background: rgb(148 163 184); /* slate-400 */
+}
+
+.dark .expense-grid-container::-webkit-scrollbar-track {
+  background: rgb(30 41 59); /* slate-800 */
+}
+
+.dark .expense-grid-container::-webkit-scrollbar-thumb {
+  background: rgb(71 85 105); /* slate-600 */
+}
+
+.dark .expense-grid-container::-webkit-scrollbar-thumb:hover {
+  background: rgb(100 116 139); /* slate-500 */
+}
+
+/* Animaciones suaves para transiciones */
+.expense-grid th,
+.expense-grid td {
+  transition: background-color 0.15s ease-in-out;
+}
+
+/* Indicador visual para celdas sticky */
+.expense-grid thead th:first-child::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, rgb(203 213 225), transparent);
+}
+
+.dark .expense-grid thead th:first-child::after {
+  background: linear-gradient(to bottom, transparent, rgb(71 85 105), transparent);
+}
+
+/* Sombra sutil para elementos sticky */
+.expense-grid thead th {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.expense-grid tbody td:first-child,
+.expense-grid tbody th:first-child {
+  box-shadow: 1px 0 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Columna de tendencia - Sticky a la derecha */
+.expense-grid .trend-column {
+  position: sticky;
+  right: 0;
+  z-index: 15;
+  background-color: rgb(249 250 251); /* gray-50 */
+  border-left: 2px solid rgb(226 232 240); /* slate-200 */
+  box-shadow: -2px 0 4px 0 rgba(0, 0, 0, 0.05);
+}
+
+.dark .expense-grid .trend-column {
+  background-color: rgb(15 23 42); /* slate-900 */
+  border-left-color: rgb(51 65 85); /* slate-700 */
+}
+
+/* Header de tendencia sticky */
+.expense-grid thead .trend-column {
+  position: sticky;
+  top: 0;
+  right: 0;
+  z-index: 25;
+  background-color: rgb(249 250 251); /* gray-50 */
+}
+
+.dark .expense-grid thead .trend-column {
+  background-color: rgb(15 23 42); /* slate-900 */
+}
+
+/* Footer de tendencia sticky */
+.expense-grid tfoot .trend-column {
+  position: sticky;
+  bottom: 0;
+  right: 0;
+  z-index: 25;
+  background-color: rgb(249 250 251); /* gray-50 */
+}
+
+.dark .expense-grid tfoot .trend-column {
+  background-color: rgb(15 23 42); /* slate-900 */
+}
+
+/* Sparkline container optimization */
+.sparkline-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  min-height: 40px;
+}
+
+/* Navegación temporal mejorada */
+.temporal-navigation {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgb(248 250 252); /* slate-50 */
+  border: 1px solid rgb(226 232 240); /* slate-200 */
+  border-radius: 0.5rem;
+  padding: 0.25rem;
+}
+
+.dark .temporal-navigation {
+  background: rgb(30 41 59); /* slate-800 */
+  border-color: rgb(71 85 105); /* slate-600 */
+}
+
+.temporal-nav-button {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: all 0.15s ease-in-out;
+  border: none;
+  background: transparent;
+  color: rgb(71 85 105); /* slate-600 */
+  cursor: pointer;
+}
+
+.temporal-nav-button:hover {
+  background: rgb(226 232 240); /* slate-200 */
+  color: rgb(15 23 42); /* slate-900 */
+}
+
+.dark .temporal-nav-button {
+  color: rgb(148 163 184); /* slate-400 */
+}
+
+.dark .temporal-nav-button:hover {
+  background: rgb(71 85 105); /* slate-600 */
+  color: rgb(248 250 252); /* slate-50 */
+}
+
+.temporal-nav-button.active {
+  background: rgb(14 165 233); /* sky-500 */
+  color: white;
+}
+
+.dark .temporal-nav-button.active {
+  background: rgb(14 165 233); /* sky-500 */
+  color: white;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .expense-grid-container {
+    max-height: 70vh;
+  }
+  
+  .expense-grid .trend-column {
+    position: relative;
+    right: auto;
+    box-shadow: none;
+    border-left: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .expense-grid-container {
+    max-height: 60vh;
+  }
+  
+  .expense-grid th,
+  .expense-grid td {
+    padding: 0.5rem;
+  }
+  
+  .expense-grid .trend-column {
+    display: none; /* Ocultar en móvil para ahorrar espacio */
+  }
+  
+  .temporal-navigation {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  
+  .temporal-nav-button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.6875rem;
+  }
+}

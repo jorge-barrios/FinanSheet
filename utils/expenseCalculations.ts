@@ -1,4 +1,5 @@
 import { Expense, PaymentFrequency } from '../types';
+import { getActiveExpenseVersion, getBaseExpenseIdFromObject } from './expenseVersioning';
 
 export const getFrequencyInMonths = (frequency: PaymentFrequency): number => {
     switch (frequency) {
@@ -14,7 +15,19 @@ export const getFrequencyInMonths = (frequency: PaymentFrequency): number => {
 
 export const getInstallmentAmount = (expense: Expense): number => {
     if (!expense || expense.installments <= 0) return 0;
-    return expense.amountInClp / expense.installments;
+    
+    // For recurring expenses, return the full amount per payment (not divided)
+    if (expense.type === 'RECURRING') {
+        return expense.amountInClp;
+    }
+    
+    // For installment expenses, divide the total amount by number of installments
+    if (expense.type === 'INSTALLMENT') {
+        return expense.amountInClp / expense.installments;
+    }
+    
+    // For variable expenses, return the full amount
+    return expense.amountInClp;
 };
 
 // Helper to parse 'YYYY-MM-DD' date string and return 0-indexed month
@@ -27,6 +40,40 @@ const parseStartDate = (startDate: string) => {
     return { year, month: month - 1 }; // Adjust month to be 0-indexed for calculations
 };
 
+/**
+ * Check if an expense is in a specific month, considering versioning for recurring expenses
+ * @param allExpenses - Array of all expenses (needed for versioning)
+ * @param expense - The expense to check
+ * @param year - Target year
+ * @param month - Target month (0-based)
+ * @returns True if the expense should appear in that month
+ */
+export const isInstallmentInMonthWithVersioning = (
+    allExpenses: Expense[], 
+    expense: Expense, 
+    year: number, 
+    month: number
+): boolean => {
+    // For recurring expenses, check if there's an active version for this date
+    const baseId = getBaseExpenseIdFromObject(expense);
+    const activeVersion = getActiveExpenseVersion(allExpenses, baseId, year, month);
+    
+    if (activeVersion && activeVersion.id !== expense.id) {
+        // This expense is not the active version for this date
+        return false;
+    }
+    
+    // Use the standard logic for the active version
+    return isInstallmentInMonth(activeVersion || expense, year, month);
+};
+
+/**
+ * Original function - check if an expense is in a specific month (without versioning)
+ * @param expense - The expense to check
+ * @param year - Target year
+ * @param month - Target month (0-based)
+ * @returns True if the expense should appear in that month
+ */
 export const isInstallmentInMonth = (expense: Expense, year: number, month: number): boolean => {
     if (!expense || !expense.startDate) return false;
     const { installments, paymentFrequency } = expense;

@@ -1,6 +1,6 @@
-// src/services/exchangeRateService.ts
+// services/exchangeRateService.ts
 
-import { PaymentUnit } from '../../types';
+import { PaymentUnit } from '../types';
 
 /**
  * Fetches the exchange rate for a given currency/unit against CLP for a specific date.
@@ -11,7 +11,6 @@ import { PaymentUnit } from '../../types';
  * @throws An error if the API call fails or no data is found for the given date.
  */
 export async function getExchangeRate(unit: PaymentUnit, date: string): Promise<number> {
-    // The API uses specific codes for each unit.
     // The API uses specific codes for each unit.
     const apiUnitCode = {
         'USD': 'dolar',
