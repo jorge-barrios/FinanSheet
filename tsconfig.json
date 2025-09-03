@@ -26,5 +26,9 @@
     "paths": {
       "@/*" :  ["./*"]
     }
-  }
+  },
+  "exclude": [
+    "components-backup/**",
+    "components/ExpenseForm.tsx"
+  ]
 }

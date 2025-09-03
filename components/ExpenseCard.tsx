@@ -1,8 +1,8 @@
 import React from 'react';
-import { Expense, PaymentStatus, ExpenseType } from '../types';
+import { Expense, PaymentStatus } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
 import { getInstallmentAmount, isInstallmentInMonth } from '../utils/expenseCalculations';
-import { EditIcon, TrashIcon } from './icons';
+import { EditIcon, TrashIcon, StarIcon } from './icons';
 import { getCategoryIcon } from './ExpenseGrid';
 
 interface ExpenseCardProps {
@@ -15,7 +15,7 @@ interface ExpenseCardProps {
 }
 
 const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, currentYear, onEditExpense, onDeleteExpense, onOpenCellEditor }) => {
-    const { t, formatClp } = useLocalization();
+    const { formatClp } = useLocalization();
     const currentMonth = new Date().getMonth();
 
     const isInCurrentMonth = isInstallmentInMonth(expense, currentYear, currentMonth);
@@ -112,7 +112,7 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
                                 {statusInfo.text}
                             </span>
                             {statusInfo.showStar && (
-                                <span className="text-yellow-500" title="Pagado a tiempo">⭐</span>
+                                <StarIcon className="w-4 h-4 text-yellow-500" />
                             )}
                         </div>
                     ) : (

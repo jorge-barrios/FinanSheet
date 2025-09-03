@@ -19,15 +19,19 @@ const TableIcon: React.FC<IconProps> = ({className = "w-5 h-5"}) => (
 const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ currentView, onViewChange }) => {
     const { t } = useLocalization();
 
+    const dashboardLabel = (() => {
+        const k = t('viewSwitcher.dashboard');
+        return k === 'viewSwitcher.dashboard' ? 'Dashboard' : k;
+    })();
     const views: { id: View; label: string, icon: React.FC<IconProps> }[] = [
         { id: 'table', label: t('viewSwitcher.table'), icon: TableIcon },
-        { id: 'graph', label: t('viewSwitcher.graph'), icon: ChartBarIcon },
+        { id: 'graph', label: dashboardLabel, icon: ChartBarIcon },
         { id: 'calendar', label: t('viewSwitcher.calendar'), icon: CalendarIcon },
     ];
 
     return (
-        <div className="mb-4">
-            <div className="inline-flex items-center bg-slate-200 dark:bg-slate-800 rounded-lg p-1 space-x-1">
+        <div>
+            <div className="inline-flex items-center bg-slate-200/70 dark:bg-slate-800/70 rounded-lg p-1 space-x-1 ring-1 ring-slate-300/60 dark:ring-slate-700/60">
                 {views.map(view => {
                      const isActive = view.id === currentView;
                      const IconComponent = view.icon;

@@ -35,6 +35,7 @@ export const en = {
   "grid.dueDate": "Due",
   "grid.paymentDate": "Paid on",
   "grid.installment": "Payment",
+  "grid.title": "Expense Grid",
   "grid.showAllMonths": "Show all 12 months",
   "grid.showSixMonths": "Show first 6 months",
   "grid.noMatch": "No expenses match the current filters.",

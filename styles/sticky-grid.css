@@ -1,5 +1,20 @@
-/* 
- * Sticky Grid Optimization - Critical UI/UX Improvements
+/* Smooth entrance animation for type-dependent sections */
+@keyframes fade-slide {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fade-slide {
+  animation: fade-slide 180ms ease-out both;
+}
+
+/* Sticky Grid Optimization - Critical UI/UX Improvements
  * Implementa paneles fijos bidireccionales según análisis experto
  */
 
@@ -193,6 +208,50 @@ table.expense-grid thead tr th:first-child,
 
 .dark .expense-grid-container::-webkit-scrollbar-thumb:hover {
   background: rgb(100 116 139); /* slate-500 */
+}
+
+/* Generic thin scrollbar utility */
+.thin-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(203 213 225); /* slate-300 */
+  border-radius: 4px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(148 163 184); /* slate-400 */
+}
+
+.dark .thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(71 85 105); /* slate-600 */
+}
+
+.dark .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(100 116 139); /* slate-500 */
+}
+
+/* Responsive utilities for text clamping and breaking */
+@media (min-width: 1280px) {
+  .xl-line-clamp-2 {
+    display: -webkit-box;
+    line-clamp: 2; /* Standard property for compatibility */
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: normal;
+  }
+}
+
+.break-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Animaciones suaves para transiciones */

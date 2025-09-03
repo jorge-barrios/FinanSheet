@@ -53,7 +53,8 @@ const FilterControls: React.FC<FilterControlsProps> = ({
                 <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{t('filter.type')}:</span>
                 <div className="flex items-center gap-1 bg-slate-100/50 dark:bg-slate-800/50 p-1 rounded-lg">
                     <FilterButton label={t('filter.all')} value="all" activeValue={filterType} onClick={onFilterTypeChange} />
-                    <FilterButton label={t('form.type.fixed')} value={ExpenseType.FIXED} activeValue={filterType} onClick={onFilterTypeChange} />
+                    <FilterButton label={t('form.type.recurring')} value={ExpenseType.RECURRING} activeValue={filterType} onClick={onFilterTypeChange} />
+                    <FilterButton label={t('form.type.installment')} value={ExpenseType.INSTALLMENT} activeValue={filterType} onClick={onFilterTypeChange} />
                     <FilterButton label={t('form.type.variable')} value={ExpenseType.VARIABLE} activeValue={filterType} onClick={onFilterTypeChange} />
                 </div>
             </div>

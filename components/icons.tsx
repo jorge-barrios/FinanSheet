@@ -183,3 +183,69 @@ export const ChartBarSquareIcon: React.FC<IconProps> = ({ className = "w-5 h-5" 
         <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V5.25A2.25 2.25 0 0 0 18 3H6A2.25 2.25 0 0 0 3.75 5.25v12.75A2.25 2.25 0 0 0 6 20.25Z" />
     </svg>
 );
+
+export const CheckCircleIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75l1.5 1.5L15 9.75" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25z" />
+    </svg>
+);
+
+export const ExclamationTriangleIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.29 3.86L1.82 18A2.25 2.25 0 0 0 3.76 21.375h16.48A2.25 2.25 0 0 0 22.18 18L13.71 3.86a2.25 2.25 0 0 0-3.42 0Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 17.25h.008v.008H12v-.008Z" />
+    </svg>
+);
+
+export const ClockIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75a8.25 8.25 0 1 1 0 16.5 8.25 8.25 0 0 1 0-16.5Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5" />
+    </svg>
+);
+
+export const StarIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.5 8.94 8.59l-5.06.74 3.66 3.57-.86 5.04L12 15.57l5.32 2.37-.86-5.04 3.66-3.57-5.06-.74L12.52 3.5a1 1 0 0 0-1.04 0Z" />
+    </svg>
+);
+
+export const InfinityIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 12c0-1.657 1.343-3 3-3 2.25 0 4.5 3 4.5 3s2.25 3 4.5 3c1.657 0 3-1.343 3-3s-1.343-3-3-3c-2.25 0-4.5 3-4.5 3s-2.25 3-4.5 3c-1.657 0-3-1.343-3-3Z" />
+    </svg>
+);
+
+export const CheckBadgeIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 2l6 3.5v7L12 22l-6-9.5v-7L12 2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="m9.5 12.25 2 2 3.5-3.5" />
+    </svg>
+);
+
+// Ribbon / Cinta (award) icon
+export const RibbonIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className}>
+        {/* Medal circle filled for better visibility */}
+        <circle cx="12" cy="8" r="4.5" fill="currentColor" />
+        {/* Ribbon tails with thicker stroke */}
+        <path d="M9.5 12.5 7 21l5-2.5 5 2.5-2.5-8.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
+// Trending arrows (up/down)
+export const ArrowTrendingUpIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 17.25 9 10.5l4.5 4.5L21.75 6.75" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 6.75h6.75V13.5" />
+    </svg>
+);
+
+export const ArrowTrendingDownIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75 9 13.5l4.5-4.5L21.75 17.25" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 10.5V17.25H15" />
+    </svg>
+);

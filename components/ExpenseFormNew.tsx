@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Expense, ExpenseType, PaymentFrequency, PaymentUnit } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
+import { useCurrency } from '../hooks/useCurrency';
+import CurrencyConverter from './CurrencyConverter';
 
 // Tipo para el modo de cálculo de cuotas
 type InstallmentCalculationMode = 'total' | 'installment';
@@ -20,8 +22,9 @@ const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-
 const formSelectClasses = `${formInputClasses} appearance-none`;
 const formLabelClasses = "block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5";
 
-const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expenseToEdit, categories }) => {
-    const { t, getLocalizedMonths } = useLocalization();
+const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, expenseToEdit, categories }) => {
+    const { /* t, */ getLocalizedMonths } = useLocalization();
+    const { fromUnit } = useCurrency();
 
     const today = new Date().toISOString().split('T')[0];
     
@@ -228,6 +231,16 @@ const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, e
                                             step="any"
                                             required
                                         />
+                                        {/* Preview conversion to CLP and UF */}
+                                        {(() => {
+                                            const amt = parseFloat(variableAmount) || 0;
+                                            const clp = amt > 0 ? fromUnit(amt, originalCurrency as any) : 0;
+                                            return amt > 0 ? (
+                                                <div className="mt-1 text-xs text-slate-500">
+                                                    <CurrencyConverter amountInClp={clp} units={[originalCurrency as any === 'CLP' ? 'UF' : (originalCurrency as any)]} />
+                                                </div>
+                                            ) : null;
+                                        })()}
                                     </div>
                                     <div>
                                         <label htmlFor="originalCurrency" className={formLabelClasses}>Moneda</label>
@@ -287,6 +300,16 @@ const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, e
                                             step="any"
                                             required
                                         />
+                                        {/* Preview conversion */}
+                                        {(() => {
+                                            const amt = parseFloat(recurringAmount) || 0;
+                                            const clp = amt > 0 ? fromUnit(amt, originalCurrency as any) : 0;
+                                            return amt > 0 ? (
+                                                <div className="mt-1 text-xs text-slate-500">
+                                                    <CurrencyConverter amountInClp={clp} units={[originalCurrency as any === 'CLP' ? 'UF' : (originalCurrency as any)]} />
+                                                </div>
+                                            ) : null;
+                                        })()}
                                     </div>
                                     <div>
                                         <label htmlFor="originalCurrency" className={formLabelClasses}>Moneda</label>
@@ -422,6 +445,16 @@ const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, e
                                                         step="any"
                                                         required
                                                     />
+                                                    {/* Preview total */}
+                                                    {(() => {
+                                                        const amt = parseFloat(totalAmount) || 0;
+                                                        const clp = amt > 0 ? fromUnit(amt, originalCurrency as any) : 0;
+                                                        return amt > 0 ? (
+                                                            <div className="mt-1 text-xs text-slate-500">
+                                                                <CurrencyConverter amountInClp={clp} units={[originalCurrency as any === 'CLP' ? 'UF' : (originalCurrency as any)]} />
+                                                            </div>
+                                                        ) : null;
+                                                    })()}
                                                 </div>
                                                 <div>
                                                     <label htmlFor="numberOfInstallments" className={formLabelClasses}>Nº Cuotas</label>
@@ -449,6 +482,16 @@ const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, e
                                                         step="any"
                                                         required
                                                     />
+                                                    {/* Preview installment */}
+                                                    {(() => {
+                                                        const amt = parseFloat(installmentAmount) || 0;
+                                                        const clp = amt > 0 ? fromUnit(amt, originalCurrency as any) : 0;
+                                                        return amt > 0 ? (
+                                                            <div className="mt-1 text-xs text-slate-500">
+                                                                <CurrencyConverter amountInClp={clp} units={[originalCurrency as any === 'CLP' ? 'UF' : (originalCurrency as any)]} />
+                                                            </div>
+                                                        ) : null;
+                                                    })()}
                                                 </div>
                                                 <div>
                                                     <label htmlFor="numberOfInstallments" className={formLabelClasses}>Nº Cuotas</label>

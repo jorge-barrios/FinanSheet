@@ -9,7 +9,7 @@ interface GraphViewProps {
     displayYear: number;
 }
 
-const GraphView: React.FC<GraphViewProps> = ({ expenses, paymentStatus, displayYear }) => {
+const GraphView: React.FC<GraphViewProps> = () => {
     const { t } = useLocalization();
 
     return (

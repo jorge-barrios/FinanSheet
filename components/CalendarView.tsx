@@ -9,7 +9,7 @@ interface CalendarViewProps {
     displayYear: number;
 }
 
-const CalendarView: React.FC<CalendarViewProps> = ({ expenses, paymentStatus, displayYear }) => {
+const CalendarView: React.FC<CalendarViewProps> = () => {
     const { t } = useLocalization();
 
     return (

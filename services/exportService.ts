@@ -1,7 +1,7 @@
 
-import { Expense, PaymentStatus, ExpenseType, Currency, PaymentUnit } from '../types';
+import { Expense, PaymentStatus, ExpenseType, Currency } from '../types';
 import { getInstallmentAmount, isInstallmentInMonth } from '../utils/expenseCalculations';
-import { convertToDisplayCurrency, formatCurrency } from '../utils/currency';
+import { convertToDisplayCurrency, convertToBaseCurrency, formatCurrency } from '../utils/currency';
 
 // This function relies on the global 'XLSX' object provided by the script in index.html
 declare var XLSX: any;
@@ -17,24 +17,38 @@ export const exportToExcel = (
     exchangeRates: Record<Currency, number>
 ) => {
   const dataForSheet = expenses.map(expense => {
-    const totalAmountInDisplay = convertToDisplayCurrency(expense.totalAmount, displayCurrency, exchangeRates);
+    // amountInClp is stored in CLP; convert to base (USD) first, then to display
+    const amountInBase = convertToBaseCurrency(expense.amountInClp, 'CLP', exchangeRates);
+    const totalAmountInDisplay = convertToDisplayCurrency(amountInBase, displayCurrency, exchangeRates);
     
     const row: { [key: string]: string | number } = {
       [t('grid.expense')]: expense.name,
-      [t('form.typeLabel')]: t(expense.type === ExpenseType.FIXED ? 'form.type.fixed' : 'form.type.variable'),
+      [t('form.typeLabel')]: t(
+        expense.type === ExpenseType.RECURRING
+          ? 'form.type.recurring'
+          : expense.type === ExpenseType.INSTALLMENT
+          ? 'form.type.installment'
+          : 'form.type.variable'
+      ),
       [t('grid.totalAmount')]: totalAmountInDisplay, // Export in display currency
       [t('grid.installments')]: expense.installments,
-      [t('grid.startDate')]: `${monthNames[expense.startDate.month]}/${expense.startDate.year}`,
+      [t('grid.startDate')]: (() => {
+        // expense.startDate is 'YYYY-MM-DD'
+        const [y, m] = expense.startDate.split('-').map(Number);
+        const monthIdx = (m || 1) - 1; // 0-based
+        return `${monthNames[monthIdx]}/${y}`;
+      })(),
     };
 
     monthNames.forEach((monthName, monthIndex) => {
       const isInMonth = isInstallmentInMonth(expense, year, monthIndex);
       if (isInMonth) {
-        const amountInBase = getInstallmentAmount(expense);
+        const amountInClp = getInstallmentAmount(expense);
         const paymentDetails = paymentStatus[expense.id]?.[`${year}-${monthIndex}`];
         const isPaid = paymentDetails?.paid ?? false;
         
-        const finalAmountInBase = paymentDetails?.overriddenAmount ?? amountInBase;
+        const finalAmountInClp = paymentDetails?.overriddenAmount ?? amountInClp;
+        const finalAmountInBase = convertToBaseCurrency(finalAmountInClp, 'CLP', exchangeRates);
         const finalAmountInDisplay = convertToDisplayCurrency(finalAmountInBase, displayCurrency, exchangeRates);
         
         const formatted = formatCurrency(finalAmountInDisplay, displayCurrency, language);
@@ -57,14 +71,15 @@ export const exportToExcel = (
   };
 
   monthNames.forEach((monthName, monthIndex) => {
-       const totalInBase = expenses.reduce((sum, expense) => {
+       const totalInClp = expenses.reduce((sum, expense) => {
             if (isInstallmentInMonth(expense, year, monthIndex)) {
                 const paymentDetails = paymentStatus[expense.id]?.[`${year}-${monthIndex}`];
-                const amountInBase = paymentDetails?.overriddenAmount ?? getInstallmentAmount(expense);
-                return sum + amountInBase;
+                const amountInClp = paymentDetails?.overriddenAmount ?? getInstallmentAmount(expense);
+                return sum + amountInClp;
             }
             return sum;
         }, 0);
+      const totalInBase = convertToBaseCurrency(totalInClp, 'CLP', exchangeRates);
       const totalInDisplay = convertToDisplayCurrency(totalInBase, displayCurrency, exchangeRates);
       totalsRow[monthName] = totalInDisplay > 0 ? formatCurrency(totalInDisplay, displayCurrency, language) : '-';
   });

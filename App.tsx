@@ -70,14 +70,15 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Header from './components/Header';
-import ExpenseGridVirtual from './components/ExpenseGridVirtual';
 import ExpenseForm from './components/ExpenseFormWorking';
 import FilterControls from './components/FilterControls';
-import Dashboard from './components/Dashboard';
-import ViewSwitcher from './components/ViewSwitcher';
-import GraphView from './components/GraphView';
-import CalendarView from './components/CalendarView';
+// ViewSwitcher moved into Header
 import CellEditModal from './components/CellEditModal';
+// Lazy page views to keep initial bundle small
+const TableView = React.lazy(() => import('./components/ExpenseGridVirtual'));
+const CalendarView = React.lazy(() => import('./components/CalendarView'));
+const DashboardLazy = React.lazy(() => import('./components/Dashboard'));
+const DashboardBody = React.lazy(() => import('./components/Dashboard').then(m => ({ default: m.DashboardBody })));
 import CategoryManager from './components/CategoryManager';
 import ConfirmationModal from './components/ConfirmationModal';
 import { Expense, PaymentStatus, ExpenseType, View, PaymentDetails, PaymentFrequency, PaymentUnit } from './types';
@@ -172,6 +173,7 @@ const App: React.FC = () => {
                 acc[payment.expense_id][payment.date_key] = {
                     paid: payment.paid,
                     overriddenAmount: payment.overridden_amount,
+                    overriddenDueDate: payment.overridden_due_date,
                     paymentDate: payment.payment_date ? new Date(payment.payment_date).getTime() : undefined
                 };
                 return acc;
@@ -249,9 +251,7 @@ const App: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
-    const handleDateChange = (newDate: Date) => {
-        setFocusedDate(newDate);
-    };
+    // removed unused handleDateChange
 
     const handleAddExpenseClick = () => {
         setEditingExpense(null);
@@ -614,38 +614,7 @@ const App: React.FC = () => {
         setPaymentToDelete(null);
     }, []);
 
-    const handleDeletePaymentDetails = useCallback(async (expenseId: string, year: number, month: number) => {
-        const date_key = `${year}-${month}`;
-
-        // Optimistic update: remove from local state
-        setPaymentStatus(prev => {
-            const next = JSON.parse(JSON.stringify(prev));
-            if (next[expenseId]) {
-                delete next[expenseId][date_key];
-                if (Object.keys(next[expenseId]).length === 0) delete next[expenseId];
-            }
-            return next;
-        });
-
-        // Close modal if open
-        setEditingCell(null);
-
-        if (!isSupabaseConfigured || !supabase) return;
-
-        try {
-            // Prefer direct delete from table payment_details
-            const { error } = await supabase
-                .from('payment_details')
-                .delete()
-                .eq('expense_id', expenseId)
-                .eq('date_key', date_key);
-            if (error) throw error;
-        } catch (error) {
-            console.error('Error deleting payment details:', error);
-            alert(t('delete.paymentError') || 'Error eliminando el pago');
-            fetchData();
-        }
-    }, [isSupabaseConfigured, supabase, t, fetchData]);
+    // removed unused handleDeletePaymentDetails
 
     const handleOpenCellEditor = (expenseId: string, year: number, month: number) => {
         setEditingCell({ expenseId, year, month });
@@ -765,55 +734,76 @@ const App: React.FC = () => {
 
     return (
         <div className={`flex h-screen font-sans antialiased theme-${theme}`}>
-            <Dashboard 
-                expenses={filteredAndSortedExpenses} 
-                paymentStatus={paymentStatus} 
-                displayYear={focusedDate.getFullYear()}
-                isOpen={isSidebarOpen}
-                onClose={() => setIsSidebarOpen(false)}
-                onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
-            />
+            <React.Suspense fallback={<div className="p-4 text-slate-500 dark:text-slate-400">Cargando panel…</div>}>
+                <DashboardLazy 
+                    expenses={expenses} 
+                    paymentStatus={paymentStatus} 
+                    displayYear={focusedDate.getFullYear()}
+                    isOpen={isSidebarOpen}
+                    onClose={() => setIsSidebarOpen(false)}
+                />
+            </React.Suspense>
             <div className="flex-1 flex flex-col min-w-0 bg-slate-100/50 dark:bg-slate-900">
                 {!isSupabaseConfigured && <OfflineBanner />}
                 <Header 
-                    focusedDate={focusedDate}
-                    onDateChange={handleDateChange}
                     onAddExpense={handleAddExpenseClick}
                     onExport={handleExport}
                     onToggleSidebar={() => setIsSidebarOpen(s => !s)}
                     theme={theme}
                     onThemeChange={setTheme}
-                    visibleMonthsCount={visibleMonthsCount}
-                    onVisibleMonthsCountChange={setVisibleMonthsCount}
+                    view={view}
+                    onViewChange={setView}
+                    onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
                 />
-                <main className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+                <main className={`flex-1 min-h-0 overflow-y-auto ${view === 'graph' ? 'lg:overflow-hidden' : 'lg:overflow-hidden'}`}>
                     <div className="max-w-screen-2xl mx-auto pt-4 px-4">
-                        <FilterControls
-                            searchTerm={searchTerm}
-                            onSearchTermChange={setSearchTerm}
-                            filterType={filterType}
-                            onFilterTypeChange={setFilterType}
-                            filterImportance={filterImportance}
-                            onFilterImportanceChange={setFilterImportance}
-                        />
-                        <ViewSwitcher currentView={view} onViewChange={setView} />
-                    </div>
-                    
-                    <div className="max-w-screen-2xl mx-auto min-h-0 lg:h-full">
                         {view === 'table' && (
-                            <ExpenseGridVirtual 
-                                expenses={filteredAndSortedExpenses}
-                                paymentStatus={paymentStatus}
-                                focusedDate={focusedDate}
-                                visibleMonthsCount={visibleMonthsCount}
-                                onEditExpense={handleEditExpense}
-                                onDeleteExpense={handleDeleteExpense}
-                                onOpenCellEditor={handleOpenCellEditor}
-                                onFocusedDateChange={setFocusedDate}
+                            <FilterControls
+                                searchTerm={searchTerm}
+                                onSearchTermChange={setSearchTerm}
+                                filterType={filterType}
+                                onFilterTypeChange={setFilterType}
+                                filterImportance={filterImportance}
+                                onFilterImportanceChange={setFilterImportance}
                             />
                         )}
-                        {view === 'graph' && <GraphView expenses={filteredAndSortedExpenses} paymentStatus={paymentStatus} displayYear={focusedDate.getFullYear()} />}
-                        {view === 'calendar' && <CalendarView expenses={filteredAndSortedExpenses} paymentStatus={paymentStatus} displayYear={focusedDate.getFullYear()} />}
+                        {/* ViewSwitcher relocated to Header */}
+                    </div>
+
+                    <div className={`max-w-screen-2xl mx-auto min-h-0 px-4 ${view === 'graph' ? 'lg:h-full' : 'lg:h-full'}`}>
+                        <React.Suspense fallback={<div className="p-6 text-slate-500 dark:text-slate-400">Cargando…</div>}>
+                            {view === 'table' && (
+                                <TableView 
+                                    expenses={filteredAndSortedExpenses}
+                                    paymentStatus={paymentStatus}
+                                    focusedDate={focusedDate}
+                                    visibleMonthsCount={visibleMonthsCount}
+                                    onEditExpense={handleEditExpense}
+                                    onDeleteExpense={handleDeleteExpense}
+                                    onOpenCellEditor={handleOpenCellEditor}
+                                    onFocusedDateChange={setFocusedDate}
+                                    onVisibleMonthsCountChange={setVisibleMonthsCount}
+                                />
+                            )}
+                            {view === 'graph' && (
+                                <DashboardBody 
+                                    expenses={expenses}
+                                    paymentStatus={paymentStatus}
+                                    displayYear={focusedDate.getFullYear()}
+                                    displayMonth={focusedDate.getMonth()}
+                                    onOpenCellEditor={handleOpenCellEditor}
+                                    onSelectMonth={(m) => setFocusedDate(new Date(focusedDate.getFullYear(), m, 1))}
+                                    onRequestGoToTable={(m) => { setFocusedDate(new Date(focusedDate.getFullYear(), m, 1)); setView('table'); }}
+                                />
+                            )}
+                            {view === 'calendar' && (
+                                <CalendarView 
+                                    expenses={filteredAndSortedExpenses} 
+                                    paymentStatus={paymentStatus} 
+                                    displayYear={focusedDate.getFullYear()} 
+                                />
+                            )}
+                        </React.Suspense>
                     </div>
                 </main>
             </div>
@@ -860,15 +850,15 @@ const App: React.FC = () => {
             />
             <ConfirmationModal
                 isOpen={isDeletePaymentModalOpen}
-                title={'Confirmar eliminación del pago'}
+                title={'Confirmar eliminación del registro'}
                 message={(function(){
-                    if (!paymentToDelete) return '¿Seguro que deseas eliminar este pago mensual? Esta acción no se puede deshacer.';
+                    if (!paymentToDelete) return '¿Seguro que deseas eliminar este registro mensual? Esta acción no se puede deshacer.';
                     const exp = expenses.find(e => e.id === paymentToDelete.expenseId);
                     const monthName = getLocalizedMonths('long')[paymentToDelete.month];
                     const who = exp ? `"${exp.name}"` : 'este gasto';
-                    return `Vas a eliminar el pago de ${monthName} ${paymentToDelete.year} para ${who}.\n\nEsto eliminará solo el registro de pago de ese mes (no se elimina el gasto). Esta acción no se puede deshacer.`;
+                    return `Vas a eliminar el registro de ${monthName} ${paymentToDelete.year} para ${who}.\n\nEsto eliminará solo el registro de ese mes (no se elimina el gasto). Esta acción no se puede deshacer.`;
                 })()}
-                confirmText={'Eliminar pago'}
+                confirmText={'Eliminar registro'}
                 cancelText={t('common.cancel')}
                 onConfirm={confirmDeletePayment}
                 onCancel={cancelDeletePayment}

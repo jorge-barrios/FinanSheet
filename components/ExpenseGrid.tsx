@@ -7,11 +7,13 @@ import {
     Row,
 } from '@tanstack/react-table';
 import { Expense, PaymentStatus, ExpenseType } from '../types';
-import { isInstallmentInMonth, isInstallmentInMonthWithVersioning, getInstallmentNumber } from '../utils/expenseCalculations';
-import { IconProps, EditIcon, TrashIcon, ChevronDownIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon, SubscriptionIcon, MiscIcon, CategoryIcon } from './icons';
+import { isInstallmentInMonth, isInstallmentInMonthWithVersioning } from '../utils/expenseCalculations';
+import { IconProps, EditIcon, TrashIcon, ChevronDownIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon, SubscriptionIcon, MiscIcon, CategoryIcon, CheckCircleIcon, ExclamationTriangleIcon, ClockIcon, RibbonIcon } from './icons';
 import { useLocalization } from '../hooks/useLocalization';
+import usePersistentState from '../hooks/usePersistentState';
 import ExpenseCard from './ExpenseCard';
 import Sparkline from './Sparkline';
+import CurrencyService from '../services/currencyService';
 
 interface ExpenseGridProps {
     expenses: Expense[];
@@ -56,15 +58,28 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
     
     const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
+    // Density (persisted)
+    const [density, setDensity] = usePersistentState<'compact' | 'medium' | 'comfortable'>('gridDensity', 'medium');
+    const { innerPadX, innerPadY, rowHeightClass } = useMemo(() => {
+        switch (density) {
+            case 'compact':
+                return { innerPadX: 'px-3', innerPadY: 'py-2', rowHeightClass: 'h-20' };
+            case 'comfortable':
+                return { innerPadX: 'px-5', innerPadY: 'py-4', rowHeightClass: 'h-28' };
+            default:
+                return { innerPadX: 'px-4', innerPadY: 'py-3', rowHeightClass: 'h-24' };
+        }
+    }, [density]);
+
     const viewConfig = useMemo(() => {
         switch (visibleMonthsCount) {
-            case 3: return { columnWidth: 240, amountClass: 'text-lg', detailsClass: 'text-sm' };
-            case 6: return { columnWidth: 200, amountClass: 'text-base', detailsClass: 'text-xs' };
-            case 7: return { columnWidth: 180, amountClass: 'text-base', detailsClass: 'text-xs' };
-            case 12: return { columnWidth: 140, amountClass: 'text-sm', detailsClass: 'text-xs' };
-            case 13: return { columnWidth: 140, amountClass: 'text-sm', detailsClass: 'text-xs' };
-            case 25: return { columnWidth: 120, amountClass: 'text-sm', detailsClass: 'text-[10px]' };
-            default: return { columnWidth: 140, amountClass: 'text-base', detailsClass: 'text-xs' };
+            case 3: return { columnWidth: 240, amountClass: 'text-xl', detailsClass: 'text-base' };
+            case 6: return { columnWidth: 200, amountClass: 'text-lg', detailsClass: 'text-sm' };
+            case 7: return { columnWidth: 180, amountClass: 'text-lg', detailsClass: 'text-sm' };
+            case 12: return { columnWidth: 140, amountClass: 'text-base', detailsClass: 'text-sm' };
+            case 13: return { columnWidth: 140, amountClass: 'text-base', detailsClass: 'text-sm' };
+            case 25: return { columnWidth: 120, amountClass: 'text-base', detailsClass: 'text-xs' };
+            default: return { columnWidth: 140, amountClass: 'text-lg', detailsClass: 'text-sm' };
         }
     }, [visibleMonthsCount]);
     
@@ -171,24 +186,32 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
             header: () => (
                  <div className="text-left py-3 px-4 flex justify-between items-center w-full">
                     <span>{t('grid.expense')}</span>
-                    {Object.keys(groupedExpenses).length > 0 && (
-                        <div className="flex items-center gap-1.5">
-                             <button
-                                onClick={handleCollapseAll}
-                                className="text-[11px] px-2 py-1 rounded-md font-medium text-slate-600 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-700/80 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
-                                title={t('grid.collapseAll')}
-                            >
-                                {t('grid.collapseAll')}
-                            </button>
-                            <button
-                                onClick={handleExpandAll}
-                                className="text-[11px] px-2 py-1 rounded-md font-medium text-slate-600 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-700/80 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
-                                title={t('grid.expandAll')}
-                            >
-                                {t('grid.expandAll')}
-                            </button>
+                    <div className="flex items-center gap-1.5">
+                        {Object.keys(groupedExpenses).length > 0 && (
+                            <>
+                                <button
+                                    onClick={handleCollapseAll}
+                                    className="text-[11px] px-2 py-1 rounded-md font-medium text-slate-600 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-700/80 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                                    title={t('grid.collapseAll')}
+                                >
+                                    {t('grid.collapseAll')}
+                                </button>
+                                <button
+                                    onClick={handleExpandAll}
+                                    className="text-[11px] px-2 py-1 rounded-md font-medium text-slate-600 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-700/80 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                                    title={t('grid.expandAll')}
+                                >
+                                    {t('grid.expandAll')}
+                                </button>
+                            </>
+                        )}
+                        {/* Density selector */}
+                        <div className="flex items-stretch bg-white/70 dark:bg-slate-800/70 rounded-md ring-1 ring-slate-200 dark:ring-slate-700 overflow-hidden ml-2" title="Densidad de filas">
+                            <button onClick={() => setDensity('compact')} className={`px-2.5 py-1 text-[11px] ${density === 'compact' ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>Compacta</button>
+                            <button onClick={() => setDensity('medium')} className={`px-2.5 py-1 text-[11px] border-l border-slate-200 dark:border-slate-700 ${density === 'medium' ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>Media</button>
+                            <button onClick={() => setDensity('comfortable')} className={`px-2.5 py-1 text-[11px] border-l border-slate-200 dark:border-slate-700 ${density === 'comfortable' ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>Cómoda</button>
                         </div>
-                    )}
+                    </div>
                 </div>
             ),
             cell: info => {
@@ -247,10 +270,15 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
             return columnHelper.display({
                 id: `${year}-${monthIndex}`,
                 header: () => (
-                    <div className={`text-center py-3 h-full flex flex-col justify-center transition-colors ${highlightHeaderClass}`}>
+                    <div className={`relative text-center py-3 h-full flex flex-col justify-center transition-colors ${highlightHeaderClass}`}>
                         <span className="capitalize">{monthName}</span>
                         <br />
                         <span className="text-xs text-slate-500 dark:text-slate-500">{year}</span>
+                        {isCurrentMonth && (
+                            <div className="absolute top-1 right-1 text-teal-700 dark:text-teal-300" aria-label="Mes actual" title="Mes actual">
+                                <ChevronDownIcon className="w-4 h-4" />
+                            </div>
+                        )}
                     </div>
                 ),
                 cell: ({ row }) => {
@@ -294,29 +322,46 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
                     // ID ESTABLE: Con la nueva arquitectura, el ID nunca cambia, por lo que los pagos siempre están asociados correctamente
                     const paymentDetails = paymentStatus[expense.id]?.[`${year}-${monthIndex}`];
                     
-                    // Para gastos en cuotas, calcular el valor por cuota
-                    let baseAmount = expense.amountInClp || 0; // PROTEGER CONTRA NaN
-                    if (expense.type === ExpenseType.INSTALLMENT && expense.installments > 0) {
-                        baseAmount = (expense.amountInClp || 0) / expense.installments;
-                    }
-                    
-                    // Payment-first logic: if payment exists, use paid amount; otherwise use calculated amount
-                    const amountInBase = paymentDetails?.overriddenAmount ?? baseAmount;
-                    
-                    // VALIDACIÓN CRÍTICA: Asegurar que amountInBase sea un número válido
-                    const safeAmount = isNaN(amountInBase) || amountInBase === null || amountInBase === undefined ? 0 : amountInBase;
                     const isPaid = paymentDetails?.paid ?? false;
+
+                    // Para gastos en cuotas, calcular el valor por cuota en CLP (por defecto desde amountInClp)
+                    let defaultClpAmount = expense.amountInClp || 0; // PROTEGER CONTRA NaN
+                    if (expense.type === ExpenseType.INSTALLMENT && expense.installments > 0) {
+                        defaultClpAmount = (expense.amountInClp || 0) / expense.installments;
+                    }
+
+                    // Regla: gastos futuros sin pago y con moneda original distinta de CLP => recalcular con tipo de cambio actual
+                    const now = new Date();
+                    const isFutureMonth = year > now.getFullYear() || (year === now.getFullYear() && monthIndex > now.getMonth());
+                    let recalculatedClpAmount: number | undefined;
+                    if (!isPaid && isFutureMonth && expense.originalCurrency && expense.originalCurrency !== 'CLP' && typeof expense.originalAmount === 'number') {
+                        const unit = expense.originalCurrency as any; // keyof CurrencyService map
+                        const perPaymentOriginal = expense.type === ExpenseType.INSTALLMENT && expense.installments > 0
+                            ? expense.originalAmount / expense.installments
+                            : expense.originalAmount;
+                        recalculatedClpAmount = CurrencyService.fromUnit(perPaymentOriginal, unit);
+                    }
+
+                    // Payment-first logic con override; luego caída a recálculo si aplica; luego al valor por defecto
+                    const rawAmount = paymentDetails?.overriddenAmount ?? (recalculatedClpAmount ?? defaultClpAmount);
+                    const safeAmount = isNaN(rawAmount) || rawAmount === null || rawAmount === undefined ? 0 : rawAmount;
+                    // Para mostrar monto original por cuota si aplica
+                    const originalPerPayment = (expense.originalCurrency && typeof expense.originalAmount === 'number')
+                        ? (expense.type === ExpenseType.INSTALLMENT && expense.installments > 0
+                            ? expense.originalAmount / expense.installments
+                            : expense.originalAmount)
+                        : undefined;
                     
 
                     const dueDate = paymentDetails?.overriddenDueDate ?? expense.dueDate;
-                    const installmentNumber = getInstallmentNumber(expense, year, monthIndex);
+                    // const installmentNumber = getInstallmentNumber(expense, year, monthIndex); // Not used currently
                     
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
                     const dueDateForMonth = new Date(year, monthIndex, dueDate);
                     const isOverdue = !isPaid && dueDateForMonth < today;
                     const locale = language === 'es' ? 'es-ES' : 'en-US';
-                    const { borderColor, textColor, dateColor } = getStatusStyles(isPaid, isOverdue);
+                    const { borderColor, textColor } = getStatusStyles(isPaid, isOverdue);
                     const { amountClass, detailsClass } = viewConfig;
                     
                     // Check if this is the current month for special styling
@@ -326,54 +371,62 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
                     
                     return (
                         <div className={`h-full w-full p-1 transition-colors ${cellBgClass}`} onClick={() => onOpenCellEditor(expense.id, year, monthIndex)}>
-                            <div className={`cursor-pointer w-full h-full flex flex-col justify-between rounded-md px-3 py-2 transition-colors bg-slate-100/50 dark:bg-slate-800/40 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 ${borderWidth} ${borderColor}`}>
+                            <div className={`cursor-pointer w-full h-full flex flex-col justify-between rounded-md ${innerPadX} ${innerPadY} transition-colors bg-slate-100/50 dark:bg-slate-800/40 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 ${borderWidth} ${borderColor}`}>
                                 {/* Top part: Amount, aligned to top-right */}
                                 <div className="text-right">
-                                    <span className={`font-bold ${amountClass} ${textColor}`}>{formatClp(safeAmount)}</span>
+                                    <span className={`font-bold font-mono tabular-nums ${amountClass} ${textColor}`}>{formatClp(safeAmount)}</span>
                                 </div>
 
-                                {/* Bottom part: Details, aligned to bottom-left */}
-                                <div className="text-left">
-                                    {installmentNumber && expense.installments < 999 && (
-                                        <span className={`block text-slate-500 dark:text-slate-400 ${detailsClass}`}>{`${t('grid.installment')} ${installmentNumber}/${expense.installments}`}</span>
-                                    )}
-                                    {expense.installments >= 999 && expense.type === ExpenseType.RECURRING && (
-                                        <span className={`block font-medium ${detailsClass} ${isPaid ? 'text-emerald-600 dark:text-emerald-400' : isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                                            ∞ Recurrente
-                                        </span>
-                                    )}
-                                    <span className={`block text-slate-500 dark:text-slate-500 mt-0.5 ${detailsClass}`}>
+                                {/* Conversion and details */}
+                                <div className="text-right mt-1">
+                                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                                        {expense.originalCurrency && expense.originalCurrency !== 'CLP' ? (
+                                            typeof originalPerPayment === 'number' ? (
+                                                <span>{`${expense.originalCurrency} ${originalPerPayment.toLocaleString('es-CL')}`}</span>
+                                            ) : null
+                                        ) : null}
+                                    </div>
+                                    <span className={`block text-slate-500 dark:text-slate-500 mt-0.5 ${detailsClass} whitespace-nowrap`}>
                                         {`${t('grid.dueDate')}: ${dueDate}/${monthIndex + 1}`}
                                     </span>
-                                    
+                                </div>
+
                                     {/* Status info */}
                                     {(isPaid && paymentDetails?.paymentDate) ? (
-                                        <div className={`block ${dateColor} mt-1 ${detailsClass} flex items-center gap-1 ${isThisCurrentMonth ? 'font-bold' : ''}`}>
-                                            <span>{`Pagado ${new Date(paymentDetails.paymentDate).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })}`}</span>
-                                            {(() => {
-                                                const paymentDate = new Date(paymentDetails.paymentDate);
-                                                const wasOnTime = paymentDate <= dueDateForMonth;
-                                                return wasOnTime ? <span className="text-yellow-500" title="Pagado a tiempo">⭐</span> : null;
-                                            })()}
+                                        <div className={`mt-1 ${isThisCurrentMonth ? 'font-bold' : ''} text-right`}>
+                                            <div className={`inline-flex items-center gap-2 px-2 py-[2px] rounded-md select-none transition-colors hover:bg-slate-300/50 dark:hover:bg-slate-700/50 text-[12px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap`}>
+                                                <CheckCircleIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                                <span>{`Pagado ${new Date(paymentDetails.paymentDate).toLocaleDateString(locale, { day: '2-digit', month: '2-digit' })}`}</span>
+                                                {(() => {
+                                                    const paymentDate = new Date(paymentDetails.paymentDate);
+                                                    const wasOnTime = paymentDate <= dueDateForMonth;
+                                                    return wasOnTime ? <RibbonIcon className="w-4 h-4 text-violet-500" /> : null;
+                                                })()}
+                                            </div>
                                         </div>
                                     ) : isOverdue ? (
-                                        <span className={`block ${dateColor} mt-1 ${detailsClass} ${isThisCurrentMonth ? 'font-bold' : ''}`}>
-                                            {(() => {
-                                                const daysOverdue = Math.floor((today.getTime() - dueDateForMonth.getTime()) / (1000 * 60 * 60 * 24));
-                                                return `Atrasado (${daysOverdue} día${daysOverdue !== 1 ? 's' : ''})`;
-                                            })()}
-                                        </span>
+                                        <div className={`mt-1 ${isThisCurrentMonth ? 'font-bold' : ''}`}>
+                                            <div className={`inline-flex items-center gap-2 px-2 py-[2px] rounded-md select-none transition-colors hover:bg-slate-300/50 dark:hover:bg-slate-700/50 text-[12px] font-medium text-slate-700 dark:text-slate-300`}>
+                                                <ExclamationTriangleIcon className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                                                {(() => {
+                                                    const daysOverdue = Math.floor((today.getTime() - dueDateForMonth.getTime()) / (1000 * 60 * 60 * 24));
+                                                    return `Atrasado (${daysOverdue} día${daysOverdue !== 1 ? 's' : ''})`;
+                                                })()}
+                                            </div>
+                                        </div>
                                     ) : isCurrentMonth ? (
-                                        <span className={`block text-amber-600 dark:text-amber-400 mt-1 ${detailsClass} ${isThisCurrentMonth ? 'font-bold' : ''}`}>
-                                            {(() => {
-                                                const daysUntilDue = Math.floor((dueDateForMonth.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                                                return daysUntilDue >= 0 
-                                                    ? `Pendiente (${daysUntilDue} día${daysUntilDue !== 1 ? 's' : ''} restantes)` 
-                                                    : `Pendiente`;
-                                            })()}
-                                        </span>
+                                        <div className={`mt-1 ${isThisCurrentMonth ? 'font-bold' : ''}`}>
+                                            <div className={`inline-flex items-center gap-2 px-2 py-[2px] rounded-md select-none transition-colors hover:bg-slate-300/50 dark:hover:bg-slate-700/50 text-[12px] font-medium text-slate-700 dark:text-slate-300`}>
+                                                <ClockIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                                                {(() => {
+                                                    const daysUntilDue = Math.floor((dueDateForMonth.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                                                    return daysUntilDue >= 0 
+                                                        ? `Pendiente (${daysUntilDue} día${daysUntilDue !== 1 ? 's' : ''} restantes)` 
+                                                        : `Pendiente`;
+                                                })()}
+                                            </div>
+                                        </div>
                                     ) : null}
-                                </div>
                             </div>
                         </div>
                     );
@@ -389,21 +442,32 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
                              const paymentDetails = paymentStatus[expense.id]?.[`${year}-${monthIndex}`];
                              
                              // Para gastos en cuotas, calcular el valor por cuota
-                             let baseAmount = expense.amountInClp || 0; // PROTEGER CONTRA NaN
+                             let defaultClpAmount = expense.amountInClp || 0; // PROTEGER CONTRA NaN
                              if (expense.type === ExpenseType.INSTALLMENT && expense.installments > 0) {
-                                 baseAmount = (expense.amountInClp || 0) / expense.installments;
+                                 defaultClpAmount = (expense.amountInClp || 0) / expense.installments;
                              }
-                             
-                             // Payment-first logic: if payment exists, use paid amount; otherwise use calculated amount
-                             const amountInBase = paymentDetails?.overriddenAmount ?? baseAmount;
-                             
-                             // VALIDACIÓN: Solo sumar si es un número válido
-                             const safeAmount = isNaN(amountInBase) || amountInBase === null || amountInBase === undefined ? 0 : amountInBase;
+
+                             // Regla: gastos futuros sin pago y con moneda original distinta de CLP => recalcular con tipo de cambio actual
+                             const now = new Date();
+                             const isFutureMonth = year > now.getFullYear() || (year === now.getFullYear() && monthIndex > now.getMonth());
+                             let recalculatedClpAmount: number | undefined;
+                             const isPaid = paymentDetails?.paid ?? false;
+                             if (!isPaid && isFutureMonth && expense.originalCurrency && expense.originalCurrency !== 'CLP' && typeof expense.originalAmount === 'number') {
+                                 const unit = expense.originalCurrency as any;
+                                 const perPaymentOriginal = expense.type === ExpenseType.INSTALLMENT && expense.installments > 0
+                                     ? expense.originalAmount / expense.installments
+                                     : expense.originalAmount;
+                                 recalculatedClpAmount = CurrencyService.fromUnit(perPaymentOriginal, unit);
+                             }
+
+                             // Payment-first -> recálculo -> defecto
+                             const rawAmount = paymentDetails?.overriddenAmount ?? (recalculatedClpAmount ?? defaultClpAmount);
+                             const safeAmount = isNaN(rawAmount) || rawAmount === null || rawAmount === undefined ? 0 : rawAmount;
                             return sum + safeAmount;
                         }
                         return sum;
                     }, 0);
-                    return <div className={`text-right font-bold font-mono text-teal-600 dark:text-teal-300 py-4 px-4 transition-colors ${highlightHeaderClass}`}>{totalInBase > 0 ? formatClp(totalInBase) : '-'}</div>;
+                    return <div className={`text-right font-bold font-mono tabular-nums text-teal-600 dark:text-teal-300 py-4 px-4 transition-colors ${highlightHeaderClass}`}>{totalInBase > 0 ? formatClp(totalInBase) : '-'}</div>;
                 },
                 size: viewConfig.columnWidth,
             });
@@ -513,7 +577,7 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
                     return (
                         <td
                             key={cell.id}
-                            className={`align-middle transition-colors h-24 ${
+                            className={`align-middle transition-colors ${rowHeightClass} ${
                                 isFirstColumn 
                                     ? 'sticky left-0 z-10 !bg-white dark:!bg-slate-900 group-hover/row:!bg-slate-50 dark:group-hover/row:!bg-slate-800' 
                                     : '!bg-white dark:!bg-slate-900 group-hover/row:!bg-slate-50 dark:group-hover/row:!bg-slate-800'

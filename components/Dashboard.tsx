@@ -1,4 +1,4 @@
- import React, { useMemo, useState } from 'react';
+ import React, { useMemo, useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Bar } from 'react-chartjs-2';
 import { Chart, registerables } from 'chart.js';
@@ -8,6 +8,7 @@ import { isInstallmentInMonth, isInstallmentInMonthWithVersioning, getInstallmen
 import { XMarkIcon, CalendarIcon, ChevronDownIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon } from './icons';
 import { toSpanishCanonical } from '../utils/categories';
 import usePersistentState from '../hooks/usePersistentState';
+import CurrencyService from '../services/currencyService';
 
 Chart.register(...registerables);
 
@@ -30,26 +31,67 @@ interface DashboardBodyProps {
     onOpenCellEditor?: (expenseId: string, year: number, month: number) => void;
     onSelectMonth?: (monthIndex: number) => void;
     onRequestGoToTable?: (monthIndex: number) => void;
+    // Controlled includeIncomes (optional)
+    includeIncomes?: boolean;
+    onChangeIncludeIncomes?: (value: boolean) => void;
 }
 
 // Removed stringToHslColor (unused)
 
 
-export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentStatus, displayYear, displayMonth, onOpenCellEditor, onSelectMonth, onRequestGoToTable }) => {
+export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentStatus, displayYear, displayMonth, onOpenCellEditor, onSelectMonth, onRequestGoToTable, includeIncomes: includeIncomesProp, onChangeIncludeIncomes }) => {
     const { t, formatClp } = useLocalization();
     const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
     // Selected category for detail view
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-    // Toggle to include incomes (negative amounts) in category chart
-    const [includeIncomes, setIncludeIncomes] = useState<boolean>(true);
+    // Toggle to include incomes (negative amounts) in category chart (persisted so Sidebar can control it)
+    const [includeIncomesLocal, setIncludeIncomesLocal] = usePersistentState<boolean>('finansheet-include-incomes', true);
+    const includeIncomes = includeIncomesProp ?? includeIncomesLocal;
+    const setIncludeIncomes = onChangeIncludeIncomes ?? setIncludeIncomesLocal;
     // Toggle: Net balance based on paid-only vs paid+pending
     const [balanceUsesPending, setBalanceUsesPending] = useState<boolean>(true);
+    // Toggle: Split expenses bars into Paid vs Pending side-by-side
+    const [splitExpenses, setSplitExpenses] = useState<boolean>(false);
+    // Toggle: Show 3-month moving average over Net Balance
+    const [showMovingAvg, setShowMovingAvg] = useState<boolean>(false);
+    // Quick filters (persisted): include paid/pending expenses in aggregations
+    const [includePaid] = usePersistentState<boolean>('finansheet-filter-include-paid', true); // setter unused here; controlled from Sidebar
+    const [includePending] = usePersistentState<boolean>('finansheet-filter-include-pending', true);
+    // Category filters (persisted)
+    const [selectedCategories] = usePersistentState<string[]>('finansheet-filter-categories', []); // controlled from Sidebar
+    const [, setAvailableCategories] = usePersistentState<string[]>('finansheet-available-categories', []);
     // Toggle for showing full list vs Top 5 in detail
     const [showAllCatItems, setShowAllCatItems] = useState<boolean>(false);
     const totalMonthlyLabel = React.useMemo(() => {
         const label = t('dashboard.totalMonthly');
         return label === 'dashboard.totalMonthly' ? 'Total mensual' : label;
     }, [t]);
+
+    // Helper: compute amount for a given expense and month, applying overrides and current-rate recalc for future unpaid foreign-currency expenses
+    const computeAmountForMonth = React.useCallback((expense: Expense, year: number, m: number) => {
+        const ymKey = `${year}-${m}`;
+        const details = paymentStatus[expense.id]?.[ymKey];
+        const isPaid = !!details?.paid;
+        const base = getInstallmentAmountForMonth(expenses, expense, year, m);
+        // If there is an explicit overridden amount, prefer it
+        if (typeof details?.overriddenAmount === 'number') {
+            return { amount: details.overriddenAmount as number, isPaid };
+        }
+        // If future month, unpaid, and expense defined in foreign unit, recalc from original using current rate
+        const now = new Date();
+        const isFutureMonth = year > now.getFullYear() || (year === now.getFullYear() && m > now.getMonth());
+        if (!isPaid && isFutureMonth && (expense as any).originalCurrency && (expense as any).originalCurrency !== 'CLP' && typeof (expense as any).originalAmount === 'number') {
+            const unit = (expense as any).originalCurrency as any;
+            const perPaymentOriginal = (expense.type === ExpenseType.INSTALLMENT && (expense.installments || 0) > 0)
+                ? ((expense as any).originalAmount as number) / (expense.installments as number)
+                : ((expense as any).originalAmount as number);
+            const converted = CurrencyService.fromUnit(perPaymentOriginal, unit);
+            const safe = (Number.isFinite(converted) ? converted : 0);
+            return { amount: safe, isPaid };
+        }
+        // Default fallback to base schedule amount
+        return { amount: (Number.isFinite(base) ? base : 0), isPaid };
+    }, [expenses, paymentStatus]);
 
     // Active month index used across interactions (keyboard, charts, badges)
     const activeMonthIndex = typeof displayMonth === 'number' ? displayMonth : new Date().getMonth();
@@ -124,19 +166,32 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
 
         expenses.forEach(expense => {
             const category = toSpanishCanonical(expense.category || t('grid.uncategorized'));
+            if (selectedCategories.length > 0 && expense.amountInClp > 0) {
+                // Only constrain expenses by category; incomes are not category-filtered
+                if (!selectedCategories.includes(category)) return;
+            }
             const inMonth = expense.type === ExpenseType.RECURRING
                 ? isInstallmentInMonthWithVersioning(expenses, expense, displayYear, mi)
                 : isInstallmentInMonth(expense, displayYear, mi);
             if (inMonth) {
-                const paymentDetails = paymentStatus[expense.id]?.[`${displayYear}-${mi}`];
-                const installmentAmount = getInstallmentAmountForMonth(expenses, expense, displayYear, mi);
-                const amountInBase = paymentDetails?.overriddenAmount ?? installmentAmount;
+                const { amount: amountInBase, isPaid } = computeAmountForMonth(expense, displayYear, mi);
                 total += amountInBase;
                 if (amountInBase > 0) {
                     if (!catTotals[category]) catTotals[category] = 0;
                     catTotals[category] += amountInBase;
                 }
-                if (paymentDetails?.paid) paid += amountInBase;
+                if (isPaid) {
+                    if (includePaid) paid += amountInBase; else {/* excluded */}
+                } else {
+                    if (!includePending) {
+                        // If pending is excluded, remove its contribution from total and categories
+                        total -= amountInBase;
+                        if (amountInBase > 0) {
+                            catTotals[category] -= amountInBase;
+                            if (catTotals[category] <= 0) delete catTotals[category];
+                        }
+                    }
+                }
             }
         });
         const catSorted = Object.entries(catTotals)
@@ -151,7 +206,7 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
             paidPercentage: total > 0 ? (paid / total) * 100 : 0,
             categories: catSorted,
         };
-    }, [expenses, paymentStatus, displayYear, displayMonth, t]);
+    }, [expenses, paymentStatus, displayYear, displayMonth, t, includePaid, includePending, selectedCategories]);
 
     // Monthly totals removed (no longer used)
 
@@ -162,38 +217,99 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
         const expPending = new Array(12).fill(0);
         for (let m = 0; m < 12; m++) {
             expenses.forEach(expense => {
+                const category = toSpanishCanonical(expense.category || t('grid.uncategorized'));
+                if (selectedCategories.length > 0 && expense.amountInClp > 0) {
+                    if (!selectedCategories.includes(category)) return;
+                }
                 const inMonth = expense.type === ExpenseType.RECURRING
                     ? isInstallmentInMonthWithVersioning(expenses, expense, displayYear, m)
                     : isInstallmentInMonth(expense, displayYear, m);
                 if (!inMonth) return;
-                const details = paymentStatus[expense.id]?.[`${displayYear}-${m}`];
-                const base = getInstallmentAmountForMonth(expenses, expense, displayYear, m);
-                const amount = details?.overriddenAmount ?? base; // incomes are negative by data model
+                const { amount, isPaid } = computeAmountForMonth(expense, displayYear, m); // incomes are negative by data model
                 if (amount < 0) {
                     income[m] += Math.abs(amount);
                 } else if (amount > 0) {
-                    if (details?.paid) expPaid[m] += amount; else expPending[m] += amount;
+                    if (isPaid) {
+                        if (includePaid) expPaid[m] += amount;
+                    } else {
+                        if (includePending) expPending[m] += amount;
+                    }
                 }
             });
         }
         return { monthlyIncome: income, monthlyExpensesPaid: expPaid, monthlyExpensesPending: expPending };
-    }, [expenses, paymentStatus, displayYear]);
+    }, [expenses, paymentStatus, displayYear, includePaid, includePending, selectedCategories, t, computeAmountForMonth]);
+
+    // Net balance per month according to current balance toggle
+    const netMonthly = useMemo(() => {
+        const arr: number[] = new Array(12).fill(0);
+        for (let i = 0; i < 12; i++) {
+            const expensesTotal = (monthlyExpensesPaid[i] || 0) + (balanceUsesPending ? (monthlyExpensesPending[i] || 0) : 0);
+            arr[i] = (monthlyIncome[i] || 0) - expensesTotal;
+        }
+        return arr;
+    }, [monthlyIncome, monthlyExpensesPaid, monthlyExpensesPending, balanceUsesPending]);
+
+    // Derive available categories from expenses and persist for Sidebar UI
+    React.useEffect(() => {
+        const set = new Set<string>();
+        expenses.forEach(e => {
+            if (e.amountInClp > 0) {
+                set.add(toSpanishCanonical(e.category || t('grid.uncategorized')));
+            }
+        });
+        const arr = Array.from(set).sort((a, b) => a.localeCompare(b));
+        setAvailableCategories(arr);
+    }, [expenses, t, setAvailableCategories]);
+
+    // Trailing 3-month moving average of net
+    const movingAvg3m = useMemo(() => {
+        const avg: number[] = new Array(12).fill(0);
+        for (let i = 0; i < 12; i++) {
+            let sum = 0; let count = 0;
+            for (let k = Math.max(0, i - 2); k <= i; k++) { sum += netMonthly[k]; count++; }
+            avg[i] = count > 0 ? (sum / count) : 0;
+        }
+        return avg;
+    }, [netMonthly]);
     
-    const barData = useMemo(() => ({
-        labels: MONTHS_ES,
-        datasets: [
-            // Ingresos (upwards)
-            {
-                label: 'Ingresos',
-                data: monthlyIncome.map(v => Math.max(0, v)),
-                backgroundColor: 'rgba(34,197,94,0.45)',
-                borderColor: 'rgba(16,185,129,0.85)',
+    const barData = useMemo(() => {
+        const datasets: any[] = [];
+        // Ingresos (upwards)
+        datasets.push({
+            label: 'Ingresos',
+            data: monthlyIncome.map(v => Math.max(0, v)),
+            backgroundColor: 'rgba(34,197,94,0.45)',
+            borderColor: 'rgba(16,185,129,0.85)',
+            borderWidth: 1,
+            borderRadius: 6,
+            hoverBackgroundColor: 'rgba(34,197,94,0.65)'
+        });
+
+        if (splitExpenses) {
+            // Gastos Pagados
+            datasets.push({
+                label: 'Gastos Pagados',
+                data: monthlyExpensesPaid.map(v => Math.max(0, v)),
+                backgroundColor: 'rgba(100,116,139,0.35)', // slate-500-ish
+                borderColor: 'rgba(100,116,139,0.85)',
                 borderWidth: 1,
                 borderRadius: 6,
-                hoverBackgroundColor: 'rgba(34,197,94,0.65)'
-            },
-            // Gastos (upwards, total = pagado + pendiente si toggle activo)
-            {
+                hoverBackgroundColor: 'rgba(100,116,139,0.55)'
+            });
+            // Gastos Pendientes
+            datasets.push({
+                label: 'Gastos Pendientes',
+                data: monthlyExpensesPending.map(v => Math.max(0, v)),
+                backgroundColor: 'rgba(245,158,11,0.30)', // amber-500-ish
+                borderColor: 'rgba(245,158,11,0.85)',
+                borderWidth: 1,
+                borderRadius: 6,
+                hoverBackgroundColor: 'rgba(245,158,11,0.50)'
+            });
+        } else {
+            // Gastos combinados (pagado + pendiente opcional para balance visual)
+            datasets.push({
                 label: 'Gastos',
                 data: (function(){
                     const arr: number[] = [];
@@ -208,30 +324,46 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                 borderWidth: 1,
                 borderRadius: 6,
                 hoverBackgroundColor: 'rgba(148,163,184,0.55)'
-            },
-            // Balance line
-            {
+            });
+        }
+
+        // Balance line (usa el toggle balanceUsesPending)
+        datasets.push({
+            type: 'line' as const,
+            label: 'Balance',
+            data: netMonthly,
+            borderColor: 'rgba(249,115,22,0.95)',
+            borderWidth: 2.5,
+            backgroundColor: 'rgba(249,115,22,0.2)',
+            pointRadius: 4,
+            pointBackgroundColor: 'rgba(249,115,22,0.95)',
+            pointHoverRadius: 6,
+            tension: 0.25,
+            yAxisID: 'y'
+        });
+
+        // Moving average 3M (optional)
+        if (showMovingAvg) {
+            datasets.push({
                 type: 'line' as const,
-                label: 'Balance',
-                data: (function(){
-                    const net: number[] = [];
-                    for (let i = 0; i < 12; i++) {
-                        const expensesTotal = (monthlyExpensesPaid[i] || 0) + (balanceUsesPending ? (monthlyExpensesPending[i] || 0) : 0);
-                        net.push(monthlyIncome[i] - expensesTotal);
-                    }
-                    return net;
-                })(),
-                borderColor: 'rgba(249,115,22,0.95)',
-                borderWidth: 2.5,
-                backgroundColor: 'rgba(249,115,22,0.2)',
-                pointRadius: 4,
-                pointBackgroundColor: 'rgba(249,115,22,0.95)',
-                pointHoverRadius: 6,
+                label: 'Media móvil 3M',
+                data: movingAvg3m,
+                borderColor: 'rgba(59,130,246,0.9)', // blue-500
+                backgroundColor: 'rgba(59,130,246,0.15)',
+                borderWidth: 2,
+                pointRadius: 0,
+                pointHoverRadius: 0,
                 tension: 0.25,
-                yAxisID: 'y'
-            }
-        ]
-    }), [MONTHS_ES, monthlyIncome, monthlyExpensesPaid, monthlyExpensesPending, balanceUsesPending]);
+                yAxisID: 'y',
+                borderDash: [6, 6]
+            });
+        }
+
+        return {
+            labels: MONTHS_ES,
+            datasets
+        };
+    }, [MONTHS_ES, monthlyIncome, monthlyExpensesPaid, monthlyExpensesPending, balanceUsesPending, splitExpenses, netMonthly, showMovingAvg, movingAvg3m]);
 
     // Abreviador compacto para ejes (K/M)
     const formatAbbrev = (n: number) => {
@@ -260,9 +392,7 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                     : isInstallmentInMonth(expense, displayYear, mi);
                 if (!inMonth) return;
                 const cat = toSpanishCanonical(expense.category || t('grid.uncategorized'));
-                const details = paymentStatus[expense.id]?.[`${displayYear}-${mi}`];
-                const base = getInstallmentAmountForMonth(expenses, expense, displayYear, mi);
-                const amount = details?.overriddenAmount ?? base; // positive for expenses, negative for incomes
+                const { amount } = computeAmountForMonth(expense, displayYear, mi); // positive for expenses, negative for incomes
                 totals[cat] = (totals[cat] || 0) + amount;
             });
             const entries = Object.entries(totals)
@@ -309,7 +439,6 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
     const selectedCatDetails = useMemo(() => {
         if (!selectedCategory) return null;
         const mi = monthlySummary.monthIndex;
-        const ymKey = `${displayYear}-${mi}`;
         const items = expenses
             .filter(e => {
                 const inMonth = e.type === ExpenseType.RECURRING
@@ -320,9 +449,7 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                 return expCat === selectedCategory;
             })
             .map(e => {
-                const details = paymentStatus[e.id]?.[ymKey];
-                const base = getInstallmentAmountForMonth(expenses, e, displayYear, mi);
-                const amount = (details?.overriddenAmount ?? base);
+                const { amount } = computeAmountForMonth(e, displayYear, mi);
                 return { id: e.id, name: e.name, amount };
             })
             .filter(it => includeIncomes ? (it.amount || 0) !== 0 : (it.amount || 0) > 0)
@@ -501,7 +628,7 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                                     <li key={idx} className="py-1.5 px-0">
                                         <button
                                             onClick={() => onOpenCellEditor && onOpenCellEditor(it.expenseId, displayYear, it.monthIndex)}
-                                            onMouseEnter={(e) => showTooltip(`${dateLabel} · ${tooltipText}`, e.clientX + 12, e.clientY + 12)}
+                                            onMouseEnter={(e) => showTooltip(`${dateLabel} ${tooltipText}`, e.clientX + 12, e.clientY + 12)}
                                             onMouseMove={(e) => moveTooltip(e.clientX + 12, e.clientY + 12)}
                                             onMouseLeave={hideTooltip}
                                             className={`w-full grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded px-2 py-1.5 transition ${it.isOverdue
@@ -657,7 +784,7 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                             <>
                                 <div className="flex items-center justify-between mb-2 gap-2">
                                     <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{selectedCategory}</div>
-                                    <div className="text-xs text-slate-600 dark:text-slate-300 tabular-nums">{formatClp(selectedCatDetails.total)} · {selectedCatDetails.pct.toFixed(1)}%</div>
+                                    <div className="text-xs text-slate-600 dark:text-slate-300 tabular-nums">{formatClp(selectedCatDetails.total)} {selectedCatDetails.pct.toFixed(1)}%</div>
                                 </div>
                                 {selectedCatDetails.items.length > 0 ? (
                                     <>
@@ -700,15 +827,35 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
             <div className="order-6 lg:row-start-2 lg:col-start-2 lg:col-span-3 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700/50 rounded-lg p-3 overflow-visible h-full flex flex-col min-h-0">
                 <div className="mb-1 flex items-center justify-between gap-2">
                     <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{(t('dashboard.monthlySpending') === 'dashboard.monthlySpending' ? 'Gasto mensual del año' : t('dashboard.monthlySpending')) + ' ' + displayYear}</div>
-                    <label className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
-                        <input
-                            type="checkbox"
-                            className="rounded border-slate-300 dark:border-slate-600"
-                            checked={balanceUsesPending}
-                            onChange={(e) => setBalanceUsesPending(e.target.checked)}
-                        />
-                        <span>Balance: {balanceUsesPending ? 'Pagado + Pendiente' : 'Solo Pagado'}</span>
-                    </label>
+                    <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                            <input
+                                type="checkbox"
+                                className="rounded border-slate-300 dark:border-slate-600"
+                                checked={showMovingAvg}
+                                onChange={(e) => setShowMovingAvg(e.target.checked)}
+                            />
+                            <span>Media móvil 3M</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                            <input
+                                type="checkbox"
+                                className="rounded border-slate-300 dark:border-slate-600"
+                                checked={splitExpenses}
+                                onChange={(e) => setSplitExpenses(e.target.checked)}
+                            />
+                            <span>Gastos: {splitExpenses ? 'Pagado vs Pendiente' : 'Combinados'}</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                            <input
+                                type="checkbox"
+                                className="rounded border-slate-300 dark:border-slate-600"
+                                checked={balanceUsesPending}
+                                onChange={(e) => setBalanceUsesPending(e.target.checked)}
+                            />
+                            <span>Balance: {balanceUsesPending ? 'Pagado + Pendiente' : 'Solo Pagado'}</span>
+                        </label>
+                    </div>
                 </div>
                 <div className="flex-1 min-h-0 min-h-[280px] md:min-h-[300px]" onDoubleClick={handleBarDoubleClick}>
                     <Bar ref={barRef} data={barData as any} options={{
@@ -740,9 +887,32 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                             },
                             tooltip: {
                                 callbacks: {
+                                    title: (items) => {
+                                        const idx = items?.[0]?.dataIndex ?? 0;
+                                        return `${MONTHS_ES[idx]} ${displayYear}`;
+                                    },
                                     label: (ctx) => {
                                         const val = ctx.parsed.y ?? 0;
                                         return `${ctx.dataset.label || ''}: ${formatClp(val)}`;
+                                    },
+                                    afterBody: (items) => {
+                                        const idx = items?.[0]?.dataIndex ?? 0;
+                                        const income = monthlyIncome[idx] || 0;
+                                        const paid = monthlyExpensesPaid[idx] || 0;
+                                        const pending = monthlyExpensesPending[idx] || 0;
+                                        const visualExpenses = splitExpenses ? (paid + pending) : ((monthlyExpensesPaid[idx] || 0) + (balanceUsesPending ? (monthlyExpensesPending[idx] || 0) : 0));
+                                        const net = income - (paid + (balanceUsesPending ? pending : 0));
+                                        const lines = [
+                                            `Ingresos: ${formatClp(income)}`,
+                                            `Pagado: ${formatClp(paid)}`,
+                                            `Pendiente: ${formatClp(pending)}`,
+                                            `Gastos (visual): ${formatClp(visualExpenses)}`,
+                                            `Balance: ${formatClp(net)}`
+                                        ];
+                                        if (showMovingAvg) {
+                                            lines.push(`Media móvil 3M: ${formatClp(movingAvg3m[idx] || 0)}`);
+                                        }
+                                        return lines;
                                     }
                                 }
                             }
@@ -794,13 +964,170 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
 
 // Sidebar summary (compact panel content for the left sidebar)
 export const SidebarSummaryBody: React.FC = () => {
-    const { t } = useLocalization();
+    const { t, formatClp } = useLocalization();
+    // Shared with DashboardBody via the same persistent key
+    const [includeIncomes, setIncludeIncomes] = usePersistentState<boolean>('finansheet-include-incomes', true);
+    const [includePaid, setIncludePaid] = usePersistentState<boolean>('finansheet-filter-include-paid', true);
+    const [includePending, setIncludePending] = usePersistentState<boolean>('finansheet-filter-include-pending', true);
+    const [selectedCategories, setSelectedCategories] = usePersistentState<string[]>('finansheet-filter-categories', []);
+    const [availableCategories] = usePersistentState<string[]>('finansheet-available-categories', []);
+    // Current rates snapshot
+    const [rates, setRates] = useState(CurrencyService.getSnapshot()?.rates);
+    const [updatedAt, setUpdatedAt] = useState<Date | undefined>(CurrencyService.lastUpdated());
+    const [refreshing, setRefreshing] = useState(false);
+
+    useEffect(() => {
+        let unsub: (() => void) | undefined;
+        (async () => {
+            try {
+                const snap = await CurrencyService.init();
+                setRates(snap.rates);
+                setUpdatedAt(new Date(snap.updatedAt));
+            } catch {
+                // ignore; UI will show placeholders
+            }
+            unsub = CurrencyService.subscribe((snap) => {
+                setRates(snap.rates);
+                setUpdatedAt(new Date(snap.updatedAt));
+            });
+        })();
+        return () => { if (unsub) unsub(); };
+    }, []);
+
+    const onRefreshRates = async () => {
+        try {
+            setRefreshing(true);
+            const snap = await CurrencyService.refresh();
+            setRates(snap.rates);
+            setUpdatedAt(new Date(snap.updatedAt));
+        } finally {
+            setRefreshing(false);
+        }
+    };
     return (
         <div className="bg-slate-100 dark:bg-slate-900/70 p-4 rounded-lg ring-1 ring-slate-200 dark:ring-slate-700/50">
-            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">{t('dashboard.sidebar') || 'Panel'}</h3>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-                {`Usa el chip "Mes" en "Total mensual" para cambiar el mes. En el gráfico: clic = seleccionar mes, doble clic = ir a tabla.`}
-            </p>
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">{t('dashboard.sidebar') || 'Panel'}</h3>
+            <div className="flex flex-col gap-3">
+                {/* Filtro de categorías */}
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300">Filtrar por categorías</h4>
+                        {selectedCategories.length > 0 && (
+                            <button
+                                onClick={() => setSelectedCategories([])}
+                                className="text-xs text-teal-700 dark:text-teal-400 hover:underline"
+                                title="Quitar filtro de categorías"
+                            >
+                                Quitar filtro
+                            </button>
+                        )}
+                    </div>
+                    <div className="max-h-40 overflow-auto rounded-md border border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700 bg-white/50 dark:bg-slate-800/50">
+                        {availableCategories.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-slate-500">Sin categorías</div>
+                        ) : (
+                            availableCategories.map(cat => {
+                                const checked = selectedCategories.includes(cat);
+                                return (
+                                    <label key={cat} className="flex items-center gap-2 px-3 py-2 text-xs text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-slate-300 dark:border-slate-600"
+                                            checked={checked}
+                                            onChange={(e) => {
+                                                if (e.target.checked) setSelectedCategories([...selectedCategories, cat]);
+                                                else setSelectedCategories(selectedCategories.filter(c => c !== cat));
+                                            }}
+                                        />
+                                        <span>{cat}</span>
+                                    </label>
+                                );
+                            })
+                        )}
+                    </div>
+                    {selectedCategories.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                            {selectedCategories.map(cat => (
+                                <span key={cat} className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full bg-teal-100 text-teal-800 dark:bg-teal-800/40 dark:text-teal-100">
+                                    {cat}
+                                    <button
+                                        onClick={() => setSelectedCategories(selectedCategories.filter(c => c !== cat))}
+                                        className="ml-1 text-[10px] hover:opacity-80"
+                                        title={`Quitar ${cat}`}
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <label className="inline-flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                    <input
+                        type="checkbox"
+                        className="rounded border-slate-300 dark:border-slate-600"
+                        checked={includeIncomes}
+                        onChange={(e) => setIncludeIncomes(e.target.checked)}
+                    />
+                    <span>Incluir ingresos en categorías</span>
+                </label>
+                <div className="flex items-center gap-4">
+                    <label className="inline-flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                        <input
+                            type="checkbox"
+                            className="rounded border-slate-300 dark:border-slate-600"
+                            checked={includePaid}
+                            onChange={(e) => setIncludePaid(e.target.checked)}
+                        />
+                        <span>Incluir Pagado</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                        <input
+                            type="checkbox"
+                            className="rounded border-slate-300 dark:border-slate-600"
+                            checked={includePending}
+                            onChange={(e) => setIncludePending(e.target.checked)}
+                        />
+                        <span>Incluir Pendiente</span>
+                    </label>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {`Usa el chip "Mes" en "Total mensual" para cambiar el mes. En el gráfico: clic = seleccionar mes, doble clic = ir a tabla.`}
+                </p>
+                {/* Current Rates widget */}
+                <div className="mt-3 p-3 rounded-md bg-white/60 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs font-semibold text-slate-700 dark:text-slate-300">Tasas actuales</div>
+                        <button
+                            className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-600 hover:bg-slate-200/60 dark:hover:bg-slate-600/70 disabled:opacity-60"
+                            onClick={onRefreshRates}
+                            disabled={refreshing}
+                            title="Actualizar tasas"
+                        >{refreshing ? 'Actualizando…' : 'Actualizar'}</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700 dark:text-slate-200">
+                        <div className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 dark:bg-slate-900/40">
+                            <span className="font-medium">USD</span>
+                            <span className="tabular-nums">{rates?.USD ? formatClp(rates.USD) : '—'}</span>
+                        </div>
+                        <div className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 dark:bg-slate-900/40">
+                            <span className="font-medium">EUR</span>
+                            <span className="tabular-nums">{rates?.EUR ? formatClp(rates.EUR) : '—'}</span>
+                        </div>
+                        <div className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 dark:bg-slate-900/40">
+                            <span className="font-medium">UF</span>
+                            <span className="tabular-nums">{rates?.UF ? formatClp(rates.UF) : '—'}</span>
+                        </div>
+                        <div className="flex items-center justify-between px-2 py-1 rounded bg-slate-50 dark:bg-slate-900/40">
+                            <span className="font-medium">UTM</span>
+                            <span className="tabular-nums">{rates?.UTM ? formatClp(rates.UTM) : '—'}</span>
+                        </div>
+                    </div>
+                    <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
+                        {updatedAt ? `Actualizado: ${updatedAt.toLocaleString('es-CL')}` : 'Actualizado: —'}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
@@ -808,6 +1135,33 @@ export const SidebarSummaryBody: React.FC = () => {
 const Dashboard: React.FC<DashboardProps> = ({ expenses: _expenses, paymentStatus: _paymentStatus, displayYear: _displayYear, displayMonth: _displayMonth, isOpen, onClose }) => {
     const { t } = useLocalization();
     const [isCollapsed, setIsCollapsed] = usePersistentState<boolean>('finansheet-sidebar-collapsed', false);
+    // Sidebar resizable state (persisted)
+    const [sidebarWidth, setSidebarWidth] = usePersistentState<number>('finansheet-sidebar-width', 320);
+    const resizeState = React.useRef<{ startX: number; startW: number; dragging: boolean } | null>(null);
+    const minW = 220;
+    const maxW = 480;
+    const onResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (isCollapsed) return;
+        resizeState.current = { startX: e.clientX, startW: sidebarWidth, dragging: true };
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        window.addEventListener('mousemove', onResizeMouseMove);
+        window.addEventListener('mouseup', onResizeMouseUp);
+    };
+    const onResizeMouseMove = (e: MouseEvent) => {
+        const st = resizeState.current; if (!st || !st.dragging) return;
+        const dx = e.clientX - st.startX;
+        const next = Math.min(maxW, Math.max(minW, st.startW + dx));
+        setSidebarWidth(next);
+    };
+    const onResizeMouseUp = () => {
+        const st = resizeState.current; if (!st) return;
+        resizeState.current = null;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', onResizeMouseMove);
+        window.removeEventListener('mouseup', onResizeMouseUp);
+    };
     return (
         <>
             {/* Mobile Overlay */}
@@ -816,7 +1170,10 @@ const Dashboard: React.FC<DashboardProps> = ({ expenses: _expenses, paymentStatu
                 onClick={onClose}
                 aria-hidden="true"
             ></div>
-            <aside className={`group relative fixed top-0 left-0 h-full bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-xl border-r border-slate-200 dark:border-slate-700/50 ${isCollapsed ? 'w-14' : 'w-72'} p-4 text-slate-800 dark:text-slate-200 z-50 transition-transform lg:static lg:bg-transparent lg:dark:bg-slate-950/70 lg:translate-x-0 ${isCollapsed ? 'lg:w-16' : 'lg:w-80'} lg:shrink-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <aside
+                className={`group relative fixed top-0 left-0 h-full bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-xl border-r border-slate-200 dark:border-slate-700/50 ${isCollapsed ? 'w-14' : 'w-72'} p-4 text-slate-800 dark:text-slate-200 z-50 transition-transform lg:static lg:bg-transparent lg:dark:bg-slate-950/70 lg:translate-x-0 ${isCollapsed ? 'lg:w-16' : 'lg:w-80'} lg:shrink-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+                style={!isCollapsed ? { width: `${sidebarWidth}px` } : undefined}
+            >
                 <div className="flex justify-between items-center mb-6">
                     <h2 className={`text-xl font-bold text-slate-900 dark:text-white transition-opacity ${isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>{t('dashboard.title')}</h2>
                     <button onClick={onClose} className="lg:hidden p-1 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" aria-label={t('mobile.closeMenu')}>
@@ -835,6 +1192,17 @@ const Dashboard: React.FC<DashboardProps> = ({ expenses: _expenses, paymentStatu
                 >
                     {isCollapsed ? '›' : '‹'}
                 </button>
+                {/* Resize handle (desktop) */}
+                {!isCollapsed && (
+                    <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        title="Arrastra para redimensionar"
+                        onMouseDown={onResizeMouseDown}
+                        className="hidden lg:block absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-slate-300/40 dark:hover:bg-slate-600/30"
+                        style={{ transform: 'translateX(50%)' }}
+                    />
+                )}
             </aside>
         </>
     );

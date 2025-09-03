@@ -3,6 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Expense, PaymentDetails, PaymentUnit } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
 import { getInstallmentAmount } from '../utils/expenseCalculations';
+import CurrencyService from '../services/currencyService';
+import { getExchangeRate } from '../services/exchangeRateService';
 
 interface CellEditModalProps {
     isOpen: boolean;
@@ -16,18 +18,55 @@ interface CellEditModalProps {
 }
 
 const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
-const formSelectClasses = `${formInputClasses} appearance-none`;
 const formLabelClasses = "block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5";
 
 
 const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, expense, paymentDetails, year, month, onDelete }) => {
-    const { t, currency, getLocalizedMonths, fromBase, toBaseFromUnit } = useLocalization();
+    const { t, currency, getLocalizedMonths } = useLocalization();
 
     const [displayAmount, setDisplayAmount] = useState('');
     const [dueDate, setDueDate] = useState(expense.dueDate);
     const [isPaid, setIsPaid] = useState(false);
     const [paymentDate, setPaymentDate] = useState(''); // YYYY-MM-DD format
     const [unit, setUnit] = useState<PaymentUnit>(currency);
+
+    // Convert an amount from one unit to another using API-backed rates.
+    // If paid and a payment date is present, use historical rates for that date; else use current snapshot.
+    const convertBetweenUnitsApiBacked = async (amount: number, fromUnit: PaymentUnit, toUnit: PaymentUnit): Promise<number> => {
+        if (fromUnit === toUnit) return amount;
+        // First convert from 'fromUnit' to CLP
+        let amountInClp = amount;
+        if (fromUnit === 'CLP') {
+            amountInClp = amount;
+        } else if (isPaid && paymentDate) {
+            // Historical rate by date
+            const [y, m, d] = paymentDate.split('-').map(p => parseInt(p, 10));
+            const dateStr = `${d.toString().padStart(2, '0')}-${m.toString().padStart(2, '0')}-${y}`;
+            const rate = await getExchangeRate(fromUnit, dateStr); // CLP per unit
+            amountInClp = amount * rate;
+        } else {
+            amountInClp = CurrencyService.fromUnit(amount, fromUnit as any);
+        }
+        // Then convert CLP to 'toUnit'
+        if (toUnit === 'CLP') return amountInClp;
+        if (isPaid && paymentDate) {
+            const [y, m, d] = paymentDate.split('-').map(p => parseInt(p, 10));
+            const dateStr = `${d.toString().padStart(2, '0')}-${m.toString().padStart(2, '0')}-${y}`;
+            const rateTo = await getExchangeRate(toUnit, dateStr); // CLP per unit
+            if (!rateTo) return amount; // fallback
+            return amountInClp / rateTo;
+        }
+        const converted = CurrencyService.toUnit(amountInClp, toUnit as any);
+        return converted;
+    };
+
+    const handleUnitChange = async (nextUnit: PaymentUnit) => {
+        const currentVal = parseFloat(displayAmount) || 0;
+        const converted = await convertBetweenUnitsApiBacked(currentVal, unit, nextUnit);
+        setUnit(nextUnit);
+        const formatted = nextUnit === 'CLP' ? String(Math.round(converted)) : String(parseFloat(converted.toFixed(6)));
+        setDisplayAmount(formatted);
+    };
 
     // Robust overlay click handling to prevent accidental close on drag/select
     const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -69,7 +108,7 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
                 setPaymentDate(new Date().toISOString().split('T')[0]); // Default to today
             }
         }
-    }, [isOpen, paymentDetails, defaultAmountInBase, expense.dueDate, fromBase, currency]);
+    }, [isOpen, paymentDetails, defaultAmountInBase, expense.dueDate, currency]);
 
 
     useEffect(() => {
@@ -86,22 +125,33 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
 
     if (!isOpen) return null;
 
-    const handleSave = () => {
+    const hasRecord = !!paymentDetails; // Only enable destructive actions if a saved record exists
+
+    const handleSave = async () => {
         const newDetails: Partial<PaymentDetails> = {
             paid: isPaid,
         };
 
         const displayValue = parseFloat(displayAmount) || 0;
-        // For CLP amounts, use the value directly since we're already in base currency
-        // For other units, convert to base currency
-        const savedAmountInBase = unit === 'CLP' ? displayValue : toBaseFromUnit(displayValue, unit);
+        // Always save overriddenAmount in CLP using API-backed rates
+        let savedAmountInClp: number;
+        if (unit === 'CLP') {
+            savedAmountInClp = displayValue;
+        } else if (isPaid && paymentDate) {
+            const [y, m, d] = paymentDate.split('-').map(p => parseInt(p, 10));
+            const dateStr = `${d.toString().padStart(2, '0')}-${m.toString().padStart(2, '0')}-${y}`;
+            const rate = await getExchangeRate(unit, dateStr);
+            savedAmountInClp = displayValue * rate;
+        } else {
+            savedAmountInClp = CurrencyService.fromUnit(displayValue, unit as any);
+        }
         
         // If the installment is paid, ALWAYS save the amount to freeze it.
         // Otherwise, only save it if it's different from the default.
         if (isPaid) {
-            newDetails.overriddenAmount = savedAmountInBase;
-        } else if (Math.abs(savedAmountInBase - defaultAmountInBase) > 0.001) {
-            newDetails.overriddenAmount = savedAmountInBase;
+            newDetails.overriddenAmount = savedAmountInClp;
+        } else if (Math.abs(savedAmountInClp - defaultAmountInBase) > 0.001) {
+            newDetails.overriddenAmount = savedAmountInClp;
         } else {
             newDetails.overriddenAmount = undefined; // Explicitly clear if not paid and returned to default
         }
@@ -150,7 +200,7 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
                                 className={formInputClasses}
                                 step="any"
                             />
-                            <select id="cell-unit" value={unit} onChange={e => setUnit(e.target.value as PaymentUnit)} className="w-40 bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                            <select id="cell-unit" value={unit} onChange={e => handleUnitChange(e.target.value as PaymentUnit)} className="w-40 bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                                 <option value="CLP">{t('unit.CLP')}</option>
                                 <option value="USD">{t('unit.USD')}</option>
                                 <option value="UF">{t('unit.UF')}</option>
@@ -202,10 +252,13 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
                         {onDelete && (
                             <button
                                 type="button"
-                                onClick={onDelete}
-                                className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors font-medium"
+                                disabled={!hasRecord}
+                                onClick={() => { if (hasRecord) onDelete(); }}
+                                className={`px-3 py-2 rounded-lg text-white font-medium transition-colors ${hasRecord ? 'bg-rose-600 hover:bg-rose-700' : 'bg-rose-600/50 cursor-not-allowed opacity-60'}`}
+                                aria-disabled={!hasRecord}
+                                title={hasRecord ? '' : 'No hay registro de pago guardado para eliminar'}
                             >
-                                Eliminar pago
+                                Eliminar registro
                             </button>
                         )}
                     </div>

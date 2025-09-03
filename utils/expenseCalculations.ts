@@ -1,4 +1,4 @@
-import { Expense, PaymentFrequency } from '../types';
+import { Expense, PaymentFrequency, ExpenseType } from '../types';
 import { getActiveExpenseVersion, getBaseExpenseIdFromObject } from './expenseVersioning';
 
 export const getFrequencyInMonths = (frequency: PaymentFrequency): number => {
@@ -13,19 +13,40 @@ export const getFrequencyInMonths = (frequency: PaymentFrequency): number => {
     }
 };
 
+// Amount for a specific month, version-aware and historicalAmounts-aware
+export const getInstallmentAmountForMonth = (
+    allExpenses: Expense[],
+    expense: Expense,
+    year: number,
+    month: number
+): number => {
+    if (!expense) return 0;
+    // For recurring, resolve active version for the month
+    const version = expense.type === ExpenseType.RECURRING
+        ? (getActiveExpenseVersion(allExpenses, getBaseExpenseIdFromObject(expense), year, month) || expense)
+        : expense;
+
+    const key = `${year}-${month}`;
+    const hist = version.historicalAmounts?.[key];
+    if (typeof hist === 'number' && hist > 0) return hist;
+
+    return getInstallmentAmount(version);
+};
+
 export const getInstallmentAmount = (expense: Expense): number => {
-    if (!expense || expense.installments <= 0) return 0;
-    
+    if (!expense) return 0;
+
     // For recurring expenses, return the full amount per payment (not divided)
     if (expense.type === 'RECURRING') {
         return expense.amountInClp;
     }
-    
+
     // For installment expenses, divide the total amount by number of installments
     if (expense.type === 'INSTALLMENT') {
+        if (!expense.installments || expense.installments <= 0) return 0;
         return expense.amountInClp / expense.installments;
     }
-    
+
     // For variable expenses, return the full amount
     return expense.amountInClp;
 };
@@ -98,6 +119,12 @@ export const isInstallmentInMonth = (expense: Expense, year: number, month: numb
     }
 
     const installmentIndex = monthsSinceStart / frequencyInMonths;
+
+    // Recurring with infinite installments (<= 0) => always active on applicable months
+    if (expense.type === 'RECURRING' && (!installments || installments <= 0)) {
+        return true;
+    }
+
     return installmentIndex < installments;
 };
 
