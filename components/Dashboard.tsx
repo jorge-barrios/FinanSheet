@@ -1,7 +1,7 @@
  import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { Bar } from 'react-chartjs-2';
-import { Chart, CategoryScale, LinearScale, BarElement, Tooltip, Legend, LineElement, PointElement } from 'chart.js';
+import { Chart, registerables } from 'chart.js';
 import { Expense, PaymentStatus, ExpenseType } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
 import { isInstallmentInMonth, isInstallmentInMonthWithVersioning, getInstallmentAmount, getInstallmentAmountForMonth } from '../utils/expenseCalculations';
@@ -9,7 +9,7 @@ import { XMarkIcon, CalendarIcon, ChevronDownIcon, ArrowTrendingUpIcon, ArrowTre
 import { toSpanishCanonical } from '../utils/categories';
 import usePersistentState from '../hooks/usePersistentState';
 
-Chart.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend, LineElement, PointElement);
+Chart.register(...registerables);
 
 
 
