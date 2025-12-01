@@ -18,7 +18,7 @@ interface ExpenseFormProps {
     categories: string[];
 }
 
-const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
+const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
 const formSelectClasses = `${formInputClasses} appearance-none`;
 const formLabelClasses = "block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5";
 
@@ -116,7 +116,7 @@ const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, expenseTo
                                 <button
                                     type="button"
                                     onClick={() => handleTypeSelection(ExpenseType.RECURRING)}
-                                    className="p-4 border-2 border-slate-200 dark:border-slate-600 rounded-lg hover:border-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-all text-left"
+                                    className="p-4 border-2 border-slate-200 dark:border-slate-600 rounded-lg hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-all text-left"
                                 >
                                     <div className="flex items-center gap-3">
                                         <span className="text-2xl">🔄</span>
@@ -130,7 +130,7 @@ const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, expenseTo
                                 <button
                                     type="button"
                                     onClick={() => handleTypeSelection(ExpenseType.INSTALLMENT)}
-                                    className="p-4 border-2 border-slate-200 dark:border-slate-600 rounded-lg hover:border-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-all text-left"
+                                    className="p-4 border-2 border-slate-200 dark:border-slate-600 rounded-lg hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-all text-left"
                                 >
                                     <div className="flex items-center gap-3">
                                         <span className="text-2xl">📊</span>
@@ -144,7 +144,7 @@ const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, expenseTo
                                 <button
                                     type="button"
                                     onClick={() => handleTypeSelection(ExpenseType.VARIABLE)}
-                                    className="p-4 border-2 border-slate-200 dark:border-slate-600 rounded-lg hover:border-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-all text-left"
+                                    className="p-4 border-2 border-slate-200 dark:border-slate-600 rounded-lg hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-all text-left"
                                 >
                                     <div className="flex items-center gap-3">
                                         <span className="text-2xl">💰</span>
@@ -183,7 +183,7 @@ const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, expenseTo
                             <button
                                 type="button"
                                 onClick={handleBack}
-                                className="text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
+                                className="text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
                             >
                                 ← Cambiar tipo
                             </button>
@@ -392,7 +392,7 @@ const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, expenseTo
                                         type="checkbox"
                                         checked={isOngoing}
                                         onChange={(e) => setIsOngoing(e.target.checked)}
-                                        className="h-4 w-4 rounded border-slate-400 dark:border-slate-500 text-teal-500 focus:ring-teal-600 bg-slate-100 dark:bg-slate-700/50"
+                                        className="h-4 w-4 rounded border-slate-400 dark:border-slate-500 text-sky-500 focus:ring-sky-600 bg-slate-100 dark:bg-slate-700/50"
                                     />
                                     <label htmlFor="isOngoing" className="ml-2 block text-sm text-slate-700 dark:text-slate-300">
                                         Gasto indefinido (sin fecha de fin)
@@ -602,7 +602,7 @@ const ExpenseFormNew: React.FC<ExpenseFormProps> = ({ isOpen, onClose, expenseTo
                             </button>
                             <button 
                                 type="submit" 
-                                className="px-5 py-2 rounded-lg bg-teal-500 hover:bg-teal-600 dark:hover:bg-teal-400 text-white transition-colors font-medium shadow-lg shadow-teal-500/20"
+                                className="px-5 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 dark:hover:bg-sky-400 text-white transition-colors font-medium shadow-lg shadow-sky-500/20"
                             >
                                 {expenseToEdit ? 'Guardar Cambios' : 'Añadir Gasto'}
                             </button>

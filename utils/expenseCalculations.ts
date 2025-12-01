@@ -1,5 +1,6 @@
 import { Expense, PaymentFrequency, ExpenseType } from '../types';
 import { getActiveExpenseVersion, getBaseExpenseIdFromObject } from './expenseVersioning';
+import CurrencyService from '../services/currencyService';
 
 export const getFrequencyInMonths = (frequency: PaymentFrequency): number => {
     switch (frequency) {
@@ -49,6 +50,56 @@ export const getInstallmentAmount = (expense: Expense): number => {
 
     // For variable expenses, return the full amount
     return expense.amountInClp;
+};
+
+/**
+ * Centralized function to compute the amount for a specific expense in a specific month.
+ * This is the single source of truth for amount calculation across the entire app.
+ *
+ * Logic priority:
+ * 1. If overriddenAmount exists, use it (frozen amount)
+ * 2. If unpaid future month with foreign currency, recalculate with current rate
+ * 3. Otherwise, use base amount from getInstallmentAmount
+ *
+ * @param expense - The expense to calculate amount for
+ * @param year - Target year
+ * @param month - Target month (0-indexed)
+ * @param paymentDetails - Optional payment details with overriddenAmount and paid status
+ * @returns The calculated amount in CLP
+ */
+export const getAmountForMonth = (
+    expense: Expense,
+    year: number,
+    month: number,
+    paymentDetails?: { paid?: boolean; overriddenAmount?: number }
+): number => {
+    // Priority 1: Explicit override (frozen amount)
+    if (typeof paymentDetails?.overriddenAmount === 'number') {
+        return paymentDetails.overriddenAmount;
+    }
+
+    // Get base amount
+    const baseAmount = getInstallmentAmount(expense);
+
+    // Priority 2: Recalculate for unpaid future months with foreign currency
+    const isPaid = paymentDetails?.paid ?? false;
+    const now = new Date();
+    const isFutureMonth = year > now.getFullYear() || (year === now.getFullYear() && month > now.getMonth());
+
+    if (!isPaid && isFutureMonth && expense.originalCurrency && expense.originalCurrency !== 'CLP' && typeof expense.originalAmount === 'number') {
+        // Calculate per-payment amount in original currency
+        const perPaymentOriginal = expense.type === ExpenseType.INSTALLMENT && expense.installments > 0
+            ? expense.originalAmount / expense.installments
+            : expense.originalAmount;
+
+        // Convert to CLP using current exchange rate
+        const recalculatedAmount = CurrencyService.fromUnit(perPaymentOriginal, expense.originalCurrency as any);
+
+        return Number.isFinite(recalculatedAmount) ? recalculatedAmount : baseAmount;
+    }
+
+    // Priority 3: Base amount
+    return Number.isFinite(baseAmount) ? baseAmount : 0;
 };
 
 // Helper to parse 'YYYY-MM-DD' date string and return 0-indexed month

@@ -45,6 +45,10 @@ export interface Expense {
   isActive?: boolean; // Whether this version is currently active
   // Historical amounts for versioned expenses (key: "year-month", value: amount)
   historicalAmounts?: { [key: string]: number };
+
+  // Expense linking fields (for offsetting income/expenses like rent vs mortgage)
+  linkedExpenseId?: string; // ID of the linked expense (e.g., rent linked to mortgage)
+  linkRole?: 'primary' | 'secondary'; // Role in the link: primary counts in totals, secondary is excluded
 }
 
 export interface PaymentDetails {

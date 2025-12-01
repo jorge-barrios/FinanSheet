@@ -82,7 +82,7 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
     
     return (
         <div 
-            className={`p-4 rounded-lg shadow-md flex flex-col justify-between transition-colors ring-1 ring-transparent hover:ring-teal-500/50 ${expense.isImportant ? 'bg-fuchsia-50 dark:bg-fuchsia-500/10' : 'bg-white dark:bg-slate-800'}`}
+            className={`p-4 rounded-lg shadow-md flex flex-col justify-between transition-colors ring-1 ring-transparent hover:ring-sky-500/50 ${expense.isImportant ? 'bg-fuchsia-50 dark:bg-fuchsia-500/10' : 'bg-white dark:bg-slate-800'}`}
             onClick={handleCardClick}
             role="button"
             tabIndex={0}
@@ -98,13 +98,13 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
                     </div>
                 </div>
                 <div className="flex items-center">
-                    <button onClick={(e) => { e.stopPropagation(); onEditExpense(expense); }} aria-label={`Edit ${expense.name}`} className="text-slate-500 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700/50"><EditIcon /></button>
+                    <button onClick={(e) => { e.stopPropagation(); onEditExpense(expense); }} aria-label={`Edit ${expense.name}`} className="text-slate-500 dark:text-slate-400 hover:text-sky-500 dark:hover:text-sky-400 p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700/50"><EditIcon /></button>
                     <button onClick={(e) => { e.stopPropagation(); onDeleteExpense(expense.id); }} aria-label={`Delete ${expense.name}`} className="text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700/50"><TrashIcon /></button>
                 </div>
             </div>
             
             <div className="flex justify-between items-center mt-2">
-                <span className="text-2xl font-mono font-semibold text-teal-600 dark:text-teal-300">{formatClp(amountInBase)}</span>
+                <span className="text-2xl font-mono font-semibold text-sky-600 dark:text-sky-300">{formatClp(amountInBase)}</span>
                 {isInCurrentMonth ? (
                     statusInfo ? (
                         <div className="flex items-center gap-1">

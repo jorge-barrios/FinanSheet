@@ -4,7 +4,8 @@ import { Bar } from 'react-chartjs-2';
 import { Chart, registerables } from 'chart.js';
 import { Expense, PaymentStatus, ExpenseType } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
-import { isInstallmentInMonth, isInstallmentInMonthWithVersioning, getInstallmentAmount, getInstallmentAmountForMonth } from '../utils/expenseCalculations';
+import { isInstallmentInMonth, isInstallmentInMonthWithVersioning, getInstallmentAmount, getInstallmentAmountForMonth, getAmountForMonth } from '../utils/expenseCalculations';
+import { shouldCountInTotals, findLinkedExpense, calculateNetAmount } from '../utils/expenseLinking';
 import { XMarkIcon, CalendarIcon, ChevronDownIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon } from './icons';
 import { toSpanishCanonical } from '../utils/categories';
 import usePersistentState from '../hooks/usePersistentState';
@@ -62,36 +63,19 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
     const [, setAvailableCategories] = usePersistentState<string[]>('finansheet-available-categories', []);
     // Toggle for showing full list vs Top 5 in detail
     const [showAllCatItems, setShowAllCatItems] = useState<boolean>(false);
-    const totalMonthlyLabel = React.useMemo(() => {
-        const label = t('dashboard.totalMonthly');
-        return label === 'dashboard.totalMonthly' ? 'Total mensual' : label;
+    const balanceMonthlyLabel = React.useMemo(() => {
+        const label = t('dashboard.balanceMonthly');
+        return label === 'dashboard.balanceMonthly' ? 'Balance mensual' : label;
     }, [t]);
 
-    // Helper: compute amount for a given expense and month, applying overrides and current-rate recalc for future unpaid foreign-currency expenses
+    // Helper: compute amount for a given expense and month using centralized function
     const computeAmountForMonth = React.useCallback((expense: Expense, year: number, m: number) => {
         const ymKey = `${year}-${m}`;
         const details = paymentStatus[expense.id]?.[ymKey];
         const isPaid = !!details?.paid;
-        const base = getInstallmentAmountForMonth(expenses, expense, year, m);
-        // If there is an explicit overridden amount, prefer it
-        if (typeof details?.overriddenAmount === 'number') {
-            return { amount: details.overriddenAmount as number, isPaid };
-        }
-        // If future month, unpaid, and expense defined in foreign unit, recalc from original using current rate
-        const now = new Date();
-        const isFutureMonth = year > now.getFullYear() || (year === now.getFullYear() && m > now.getMonth());
-        if (!isPaid && isFutureMonth && (expense as any).originalCurrency && (expense as any).originalCurrency !== 'CLP' && typeof (expense as any).originalAmount === 'number') {
-            const unit = (expense as any).originalCurrency as any;
-            const perPaymentOriginal = (expense.type === ExpenseType.INSTALLMENT && (expense.installments || 0) > 0)
-                ? ((expense as any).originalAmount as number) / (expense.installments as number)
-                : ((expense as any).originalAmount as number);
-            const converted = CurrencyService.fromUnit(perPaymentOriginal, unit);
-            const safe = (Number.isFinite(converted) ? converted : 0);
-            return { amount: safe, isPaid };
-        }
-        // Default fallback to base schedule amount
-        return { amount: (Number.isFinite(base) ? base : 0), isPaid };
-    }, [expenses, paymentStatus]);
+        const amount = getAmountForMonth(expense, year, m, details);
+        return { amount, isPaid };
+    }, [paymentStatus]);
 
     // Active month index used across interactions (keyboard, charts, badges)
     const activeMonthIndex = typeof displayMonth === 'number' ? displayMonth : new Date().getMonth();
@@ -162,9 +146,16 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
         const mi = typeof displayMonth === 'number' ? displayMonth : new Date().getMonth();
         let total = 0;
         let paid = 0;
+        let totalIncome = 0;  // Suma de ingresos (amounts < 0, convertidos a positivos)
+        let totalExpenses = 0;  // Suma de gastos (amounts > 0)
         const catTotals: Record<string, number> = {};
 
         expenses.forEach(expense => {
+            // NUEVO: Excluir expenses secundarios de los totales
+            if (!shouldCountInTotals(expense)) {
+                return; // Skip secondary expenses
+            }
+
             const category = toSpanishCanonical(expense.category || t('grid.uncategorized'));
             if (selectedCategories.length > 0 && expense.amountInClp > 0) {
                 // Only constrain expenses by category; incomes are not category-filtered
@@ -174,12 +165,45 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                 ? isInstallmentInMonthWithVersioning(expenses, expense, displayYear, mi)
                 : isInstallmentInMonth(expense, displayYear, mi);
             if (inMonth) {
-                const { amount: amountInBase, isPaid } = computeAmountForMonth(expense, displayYear, mi);
+                // NUEVO: Calcular monto considerando vinculación
+                const linkedExpense = findLinkedExpense(expenses, expense.id);
+                const details = paymentStatus[expense.id]?.[`${displayYear}-${mi}`];
+
+                let amountInBase: number;
+                let isPaid: boolean;
+
+                if (linkedExpense) {
+                    // Calcular neto si hay vinculación
+                    amountInBase = calculateNetAmount(
+                        expense,
+                        linkedExpense,
+                        displayYear,
+                        mi,
+                        paymentStatus
+                    );
+
+                    // El estado 'paid' se basa en el expense primario
+                    isPaid = !!details?.paid;
+                } else {
+                    // Sin vinculación: usar cálculo normal
+                    const computed = computeAmountForMonth(expense, displayYear, mi);
+                    amountInBase = computed.amount;
+                    isPaid = computed.isPaid;
+                }
+
                 total += amountInBase;
-                if (amountInBase > 0) {
+
+                // Separar ingresos y gastos
+                if (amountInBase < 0) {
+                    // Ingreso (negativo en el modelo)
+                    totalIncome += Math.abs(amountInBase);
+                } else if (amountInBase > 0) {
+                    // Gasto (positivo)
+                    totalExpenses += amountInBase;
                     if (!catTotals[category]) catTotals[category] = 0;
                     catTotals[category] += amountInBase;
                 }
+
                 if (isPaid) {
                     if (includePaid) paid += amountInBase; else {/* excluded */}
                 } else {
@@ -187,8 +211,11 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                         // If pending is excluded, remove its contribution from total and categories
                         total -= amountInBase;
                         if (amountInBase > 0) {
+                            totalExpenses -= amountInBase;
                             catTotals[category] -= amountInBase;
                             if (catTotals[category] <= 0) delete catTotals[category];
+                        } else if (amountInBase < 0) {
+                            totalIncome -= Math.abs(amountInBase);
                         }
                     }
                 }
@@ -197,7 +224,10 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
         const catSorted = Object.entries(catTotals)
             .filter(([, sum]) => sum > 0)
             .sort(([, a], [, b]) => b - a)
-            .map(([name, totalInBase]) => ({ name, totalInBase, percentage: total > 0 ? (totalInBase / total) * 100 : 0 }));
+            .map(([name, totalInBase]) => ({ name, totalInBase, percentage: totalExpenses > 0 ? (totalInBase / totalExpenses) * 100 : 0 }));
+
+        const balance = totalIncome - totalExpenses;
+
         return {
             monthIndex: mi,
             total,
@@ -205,6 +235,9 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
             pending: total - paid,
             paidPercentage: total > 0 ? (paid / total) * 100 : 0,
             categories: catSorted,
+            totalIncome,      // Nuevo: total de ingresos
+            totalExpenses,    // Nuevo: total de gastos
+            balance,          // Nuevo: balance (ingresos - gastos)
         };
     }, [expenses, paymentStatus, displayYear, displayMonth, t, includePaid, includePending, selectedCategories]);
 
@@ -217,6 +250,9 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
         const expPending = new Array(12).fill(0);
         for (let m = 0; m < 12; m++) {
             expenses.forEach(expense => {
+                // NUEVO: Excluir secundarios
+                if (!shouldCountInTotals(expense)) return;
+
                 const category = toSpanishCanonical(expense.category || t('grid.uncategorized'));
                 if (selectedCategories.length > 0 && expense.amountInClp > 0) {
                     if (!selectedCategories.includes(category)) return;
@@ -225,7 +261,24 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                     ? isInstallmentInMonthWithVersioning(expenses, expense, displayYear, m)
                     : isInstallmentInMonth(expense, displayYear, m);
                 if (!inMonth) return;
-                const { amount, isPaid } = computeAmountForMonth(expense, displayYear, m); // incomes are negative by data model
+
+                // NUEVO: Calcular con vinculación
+                const linkedExpense = findLinkedExpense(expenses, expense.id);
+                const details = paymentStatus[expense.id]?.[`${displayYear}-${m}`];
+
+                let amount: number;
+                let isPaid: boolean;
+
+                if (linkedExpense) {
+                    amount = calculateNetAmount(expense, linkedExpense, displayYear, m, paymentStatus);
+                    isPaid = !!details?.paid;
+                } else {
+                    const computed = computeAmountForMonth(expense, displayYear, m);
+                    amount = computed.amount;
+                    isPaid = computed.isPaid;
+                }
+
+                // incomes are negative by data model
                 if (amount < 0) {
                     income[m] += Math.abs(amount);
                 } else if (amount > 0) {
@@ -482,18 +535,49 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
     // KPIs: unpaid count (Pendiente) y variación mensual
     const unpaidCount = useMemo(() => {
         let count = 0;
+        const mi = monthlySummary.monthIndex;
         expenses.forEach(expense => {
-            if (isInstallmentInMonth(expense, displayYear, monthlySummary.monthIndex)) {
-                const details = paymentStatus[expense.id]?.[`${displayYear}-${monthlySummary.monthIndex}`];
+            const inMonth = expense.type === ExpenseType.RECURRING
+                ? isInstallmentInMonthWithVersioning(expenses, expense, displayYear, mi)
+                : isInstallmentInMonth(expense, displayYear, mi);
+            if (inMonth) {
+                const details = paymentStatus[expense.id]?.[`${displayYear}-${mi}`];
                 if (!details?.paid) count += 1;
             }
         });
         return count;
     }, [expenses, paymentStatus, displayYear, monthlySummary.monthIndex]);
-    const prevMonthIndex = ((monthlySummary.monthIndex - 1) + 12) % 12;
-    const prevMonthTotal = (monthlyExpensesPaid[prevMonthIndex] || 0) + (monthlyExpensesPending[prevMonthIndex] || 0);
-    const deltaAmount = monthlySummary.total - prevMonthTotal;
-    const momChange = prevMonthTotal > 0 ? (deltaAmount / prevMonthTotal) * 100 : 0;
+
+    // Calcular mes y año anterior correctamente (FIX: bug al cruzar años)
+    const prevMonth = (monthlySummary.monthIndex - 1 + 12) % 12;
+    const prevYear = monthlySummary.monthIndex === 0 ? displayYear - 1 : displayYear;
+
+    // Calcular balance del mes anterior (Ingresos - Gastos)
+    const prevMonthBalance = useMemo(() => {
+        let income = 0;
+        let expenses_total = 0;
+        expenses.forEach(expense => {
+            const inMonth = expense.type === ExpenseType.RECURRING
+                ? isInstallmentInMonthWithVersioning(expenses, expense, prevYear, prevMonth)
+                : isInstallmentInMonth(expense, prevYear, prevMonth);
+
+            if (inMonth) {
+                const details = paymentStatus[expense.id]?.[`${prevYear}-${prevMonth}`];
+                const amount = getAmountForMonth(expense, prevYear, prevMonth, details);
+                if (amount < 0) {
+                    // Ingreso
+                    income += Math.abs(amount);
+                } else if (amount > 0) {
+                    // Gasto
+                    expenses_total += amount;
+                }
+            }
+        });
+        return income - expenses_total;  // Balance = Ingresos - Gastos
+    }, [expenses, paymentStatus, displayYear, monthlySummary.monthIndex]);
+
+    const deltaBalance = monthlySummary.balance - prevMonthBalance;
+    const balanceChange = prevMonthBalance !== 0 ? (deltaBalance / Math.abs(prevMonthBalance)) * 100 : 0;
 
     // Upcoming and overdue payments (current and next month unpaid)
     const upcomingList = useMemo(() => {
@@ -507,12 +591,14 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
         const months = [nowM, nextM];
         months.forEach(m => {
             expenses.forEach(expense => {
-                if (isInstallmentInMonth(expense, displayYear, m)) {
+                const inMonth = expense.type === ExpenseType.RECURRING
+                    ? isInstallmentInMonthWithVersioning(expenses, expense, displayYear, m)
+                    : isInstallmentInMonth(expense, displayYear, m);
+                if (inMonth) {
                     const details = paymentStatus[expense.id]?.[`${displayYear}-${m}`];
                     const paid = details?.paid;
                     if (!paid) {
-                        const base = getInstallmentAmount(expense);
-                        const amount = details?.overriddenAmount ?? base;
+                        const amount = getAmountForMonth(expense, displayYear, m, details);
                         // Determine due day priority: overriddenDueDate > expense.dueDate > day from startDate
                         const overriddenDue = (details && typeof details.overriddenDueDate === 'number') ? details.overriddenDueDate : undefined;
                         // Expense typing has startDate: YYYY-MM-DD and dueDate: number
@@ -539,9 +625,174 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
             });
         });
         return items
-            .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
-            .slice(0, 10);
+            .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
     }, [expenses, paymentStatus, displayYear, monthlySummary.monthIndex, t]);
+
+    // Subtotal de TODOS los pagos pendientes del mes actual (no solo los 10 visibles)
+    const currentMonthPendingTotal = useMemo(() => {
+        let total = 0;
+        const mi = monthlySummary.monthIndex;
+
+        expenses.forEach(expense => {
+            const inMonth = expense.type === ExpenseType.RECURRING
+                ? isInstallmentInMonthWithVersioning(expenses, expense, displayYear, mi)
+                : isInstallmentInMonth(expense, displayYear, mi);
+
+            if (inMonth) {
+                const details = paymentStatus[expense.id]?.[`${displayYear}-${mi}`];
+                const paid = details?.paid;
+
+                if (!paid) {
+                    const amount = getAmountForMonth(expense, displayYear, mi, details);
+                    total += amount;
+                }
+            }
+        });
+
+        return total;
+    }, [expenses, paymentStatus, displayYear, monthlySummary.monthIndex]);
+
+    // Subtotal y contador de TODOS los pagos pendientes del mes SIGUIENTE
+    const nextMonthPendingStats = useMemo(() => {
+        let total = 0;
+        let count = 0;
+        const nextMonthIndex = (monthlySummary.monthIndex + 1) % 12;
+        const nextMonthYear = monthlySummary.monthIndex === 11 ? displayYear + 1 : displayYear;
+
+        expenses.forEach(expense => {
+            const inMonth = expense.type === ExpenseType.RECURRING
+                ? isInstallmentInMonthWithVersioning(expenses, expense, nextMonthYear, nextMonthIndex)
+                : isInstallmentInMonth(expense, nextMonthYear, nextMonthIndex);
+
+            if (inMonth) {
+                const details = paymentStatus[expense.id]?.[`${nextMonthYear}-${nextMonthIndex}`];
+                const paid = details?.paid;
+
+                if (!paid) {
+                    const amount = getAmountForMonth(expense, nextMonthYear, nextMonthIndex, details);
+                    total += amount;
+                    count += 1;
+                }
+            }
+        });
+
+        return { total, count };
+    }, [expenses, paymentStatus, displayYear, monthlySummary.monthIndex]);
+
+    const nextMonthPendingTotal = nextMonthPendingStats.total;
+    const nextMonthPendingCount = nextMonthPendingStats.count;
+
+    // Promedio balance de los últimos 6 meses (Ingresos - Gastos)
+    const avg6Months = useMemo(() => {
+        const currentMonth = monthlySummary.monthIndex;
+        const currentYear = displayYear;
+        let sum = 0;
+        let count = 0;
+
+        // Iterar sobre los últimos 6 meses calendario (incluyendo el actual)
+        for (let i = 0; i < 6; i++) {
+            // Calcular año y mes para cada iteración
+            const targetMonth = (currentMonth - i + 12) % 12;
+            const targetYear = currentMonth - i < 0 ? currentYear - 1 : currentYear;
+
+            let monthIncome = 0;
+            let monthExpenses = 0;
+
+            // Calcular balance del mes (ingresos - gastos)
+            expenses.forEach(expense => {
+                const inMonth = expense.type === ExpenseType.RECURRING
+                    ? isInstallmentInMonthWithVersioning(expenses, expense, targetYear, targetMonth)
+                    : isInstallmentInMonth(expense, targetYear, targetMonth);
+
+                if (inMonth) {
+                    const details = paymentStatus[expense.id]?.[`${targetYear}-${targetMonth}`];
+                    const amount = getAmountForMonth(expense, targetYear, targetMonth, details);
+                    if (amount < 0) {
+                        monthIncome += Math.abs(amount);
+                    } else if (amount > 0) {
+                        monthExpenses += amount;
+                    }
+                }
+            });
+
+            const monthBalance = monthIncome - monthExpenses;
+            sum += monthBalance;
+            count++;
+        }
+
+        return count > 0 ? sum / count : 0;
+    }, [expenses, paymentStatus, displayYear, monthlySummary.monthIndex]);
+
+    // Tendencia del promedio balance (últimos 3 meses vs 3 meses anteriores)
+    const avg6MonthsTrend = useMemo(() => {
+        const currentMonth = monthlySummary.monthIndex;
+        const currentYear = displayYear;
+
+        // Promedio balance de los últimos 3 meses (meses 0-2 hacia atrás)
+        let sumRecent = 0;
+        for (let i = 0; i < 3; i++) {
+            const targetMonth = (currentMonth - i + 12) % 12;
+            const targetYear = currentMonth - i < 0 ? currentYear - 1 : currentYear;
+
+            let monthIncome = 0;
+            let monthExpenses = 0;
+
+            expenses.forEach(expense => {
+                const inMonth = expense.type === ExpenseType.RECURRING
+                    ? isInstallmentInMonthWithVersioning(expenses, expense, targetYear, targetMonth)
+                    : isInstallmentInMonth(expense, targetYear, targetMonth);
+
+                if (inMonth) {
+                    const details = paymentStatus[expense.id]?.[`${targetYear}-${targetMonth}`];
+                    const amount = getAmountForMonth(expense, targetYear, targetMonth, details);
+                    if (amount < 0) {
+                        monthIncome += Math.abs(amount);
+                    } else if (amount > 0) {
+                        monthExpenses += amount;
+                    }
+                }
+            });
+
+            sumRecent += (monthIncome - monthExpenses);
+        }
+        const avgRecent = sumRecent / 3;
+
+        // Promedio balance de los 3 meses anteriores (meses 3-5 hacia atrás)
+        let sumPrevious = 0;
+        for (let i = 3; i < 6; i++) {
+            const targetMonth = (currentMonth - i + 12) % 12;
+            const targetYear = currentMonth - i < 0 ? currentYear - 1 : currentYear;
+
+            let monthIncome = 0;
+            let monthExpenses = 0;
+
+            expenses.forEach(expense => {
+                const inMonth = expense.type === ExpenseType.RECURRING
+                    ? isInstallmentInMonthWithVersioning(expenses, expense, targetYear, targetMonth)
+                    : isInstallmentInMonth(expense, targetYear, targetMonth);
+
+                if (inMonth) {
+                    const details = paymentStatus[expense.id]?.[`${targetYear}-${targetMonth}`];
+                    const amount = getAmountForMonth(expense, targetYear, targetMonth, details);
+                    if (amount < 0) {
+                        monthIncome += Math.abs(amount);
+                    } else if (amount > 0) {
+                        monthExpenses += amount;
+                    }
+                }
+            });
+
+            sumPrevious += (monthIncome - monthExpenses);
+        }
+        const avgPrevious = sumPrevious / 3;
+
+        // Delta: positivo = balance mejoró (bueno), negativo = balance empeoró (malo)
+        const delta = avgRecent - avgPrevious;
+        const isUp = delta > 0; // Balance mejora = tendencia al alza (bueno)
+        const isFlat = Math.abs(delta) < (Math.abs(avgPrevious) * 0.05); // <5% = sin cambio significativo
+
+        return { isUp, isFlat, delta };
+    }, [expenses, paymentStatus, displayYear, monthlySummary.monthIndex]);
 
     return (
         <div className="h-full min-h-0 flex flex-col">
@@ -552,7 +803,7 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                     <button
                         ref={monthButtonRef}
                         type="button"
-                        className="w-full h-11 md:h-12 flex items-center justify-center gap-2 px-4 hover:bg-slate-50 dark:hover:bg-slate-800/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 text-slate-900 dark:text-white"
+                        className="w-full h-11 md:h-12 flex items-center justify-center gap-2 px-4 hover:bg-slate-50 dark:hover:bg-slate-800/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 text-slate-900 dark:text-white"
                         onClick={() => setIsMonthPickerOpen(o => !o)}
                         aria-haspopup="listbox"
                         aria-expanded={isMonthPickerOpen}
@@ -584,7 +835,7 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                                             key={idx}
                                             role="option"
                                             aria-selected={idx === activeMonthIndex}
-                                            className={`text-xs px-2 py-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 text-slate-700 dark:text-slate-200 ${idx === activeMonthIndex ? 'bg-teal-600 text-white hover:bg-teal-500' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                            className={`text-xs px-2 py-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 text-slate-700 dark:text-slate-200 ${idx === activeMonthIndex ? 'bg-sky-600 text-white hover:bg-sky-500' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                                             onClick={() => selectMonth(idx)}
                                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMonth(idx); } }}
                                         >
@@ -595,13 +846,21 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                             )}
                 </div>
 
-                {/* Total mensual - standardized 2x3 layout (Row 1, Col 2) */}
+                {/* Balance mensual (Ingresos - Gastos) - Row 1, Col 2 */}
                 <div className="order-2 lg:col-start-2 lg:row-start-1 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700/50 rounded-lg p-4 md:p-5">
                     <div className="grid grid-rows-[auto_auto] grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-x-3 gap-y-1 items-baseline">
-                        <div className="row-start-1 col-start-1 col-span-2 text-xs text-slate-500 dark:text-slate-400">{totalMonthlyLabel}</div>
-                        <div className="row-start-1 col-start-3 text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 text-right truncate">{MONTHS_ES[monthlySummary.monthIndex]} {displayYear}</div>
+                        <div className="row-start-1 col-start-1 col-span-2 text-xs text-slate-500 dark:text-slate-400">{balanceMonthlyLabel}</div>
+                        <div className="row-start-1 col-start-3 text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 text-right truncate">Ingreso - Gasto</div>
                         <div className="row-start-2 col-start-1 col-span-3 text-center min-w-0 mt-1.5">
-                            <div className="font-semibold tabular-nums text-[1.1rem] sm:text-[1.3rem] md:text-[1.5rem] tracking-tight text-slate-900 dark:text-white leading-none whitespace-nowrap overflow-hidden text-ellipsis">{formatClp(monthlySummary.total)}</div>
+                            <div className={`font-semibold tabular-nums text-[1.1rem] sm:text-[1.3rem] md:text-[1.5rem] tracking-tight leading-none whitespace-nowrap overflow-hidden text-ellipsis ${
+                                monthlySummary.balance > 0
+                                    ? 'text-sky-600 dark:text-sky-400'  // Superávit = verde
+                                    : monthlySummary.balance < 0
+                                        ? 'text-rose-600 dark:text-rose-400'  // Déficit = rojo
+                                        : 'text-slate-600 dark:text-slate-400'  // Neutro = gris
+                            }`}>
+                                {monthlySummary.balance >= 0 ? '+' : ''}{formatClp(monthlySummary.balance)}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -609,10 +868,17 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                 {/* Pagos por vencer - Row 2, Col 1 */}
                 <div className="order-8 lg:col-start-1 lg:row-start-2 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700/50 rounded-lg p-4 md:p-5 h-full flex flex-col min-h-0 overflow-hidden">
                     <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{t('dashboard.upcoming') === 'dashboard.upcoming' ? 'Pagos por vencer' : t('dashboard.upcoming')}</div>
+                        <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{t('dashboard.upcoming') === 'dashboard.upcoming' ? 'Pagos por vencer' : t('dashboard.upcoming')}</div>
+                            <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 tabular-nums">
+                                {formatClp(currentMonthPendingTotal)}
+                            </div>
+                            <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                {upcomingList.length}
+                            </div>
+                        </div>
                         <div className="hidden sm:block text-xs text-slate-500 dark:text-slate-400">{MONTHS_ES[monthlySummary.monthIndex]} / {MONTHS_ES[(monthlySummary.monthIndex+1)%12]}</div>
-                    </div>
-                    <div className="flex-1 min-h-0 overflow-auto">
+                    </div>                    <div className="flex-1 min-h-0 overflow-auto">
                         <ul className="divide-y divide-slate-200/60 dark:divide-slate-700/40">
                             {upcomingList.map((it, idx) => {
                                 const mName = MONTHS_ES[it.monthIndex];
@@ -654,57 +920,128 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                             })}
                         </ul>
                     </div>
-                    <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/50 text-[11px] text-slate-500 dark:text-slate-400 select-none" aria-hidden>
+                    {/* Subtotal del mes siguiente */}
+                    <div className="mt-2 pt-3 border-t border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-2">
+                                <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                                    Subtotal {MONTHS_ES[(monthlySummary.monthIndex + 1) % 12]}
+                                </div>
+                                <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                                    {nextMonthPendingCount}
+                                </div>
+                            </div>
+                            <div className="text-sm font-semibold text-sky-600 dark:text-sky-400 tabular-nums">
+                                {formatClp(nextMonthPendingTotal)}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="mt-2 pt-2 text-[11px] text-slate-500 dark:text-slate-400 select-none" aria-hidden>
                         Consejo: haz clic en un pago para abrir la ventana de pago
                     </div>
                 </div>
-                {/* KPI Group 1 removido: Total mensual ahora está en la card 'Selecciona mes' */}
-                {/* KPI Group 2: Variación mensual (Col 3, Row 1) */}
-                <div 
+                {/* KPI: Variación balance (Col 3, Row 1) */}
+                <div
                     className="order-3 lg:col-start-3 lg:row-start-1 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700/50 rounded-lg p-4 md:p-5 min-h-[68px] sm:min-h-[76px]"
-                    aria-label={`Variación mensual respecto al mes anterior`}
+                    aria-label="Variación del balance respecto al mes anterior"
                 >
                     <div className="grid grid-rows-[auto_auto] grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-x-3 gap-y-1 items-baseline">
-                        <div className="row-start-1 col-start-1 col-span-2 text-xs text-slate-500 dark:text-slate-400">{(t('dashboard.momChange') === 'dashboard.momChange' ? 'Variación mensual' : t('dashboard.momChange'))}</div>
-                        <div className="row-start-1 col-start-3 text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 text-right truncate">{(deltaAmount >= 0 ? '+' : '−')}{formatClp(Math.abs(deltaAmount))}</div>
+                        <div className="row-start-1 col-start-1 col-span-2 text-xs text-slate-500 dark:text-slate-400">Variación balance</div>
+                        <div className="row-start-1 col-start-3 text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 text-right truncate">{(deltaBalance >= 0 ? '+' : '−')}{formatClp(Math.abs(deltaBalance))}</div>
                         <div className="row-start-2 col-start-1 col-span-3 flex items-center justify-center gap-2 min-w-0 mt-1.5">
-                            {momChange > 0 ? (
-                                <ArrowTrendingUpIcon className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                            ) : momChange < 0 ? (
-                                <ArrowTrendingDownIcon className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                            {deltaBalance > 0 ? (
+                                <ArrowTrendingUpIcon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                            ) : deltaBalance < 0 ? (
+                                <ArrowTrendingDownIcon className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                             ) : (
                                 <ArrowTrendingUpIcon className="w-4 h-4 text-slate-500 dark:text-slate-400 rotate-90" />
                             )}
-                            <div className={`font-semibold tabular-nums tracking-tight text-[1.1rem] sm:text-[1.3rem] md:text-[1.5rem] leading-none whitespace-nowrap overflow-hidden text-ellipsis ${momChange > 0 ? 'text-rose-600 dark:text-rose-400' : momChange < 0 ? 'text-teal-600 dark:text-teal-400' : 'text-slate-600 dark:text-slate-300'}`}>{Math.abs(momChange).toFixed(0)}%</div>
+                            <div className={`font-semibold tabular-nums tracking-tight text-[1.1rem] sm:text-[1.3rem] md:text-[1.5rem] leading-none whitespace-nowrap overflow-hidden text-ellipsis ${deltaBalance > 0 ? 'text-sky-600 dark:text-sky-400' : deltaBalance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-300'}`}>{Math.abs(balanceChange).toFixed(0)}%</div>
                         </div>
                     </div>
                 </div>
 
-                {/* KPI Group 3: Pagado (Col 4, Row 1) */}
-                <div 
+                {/* KPI: Promedio balance 6 meses (Col 4, Row 1) */}
+                <div
                     className="order-4 lg:col-start-4 lg:row-start-1 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700/50 rounded-lg p-4 md:p-5 min-h-[68px] sm:min-h-[76px]"
-                    aria-label={`% Pagado y monto pagado`}
+                    aria-label="Promedio del balance de los últimos 6 meses con tendencia"
                 >
-                    <div className="grid grid-rows-[auto_auto] grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 items-baseline">
-                        <div className="row-start-1 col-start-1 text-xs text-slate-500 dark:text-slate-400">{(t('dashboard.paid') === 'dashboard.paid' ? 'Pagado' : t('dashboard.paid'))}</div>
-                        <div className="row-start-1 col-start-2 text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 text-right truncate">{formatClp(monthlySummary.paid)}</div>
-                        <div className="row-start-2 col-start-1 col-span-2 text-center min-w-0 mt-1.5">
-                            <div className="font-semibold tabular-nums tracking-tight text-[1.1rem] sm:text-[1.3rem] md:text-[1.5rem] text-teal-600 dark:text-teal-400 leading-none whitespace-nowrap overflow-hidden text-ellipsis">{monthlySummary.paidPercentage.toFixed(0)}%</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                        Promedio balance 6M
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                        <div className={`font-semibold tabular-nums text-[1.1rem] sm:text-[1.3rem] md:text-[1.5rem] ${
+                            avg6Months > 0
+                                ? 'text-sky-600 dark:text-sky-400'
+                                : avg6Months < 0
+                                    ? 'text-rose-600 dark:text-rose-400'
+                                    : 'text-slate-900 dark:text-white'
+                        }`}>
+                            {avg6Months >= 0 ? '+' : ''}{formatClp(avg6Months)}
                         </div>
+                        {!avg6MonthsTrend.isFlat && (
+                            <div className={`flex items-center ${
+                                avg6MonthsTrend.isUp
+                                    ? 'text-sky-600 dark:text-sky-400'  // Balance mejora = verde
+                                    : 'text-rose-600 dark:text-rose-400'   // Balance empeora = rojo
+                            }`}>
+                                {avg6MonthsTrend.isUp ? (
+                                    <ArrowTrendingUpIcon className="w-5 h-5" />
+                                ) : (
+                                    <ArrowTrendingDownIcon className="w-5 h-5" />
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* KPI Group 4: Pendiente (Col 5, Row 1) */}
-                <div 
+                {/* KPI: Ingresos vs Gastos - Col 5, Row 1 */}
+                <div
                     className="order-5 lg:col-start-5 lg:row-start-1 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700/50 rounded-lg p-4 md:p-5 min-h-[68px] sm:min-h-[76px]"
-                    aria-label={`Pagos pendientes y monto`}
+                    aria-label="Ingresos versus Gastos del mes"
                 >
-                    <div className="grid grid-rows-[auto_auto] grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 items-baseline">
-                        <div className="row-start-1 col-start-1 text-xs text-slate-500 dark:text-slate-400">{(t('dashboard.pending') === 'dashboard.pending' ? 'Pendiente' : t('dashboard.pending'))}</div>
-                        <div className="row-start-1 col-start-2 text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 text-right truncate">{formatClp(monthlySummary.pending)}</div>
-                        <div className="row-start-2 col-start-1 col-span-2 text-center min-w-0 mt-1.5">
-                            <div className="font-semibold tabular-nums tracking-tight text-[1.1rem] sm:text-[1.3rem] md:text-[1.5rem] text-amber-600 dark:text-amber-500 leading-none whitespace-nowrap overflow-hidden text-ellipsis">{unpaidCount}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                        Ingresos vs Gastos
+                    </div>
+
+                    {/* Ingresos */}
+                    <div className="flex items-baseline justify-between mb-1.5">
+                        <div className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400">
+                            Ingresos
                         </div>
+                        <div className="text-[0.95rem] sm:text-[1.05rem] font-semibold text-sky-600 dark:text-sky-400 tabular-nums">
+                            +{formatClp(monthlySummary.totalIncome)}
+                        </div>
+                    </div>
+
+                    {/* Gastos */}
+                    <div className="flex items-baseline justify-between mb-1.5">
+                        <div className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400">
+                            Gastos
+                        </div>
+                        <div className="text-[0.95rem] sm:text-[1.05rem] font-semibold text-rose-600 dark:text-rose-400 tabular-nums">
+                            −{formatClp(monthlySummary.totalExpenses)}
+                        </div>
+                    </div>
+
+                    {/* Ratio visual (barra) */}
+                    <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
+                        <div
+                            className="bg-sky-500 dark:bg-sky-400 h-full transition-all"
+                            style={{
+                                width: `${monthlySummary.totalIncome + monthlySummary.totalExpenses > 0
+                                    ? (monthlySummary.totalIncome / (monthlySummary.totalIncome + monthlySummary.totalExpenses)) * 100
+                                    : 50}%`
+                            }}
+                        />
+                        <div
+                            className="bg-rose-500 dark:bg-rose-400 h-full transition-all"
+                            style={{
+                                width: `${monthlySummary.totalIncome + monthlySummary.totalExpenses > 0
+                                    ? (monthlySummary.totalExpenses / (monthlySummary.totalIncome + monthlySummary.totalExpenses)) * 100
+                                    : 50}%`
+                            }}
+                        />
                     </div>
                 </div>
 
@@ -716,7 +1053,7 @@ export const DashboardBody: React.FC<DashboardBodyProps> = ({ expenses, paymentS
                         <label className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300" title="Incluir ingresos en el gráfico">
                             <input
                                 type="checkbox"
-                                className="h-3.5 w-3.5 accent-teal-600"
+                                className="h-3.5 w-3.5 accent-sky-600"
                                 checked={includeIncomes}
                                 onChange={(e) => setIncludeIncomes(e.target.checked)}
                             />
@@ -1015,7 +1352,7 @@ export const SidebarSummaryBody: React.FC = () => {
                         {selectedCategories.length > 0 && (
                             <button
                                 onClick={() => setSelectedCategories([])}
-                                className="text-xs text-teal-700 dark:text-teal-400 hover:underline"
+                                className="text-xs text-sky-700 dark:text-sky-400 hover:underline"
                                 title="Quitar filtro de categorías"
                             >
                                 Quitar filtro
@@ -1048,7 +1385,7 @@ export const SidebarSummaryBody: React.FC = () => {
                     {selectedCategories.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
                             {selectedCategories.map(cat => (
-                                <span key={cat} className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full bg-teal-100 text-teal-800 dark:bg-teal-800/40 dark:text-teal-100">
+                                <span key={cat} className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full bg-sky-100 text-sky-800 dark:bg-sky-800/40 dark:text-sky-100">
                                     {cat}
                                     <button
                                         onClick={() => setSelectedCategories(selectedCategories.filter(c => c !== cat))}

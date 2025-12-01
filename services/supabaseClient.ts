@@ -19,66 +19,119 @@ export type Database = {
         Row: {
           id: string;
           name: string;
-          category: string;
-          totalAmount: number;
+          category: string | null; // Legacy TEXT field (kept for backward compatibility)
+          category_id: string; // NEW: UUID reference to categories.id
+          total_amount: number;
+          amount_in_clp: number;
           type: string;
-          startDate: StartDate;
+          start_date: StartDate;
           installments: number;
-          paymentFrequency: string;
-          isImportant: boolean;
-          dueDate: number;
+          payment_frequency: string;
+          is_important: boolean;
+          due_date: string; // DATE field (YYYY-MM-DD)
+          due_date_old_text: number; // Legacy INTEGER field (1-31)
+          expense_date: string;
+          original_amount: number;
+          original_currency: string;
+          exchange_rate: number;
+          parent_id?: string | null;
+          version_date?: string | null;
+          end_date?: string | null;
+          is_active: boolean;
+          user_id: string;
           created_at?: string;
         };
         Insert: {
-          id: string;
           name: string;
-          category: string;
-          totalAmount: number;
+          category_id: string; // UUID reference to categories
+          total_amount: number;
+          amount_in_clp: number;
           type: string;
-          startDate: StartDate;
+          start_date: StartDate;
           installments: number;
-          paymentFrequency: string;
-          isImportant: boolean;
-          dueDate: number;
+          payment_frequency: string;
+          is_important: boolean;
+          due_date: string;
+          due_date_old_text: number;
+          expense_date: string;
+          original_amount: number;
+          original_currency: string;
+          exchange_rate: number;
+          parent_id?: string | null;
+          version_date?: string | null;
+          end_date?: string | null;
+          is_active?: boolean;
+          user_id?: string | null; // Optional because trigger sets it
         };
         Update: {
           name?: string;
-          category?: string;
-          totalAmount?: number;
+          category_id?: string;
+          total_amount?: number;
+          amount_in_clp?: number;
           type?: string;
-          startDate?: StartDate;
+          start_date?: StartDate;
           installments?: number;
-          paymentFrequency?: string;
-          isImportant?: boolean;
-          dueDate?: number;
+          payment_frequency?: string;
+          is_important?: boolean;
+          due_date?: string;
+          due_date_old_text?: number;
+          expense_date?: string;
+          original_amount?: number;
+          original_currency?: string;
+          exchange_rate?: number;
+          parent_id?: string | null;
+          version_date?: string | null;
+          end_date?: string | null;
+          is_active?: boolean;
+          user_id?: string | null;
         };
       };
-      payment_status: {
+      payment_details: {
         Row: {
+          id: string;
           expense_id: string;
           date_key: string;
-          details: PaymentDetailsDb;
+          paid: boolean;
+          payment_date?: string | null;
+          overridden_amount?: number | null;
+          overridden_due_date?: number | null;
+          user_id: string;
           created_at?: string;
         };
         Insert: {
           expense_id: string;
           date_key: string;
-          details: PaymentDetailsDb;
+          paid: boolean;
+          payment_date?: string | null;
+          overridden_amount?: number | null;
+          overridden_due_date?: number | null;
+          user_id?: string | null; // Optional because trigger sets it
         };
         Update: {
-          details?: PaymentDetailsDb;
+          paid?: boolean;
+          payment_date?: string | null;
+          overridden_amount?: number | null;
+          overridden_due_date?: number | null;
+          user_id?: string | null;
         };
       };
       categories: {
         Row: {
+          id: string; // UUID PRIMARY KEY
           name: string;
+          normalized_name?: string | null;
+          user_id: string;
           created_at?: string;
         };
         Insert: {
           name: string;
+          normalized_name?: string | null;
+          user_id?: string | null; // Optional because trigger sets it
         };
         Update: {
           name?: string;
+          normalized_name?: string | null;
+          user_id?: string | null;
         };
       };
     };

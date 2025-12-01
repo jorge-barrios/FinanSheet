@@ -4,7 +4,7 @@ import { useLocalization } from '../hooks/useLocalization';
 import usePersistentState from '../hooks/usePersistentState';
 import ExpenseCard from './ExpenseCard';
 import { IconProps, EditIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, PlusIcon, MinusIcon, CheckCircleIcon, ExclamationTriangleIcon, ClockIcon, RibbonIcon, CalendarIcon, InfinityIcon, ChartBarIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon, SubscriptionIcon, MiscIcon, CategoryIcon } from './icons';
-import { getInstallmentAmount, getInstallmentNumber, isInstallmentInMonth } from '../utils/expenseCalculations';
+import { getInstallmentAmount, getInstallmentNumber, isInstallmentInMonth, getAmountForMonth } from '../utils/expenseCalculations';
 import CurrencyService from '../services/currencyService';
 
 interface ExpenseGridVirtualProps {
@@ -368,7 +368,7 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                                 {t('grid.title') ?? 'Grilla de Gastos'}
                             </h2>
                             <div className="flex items-center gap-3 text-sm">
-                                <button 
+                                <button
                                     onClick={() => onFocusedDateChange && onFocusedDateChange(new Date())}
                                     className="px-3 py-1 rounded-md bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200"
                                 >
@@ -397,7 +397,7 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                                     </button>
                                 </div>
                                 <div className="flex items-stretch bg-white/70 dark:bg-slate-800/70 rounded-lg ring-1 ring-slate-200 dark:ring-slate-700 overflow-hidden">
-                                    <button 
+                                    <button
                                         onClick={() => onVisibleMonthsCountChange && onVisibleMonthsCountChange(v => Math.max(1, v - 1))}
                                         className="px-2.5 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                                         aria-label={t('header.decreaseMonths')}
@@ -407,7 +407,7 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                                     <div className="px-3 py-1.5 text-center font-semibold text-slate-800 dark:text-white border-x border-slate-200 dark:border-slate-700/50 min-w-[100px]">
                                         {t('header.viewMonths')}: {visibleMonthsCount}
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={() => onVisibleMonthsCountChange && onVisibleMonthsCountChange(v => Math.min(25, v + 1))}
                                         className="px-2.5 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                                         aria-label={t('header.increaseMonths')}
@@ -440,10 +440,10 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                             </div>
                         </div>
                     </div>
-                    
+
                     {/* Grilla con altura optimizada */}
                     <div className="relative">
-                        <div 
+                        <div
                             ref={scrollAreaRef}
                             className="relative overflow-x-auto overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent pr-1 box-border m-0"
                             style={{
@@ -460,22 +460,21 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                             onScroll={undefined}
                         >
                             <table className="w-full border-collapse">
-                                <thead className="sticky top-0 z-30 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                                <thead className="sticky top-0 z-40 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                                     <tr>
                                         {/* Columna de categorías sticky */}
-                                        <th className="sticky left-0 z-40 bg-slate-50 dark:bg-slate-800 text-left p-4 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 min-w-[200px]">
+                                        <th className="sticky left-0 z-50 bg-slate-50 dark:bg-slate-800 text-left p-4 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 min-w-[200px]">
                                             Categoría / Gasto
                                         </th>
-                                        
+
                                         {/* Headers de meses */}
                                         {visibleMonths.map((month, index) => (
-                                            <th 
+                                            <th
                                                 key={index}
-                                                className={`text-center p-2.5 font-semibold border-r border-slate-200 dark:border-slate-700 last:border-r-0 min-w-[128px] ${
-                                                    isCurrentMonth(month) 
-                                                        ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 border-l-4 border-l-teal-500' 
-                                                        : 'text-slate-700 dark:text-slate-300'
-                                                }`}
+                                                className={`text-center p-2.5 font-semibold border-r border-slate-200 dark:border-slate-700 last:border-r-0 min-w-[128px] ${isCurrentMonth(month)
+                                                    ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border-l-4 border-l-sky-500'
+                                                    : 'text-slate-700 dark:text-slate-300'
+                                                    }`}
                                             >
                                                 <div className="relative space-y-0.5 leading-tight">
                                                     <div className="text-[13px] font-medium capitalize leading-tight">
@@ -486,7 +485,7 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                                                     </div>
                                                     {/* Corner badge for current month without affecting layout height */}
                                                     {isCurrentMonth(month) && (
-                                                        <div className="absolute top-1 right-1 text-teal-700 dark:text-teal-300" aria-label="Mes actual" title="Mes actual">
+                                                        <div className="absolute top-1 right-1 text-sky-700 dark:text-sky-300" aria-label="Mes actual" title="Mes actual">
                                                             <ChevronDownIcon className="w-4 h-4" />
                                                         </div>
                                                     )}
@@ -500,31 +499,48 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                                         <React.Fragment key={category}>
                                             {/* Fila de categoría */}
                                             <tr className="bg-slate-100 dark:bg-slate-800/50" data-row="category" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' as any }}>
-                                                <td 
-                                                    colSpan={visibleMonths.length + 1}
-                                                    className="sticky left-0 z-30 bg-slate-100 dark:bg-slate-800/50 p-3 font-semibold text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700"
-                                                >
+                                                {/* Sticky category name cell */}
+                                                <td className="sticky left-0 z-25 bg-slate-100 dark:bg-slate-800/50 p-3 font-semibold text-slate-800 dark:text-slate-200 border-b border-r border-slate-200 dark:border-slate-700 min-w-[200px]">
                                                     <div className="flex items-center gap-2">
                                                         {getCategoryIcon(category)}
                                                         <span>{category}</span>
                                                     </div>
                                                 </td>
+
+                                                {/* Month columns - empty but styled */}
+                                                {visibleMonths.map((_, monthIndex) => (
+                                                    <td
+                                                        key={monthIndex}
+                                                        className="bg-slate-100 dark:bg-slate-800/50 border-b border-r border-slate-200 dark:border-slate-700 last:border-r-0"
+                                                    />
+                                                ))}
                                             </tr>
-                                            
+
                                             {/* Filas de gastos */}
                                             {categoryExpenses.map(expense => (
                                                 <tr
                                                     key={expense.id}
-                                                    className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/30"
+                                                    className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
                                                     data-row="expense"
                                                     style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' as any }}
                                                 >
                                                     {/* Nombre del gasto */}
-                                                    <td className={`sticky left-0 z-20 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/30 ${pad} border-r border-slate-200 dark:border-slate-700`}>
+                                                    <td className={`sticky left-0 z-20 bg-white dark:bg-slate-900 hover:bg-slate-700 dark:hover:bg-slate-700 ${pad} border-r border-slate-200 dark:border-slate-700`}>
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div>
-                                                                <div className="font-medium text-slate-900 dark:text-white">
-                                                                    {expense.name}
+                                                                <div className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
+                                                                    <span>{expense.name}</span>
+                                                                    {expense.linkedExpenseId && (
+                                                                        <span
+                                                                            className={`text-xs px-1.5 py-0.5 rounded font-medium ${expense.linkRole === 'primary'
+                                                                                ? 'bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300'
+                                                                                : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                                                                                }`}
+                                                                            title={expense.linkRole === 'primary' ? 'Principal (muestra neto en totales)' : 'Secundario (excluido de totales)'}
+                                                                        >
+                                                                            {expense.linkRole === 'primary' ? '🔗 P' : '🔗 S'}
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                                 <div className="text-sm text-slate-500 dark:text-slate-400">
                                                                     {expense.type === 'RECURRING' && (
@@ -551,7 +567,7 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); onEditExpense(expense); }}
                                                                     aria-label={`Editar ${expense.name}`}
-                                                                    className="text-slate-500 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700/50"
+                                                                    className="text-slate-500 dark:text-slate-400 hover:text-sky-500 dark:hover:text-sky-400 p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700/50"
                                                                 >
                                                                     <EditIcon />
                                                                 </button>
@@ -571,27 +587,17 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                                                         const monthKey = `${month.getFullYear()}-${month.getMonth()}`;
                                                         const paymentDetails = paymentStatus[expense.id]?.[monthKey];
 
-                                                        // Compute amount: overridden > recalculated (future unpaid foreign currency) > base
-                                                        const baseAmount = getInstallmentAmount(expense);
+                                                        // Compute amount using centralized function
                                                         const isPaid = paymentDetails?.paid ?? false;
-                                                        const todayForFuture = new Date();
-                                                        const isFutureMonth = month.getFullYear() > todayForFuture.getFullYear() || (month.getFullYear() === todayForFuture.getFullYear() && month.getMonth() > todayForFuture.getMonth());
-                                                        let recalculatedClpAmount: number | undefined;
-                                                        if (!isPaid && isFutureMonth && expense.originalCurrency && expense.originalCurrency !== 'CLP' && typeof expense.originalAmount === 'number') {
-                                                            const perPaymentOriginal = expense.type === 'INSTALLMENT' && expense.installments > 0
-                                                                ? expense.originalAmount / expense.installments
-                                                                : expense.originalAmount;
-                                                            recalculatedClpAmount = CurrencyService.fromUnit(perPaymentOriginal, expense.originalCurrency as any);
-                                                        }
-                                                        const displayAmount = paymentDetails?.overriddenAmount ?? (recalculatedClpAmount ?? baseAmount);
+                                                        const displayAmount = getAmountForMonth(expense, month.getFullYear(), month.getMonth(), paymentDetails);
                                                         // Monto original por cuota cuando aplica (para mostrar solo la cuota actual en moneda original)
                                                         const originalPerPayment = (expense.originalCurrency && typeof expense.originalAmount === 'number')
                                                             ? (expense.type === 'INSTALLMENT' && expense.installments > 0
                                                                 ? expense.originalAmount / expense.installments
                                                                 : expense.originalAmount)
                                                             : undefined;
-                                                        const installmentNumber = expense.type === 'INSTALLMENT' 
-                                                            ? getInstallmentNumber(expense, month.getFullYear(), month.getMonth()) 
+                                                        const installmentNumber = expense.type === 'INSTALLMENT'
+                                                            ? getInstallmentNumber(expense, month.getFullYear(), month.getMonth())
                                                             : null;
 
                                                         // Desktop status text aligned with mobile card
@@ -609,6 +615,19 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                                                         } else if (expense.type === 'RECURRING') {
                                                             // Respect frequency and periods for recurring
                                                             isActiveThisMonth = isInstallmentInMonth(expense, month.getFullYear(), month.getMonth());
+
+                                                            // DEBUG: Log para WOMfibra y WomMovil
+                                                            if (expense.name.includes('WOM') || expense.name.includes('Wom')) {
+                                                                console.log(`[DEBUG ${expense.name}] Month: ${month.getFullYear()}-${month.getMonth()}`, {
+                                                                    isActiveThisMonth,
+                                                                    type: expense.type,
+                                                                    startDate: expense.startDate,
+                                                                    installments: expense.installments,
+                                                                    paymentFrequency: expense.paymentFrequency,
+                                                                    displayAmount,
+                                                                    hasPaymentDetails: !!paymentDetails
+                                                                });
+                                                            }
                                                         } else if (expense.type === 'VARIABLE') {
                                                             // Only active if there is data for that month; allow + only on current month
                                                             isActiveThisMonth = !!paymentDetails || isCurrent;
@@ -641,9 +660,9 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                                                         }
 
                                                         return (
-                                                            <td 
+                                                            <td
                                                                 key={monthIndex}
-                                                                className={`${pad} text-right border-r border-slate-200 dark:border-slate-700 last:border-r-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 focus:outline-none focus:ring-2 focus:ring-teal-500/40`}
+                                                                className={`${pad} text-right border-r border-slate-200 dark:border-slate-700 last:border-r-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/40`}
                                                                 role="button"
                                                                 tabIndex={0}
                                                                 aria-label={`Editar ${expense.name} - ${month.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}`}
@@ -702,9 +721,9 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                                                                         )}
                                                                         <div className="text-slate-400 dark:text-slate-500">
                                                                             {isCurrent && (
-                                                                                <button 
+                                                                                <button
                                                                                     onClick={(e) => { e.stopPropagation(); onOpenCellEditor(expense.id, month.getFullYear(), month.getMonth()); }}
-                                                                                    className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-teal-500 dark:hover:border-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors flex items-center justify-center text-slate-400 hover:text-teal-600 dark:hover:text-teal-400"
+                                                                                    className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-sky-500 dark:hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors flex items-center justify-center text-slate-400 hover:text-sky-600 dark:hover:text-sky-400"
                                                                                 >
                                                                                     +
                                                                                 </button>
@@ -726,7 +745,7 @@ const ExpenseGridVirtual: React.FC<ExpenseGridVirtualProps> = ({
                             {/* Sin spacer: eliminamos espacios al inicio y final */}
                         </div>
                     </div>
-                    
+
                     {/* Footer */}
                     <div ref={footerRef} className="p-3 text-center text-sm text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800" />
                 </div>

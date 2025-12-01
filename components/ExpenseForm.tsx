@@ -14,14 +14,15 @@ interface ExpenseFormProps {
     onSave: (expense: Omit<Expense, 'id' | 'createdAt'> & { id?: string }) => void;
     expenseToEdit: Expense | null;
     categories: string[];
+    expenses: Expense[];  // Array de todos los expenses para filtrar
 }
 
-const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
+const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
 const formSelectClasses = `${formInputClasses} appearance-none`;
 const formLabelClasses = "block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5";
 
-const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expenseToEdit, categories }) => {
-    const { t, getLocalizedMonths } = useLocalization();
+const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expenseToEdit, categories, expenses }) => {
+    const { t, getLocalizedMonths, formatClp } = useLocalization();
 
     const today = new Date().toISOString().split('T')[0];
     
@@ -34,6 +35,10 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
     const [category, setCategory] = useState(categories[0] || '');
     const [originalCurrency, setOriginalCurrency] = useState<PaymentUnit>('CLP');
     const [isImportant, setIsImportant] = useState(false);
+
+    // Estados para vinculación de gastos
+    const [linkedExpenseId, setLinkedExpenseId] = useState<string | undefined>(undefined);
+    const [linkRole, setLinkRole] = useState<'primary' | 'secondary'>('primary');
     
     // Estados para gastos únicos
     const [variableAmount, setVariableAmount] = useState('');
@@ -63,6 +68,52 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
     const monthOptions = useMemo(() => getLocalizedMonths('long'), [getLocalizedMonths]);
     const yearOptions = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i);
 
+    // Filtrar expenses disponibles para vincular
+    const availableExpensesToLink = useMemo(() => {
+        if (!expenses) return [];
+
+        // Determinar el monto actual según el tipo de gasto
+        let currentAmount = 0;
+        if (selectedType === 'VARIABLE') {
+            currentAmount = parseFloat(variableAmount || '0');
+        } else if (selectedType === 'RECURRING') {
+            currentAmount = parseFloat(recurringAmount || '0');
+        } else if (selectedType === 'INSTALLMENT') {
+            currentAmount = parseFloat(totalAmount || installmentAmount || '0');
+        }
+
+        // Determinar si el expense actual es ingreso o gasto
+        const currentIsIncome = originalCurrency === 'CLP'
+            ? currentAmount < 0
+            : name.toLowerCase().includes('ingreso') || name.toLowerCase().includes('arriendo');
+
+        return expenses.filter(exp => {
+            // No mostrar el expense actual (si estamos editando)
+            if (expenseToEdit && exp.id === expenseToEdit.id) return false;
+
+            // Solo mostrar del tipo opuesto (ingreso vs gasto)
+            const expIsIncome = exp.amountInClp < 0;
+            if (currentIsIncome === expIsIncome) return false;
+
+            // No mostrar expenses ya vinculados con otros
+            if (exp.linkedExpenseId && exp.linkedExpenseId !== expenseToEdit?.id) {
+                return false;
+            }
+
+            // Preferir misma frecuencia (pero no obligatorio)
+            return true;
+        }).sort((a, b) => {
+            // Ordenar: primero por frecuencia coincidente, luego alfabético
+            const aFreqMatch = a.paymentFrequency === paymentFrequency;
+            const bFreqMatch = b.paymentFrequency === paymentFrequency;
+
+            if (aFreqMatch && !bFreqMatch) return -1;
+            if (!aFreqMatch && bFreqMatch) return 1;
+
+            return a.name.localeCompare(b.name);
+        });
+    }, [expenses, expenseToEdit, selectedType, recurringAmount, variableAmount, installmentAmount, totalAmount, originalCurrency, name, paymentFrequency]);
+
     const resetForm = () => {
         const today = new Date().toISOString().split('T')[0];
         setName('');
@@ -82,8 +133,8 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
 
     const numInstallments = useMemo(() => {
         if (paymentFrequency === PaymentFrequency.ONCE) return 1;
-        return isOngoing ? 999 : (parseInt(installments, 10) || 1);
-    }, [installments, isOngoing, paymentFrequency]);
+        return isOngoing ? 999 : (parseInt(numberOfInstallments, 10) || 1);
+    }, [numberOfInstallments, isOngoing, paymentFrequency]);
 
     useEffect(() => {
         if (isOpen) {
@@ -95,15 +146,24 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
                 setOriginalAmount(expenseToEdit.originalAmount.toString());
                 setOriginalCurrency(expenseToEdit.originalCurrency);
                 setExpenseDate(expenseToEdit.expenseDate); // Expects YYYY-MM-DD
-                setType(expenseToEdit.type);
+                setSelectedType(expenseToEdit.type);
                 setCategory(categories.includes(expenseCategory) ? expenseCategory : (categories[0] || ''));
                 setPaymentFrequency(expenseToEdit.paymentFrequency);
                 setStartMonth(startMonth - 1); // Adjust to 0-indexed
                 setStartYear(startYear);
-                setInstallments(expenseToEdit.installments === 999 ? '12' : expenseToEdit.installments.toString());
-                setDueDate(expenseToEdit.dueDate.toString()); // Convert number to string for input
+                setNumberOfInstallments(expenseToEdit.installments === 999 ? '12' : expenseToEdit.installments.toString());
+                // Set the appropriate due date based on expense type
+                if (expenseToEdit.type === 'RECURRING') {
+                    setRecurringDueDay(expenseToEdit.dueDate.toString());
+                } else if (expenseToEdit.type === 'VARIABLE') {
+                    setVariableDueDate(expenseToEdit.dueDate.toString());
+                } else if (expenseToEdit.type === 'INSTALLMENT') {
+                    setInstallmentDueDay(expenseToEdit.dueDate.toString());
+                }
                 setIsImportant(expenseToEdit.isImportant);
                 setIsOngoing(expenseToEdit.installments === 999);
+                setLinkedExpenseId(expenseToEdit.linkedExpenseId);
+                setLinkRole(expenseToEdit.linkRole || 'primary');
             } else {
                 resetForm();
             }
@@ -119,9 +179,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
 
     useEffect(() => {
         if (isOngoing) {
-            setInstallments('999');
-        } else if (installments === '999') {
-            setInstallments('12'); // Revert to a sensible default
+            setNumberOfInstallments('999');
+        } else if (numberOfInstallments === '999') {
+            setNumberOfInstallments('12'); // Revert to a sensible default
         }
     }, [isOngoing]);
 
@@ -145,10 +205,33 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
             // These are calculated in App.tsx, but need to be here to satisfy the type
             amountInClp: 0,
             exchangeRate: 0,
+            // Vinculación de gastos
+            linkedExpenseId: linkedExpenseId || undefined,
+            linkRole: linkedExpenseId ? linkRole : undefined,
         };
 
         if (expenseToEdit) {
             (newExpense as any).id = expenseToEdit.id;
+        }
+
+        // Validación de vinculación
+        if (linkedExpenseId) {
+            const linkedExpense = expenses.find(e => e.id === linkedExpenseId);
+
+            if (!linkedExpense) {
+                alert('Error: El expense vinculado no existe');
+                return;
+            }
+
+            // Validar que tengan frecuencias compatibles
+            if (linkedExpense.paymentFrequency !== paymentFrequency) {
+                const confirmDifferentFreq = confirm(
+                    `Advertencia: "${name}" es ${paymentFrequency} pero "${linkedExpense.name}" es ${linkedExpense.paymentFrequency}.\n\n` +
+                    `Esto puede causar descuadres en algunos meses. ¿Continuar de todos modos?`
+                );
+
+                if (!confirmDifferentFreq) return;
+            }
         }
 
         onSave(newExpense);
@@ -252,7 +335,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
                             </div>
                             <div>
                                 <label htmlFor="installments" className={formLabelClasses}>{t('form.installmentsLabel')}</label>
-                                <input type="number" id="installments" value={installments} onChange={e => setInstallments(e.target.value)} className={`${formInputClasses} disabled:bg-slate-200 dark:disabled:bg-slate-700`} placeholder="e.g., 12" required min="1" disabled={isOngoing || paymentFrequency === PaymentFrequency.ONCE} />
+                                <input type="number" id="installments" value={numberOfInstallments} onChange={e => setNumberOfInstallments(e.target.value)} className={`${formInputClasses} disabled:bg-slate-200 dark:disabled:bg-slate-700`} placeholder="e.g., 12" required min="1" disabled={isOngoing || paymentFrequency === PaymentFrequency.ONCE} />
                             </div>
                         </div>
                         <div className="flex items-center justify-between">
@@ -262,16 +345,121 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
                             </div>
                             {paymentFrequency !== PaymentFrequency.ONCE && (
                                 <div className="flex items-center">
-                                    <input id="isOngoing" type="checkbox" checked={isOngoing} onChange={e => setIsOngoing(e.target.checked)} className="h-4 w-4 rounded border-slate-400 dark:border-slate-500 text-teal-500 focus:ring-teal-600 bg-slate-100 dark:bg-slate-700/50"/>
+                                    <input id="isOngoing" type="checkbox" checked={isOngoing} onChange={e => setIsOngoing(e.target.checked)} className="h-4 w-4 rounded border-slate-400 dark:border-slate-500 text-sky-500 focus:ring-sky-600 bg-slate-100 dark:bg-slate-700/50"/>
                                     <label htmlFor="isOngoing" className="ml-2 block text-sm text-slate-700 dark:text-slate-300">{t('form.ongoingLabel')}</label>
                                 </div>
                            )}
+                        </div>
+
+                        {/* Vinculación de gastos */}
+                        <div className="space-y-3 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700/50">
+                            <div>
+                                <label htmlFor="linkedExpense" className={formLabelClasses}>
+                                    Vincular con otro gasto/ingreso
+                                    <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
+                                        (Para compensar montos, ej: arriendo vs hipoteca)
+                                    </span>
+                                </label>
+                                <select
+                                    id="linkedExpense"
+                                    value={linkedExpenseId || ''}
+                                    onChange={(e) => setLinkedExpenseId(e.target.value || undefined)}
+                                    className={formSelectClasses}
+                                >
+                                    <option value="">Sin vincular</option>
+                                    {availableExpensesToLink.map((exp) => {
+                                        const freqLabel = exp.paymentFrequency === paymentFrequency ? '✓ ' : '';
+                                        const typeLabel = exp.amountInClp < 0 ? '💰 Ingreso' : '💳 Gasto';
+
+                                        return (
+                                            <option key={exp.id} value={exp.id}>
+                                                {freqLabel}{exp.name} ({typeLabel}, {formatClp(Math.abs(exp.amountInClp))})
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    💡 Selecciona el gasto/ingreso complementario para mostrar solo el neto en estadísticas
+                                </p>
+                            </div>
+
+                            {linkedExpenseId && (
+                                <div className="space-y-2">
+                                    <label className={formLabelClasses}>Rol en la vinculación</label>
+                                    <div className="flex gap-4">
+                                        <label className="flex items-center cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="linkRole"
+                                                value="primary"
+                                                checked={linkRole === 'primary'}
+                                                onChange={() => setLinkRole('primary')}
+                                                className="h-4 w-4 text-sky-500 focus:ring-sky-500 border-slate-400 dark:border-slate-500"
+                                            />
+                                            <span className="ml-2 text-sm text-slate-700 dark:text-slate-300">
+                                                <strong>Principal</strong> - Se muestra el neto en totales
+                                            </span>
+                                        </label>
+                                        <label className="flex items-center cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="linkRole"
+                                                value="secondary"
+                                                checked={linkRole === 'secondary'}
+                                                onChange={() => setLinkRole('secondary')}
+                                                className="h-4 w-4 text-slate-500 focus:ring-slate-500 border-slate-400 dark:border-slate-500"
+                                            />
+                                            <span className="ml-2 text-sm text-slate-700 dark:text-slate-300">
+                                                <strong>Secundario</strong> - Se excluye de totales
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                    {/* Preview del expense vinculado */}
+                                    <div className="mt-3 p-3 bg-sky-50 dark:bg-sky-900/20 rounded-lg border border-sky-200 dark:border-sky-800">
+                                        <p className="text-sm text-sky-800 dark:text-sky-200">
+                                            {(() => {
+                                                const linked = expenses.find(e => e.id === linkedExpenseId);
+                                                if (!linked) return 'Expense vinculado no encontrado';
+
+                                                // Determinar el monto actual según el tipo de gasto
+                                                let currentAmount = 0;
+                                                if (selectedType === 'VARIABLE') {
+                                                    currentAmount = parseFloat(variableAmount || '0');
+                                                } else if (selectedType === 'RECURRING') {
+                                                    currentAmount = parseFloat(recurringAmount || '0');
+                                                } else if (selectedType === 'INSTALLMENT') {
+                                                    currentAmount = parseFloat(totalAmount || installmentAmount || '0');
+                                                }
+
+                                                const netAmount = linkRole === 'primary'
+                                                    ? Math.abs(currentAmount) - Math.abs(linked.amountInClp)
+                                                    : 0;
+
+                                                return (
+                                                    <>
+                                                        <strong>Vinculado con:</strong> {linked.name}<br/>
+                                                        {linkRole === 'primary' && (
+                                                            <>
+                                                                <strong>Monto neto:</strong> {formatClp(Math.abs(netAmount))}
+                                                                <span className="text-xs ml-2">
+                                                                    ({formatClp(Math.abs(currentAmount))} - {formatClp(Math.abs(linked.amountInClp))})
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     <div className="flex justify-end gap-4 pt-4 mt-2 border-t border-slate-200 dark:border-slate-700/50">
                         <button type="button" onClick={onClose} className="px-5 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors font-medium">{t('form.cancel')}</button>
-                        <button type="submit" className="px-5 py-2 rounded-lg bg-teal-500 hover:bg-teal-600 dark:hover:bg-teal-400 text-white transition-colors font-medium shadow-lg shadow-teal-500/20">{expenseToEdit ? t('form.save') : t('form.add')}</button>
+                        <button type="submit" className="px-5 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 dark:hover:bg-sky-400 text-white transition-colors font-medium shadow-lg shadow-sky-500/20">{expenseToEdit ? t('form.save') : t('form.add')}</button>
                     </div>
                 </form>
             </div>

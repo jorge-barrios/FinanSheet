@@ -67,7 +67,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                         className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors focus:outline-none focus:ring-2 ${
                             isDangerous 
                                 ? 'bg-rose-600 hover:bg-rose-700 focus:ring-rose-500' 
-                                : 'bg-teal-600 hover:bg-teal-700 focus:ring-teal-500'
+                                : 'bg-sky-600 hover:bg-sky-700 focus:ring-sky-500'
                         }`}
                     >
                         {confirmText || t('common.confirm')}

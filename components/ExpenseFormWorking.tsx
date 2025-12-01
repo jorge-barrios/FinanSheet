@@ -4,7 +4,7 @@ import { useLocalization } from '../hooks/useLocalization';
 import usePersistentState from '../hooks/usePersistentState';
 import CurrencyService from '../services/currencyService';
 import useCurrency from '../hooks/useCurrency';
-import { getFrequencyInMonths } from '../utils/expenseCalculations';
+import { getFrequencyInMonths, getInstallmentAmount } from '../utils/expenseCalculations';
 
 interface ExpenseFormProps {
     isOpen: boolean;
@@ -12,9 +12,10 @@ interface ExpenseFormProps {
     onSave: (expense: Omit<Expense, 'id' | 'createdAt'> & { id?: string }) => void;
     expenseToEdit: Expense | null;
     categories: string[];
+    expenses: Expense[];  // Array de todos los expenses para filtrar
 }
 
-const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
+const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
 const formSelectClasses = `${formInputClasses} appearance-none`;
 const formLabelClasses = "block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5";
 
@@ -29,7 +30,7 @@ const formatCLPInput = (s: string) => {
 };
 const stripSeparators = (s: string) => s.replace(/\./g, '').replace(/\s/g, '');
 
-const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expenseToEdit, categories }) => {
+const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expenseToEdit, categories, expenses }) => {
     const { t, getLocalizedMonths, formatClp, language } = useLocalization();
     // Ensure currency rates are initialized for conversions in this form
     useCurrency();
@@ -193,7 +194,11 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
     const [dueDate, setDueDate] = useState('1');
     const [isImportant, setIsImportant] = useState(false);
     const [isOngoing, setIsOngoing] = useState(false);
-    
+
+    // Estados para vinculación de gastos
+    const [linkedExpenseId, setLinkedExpenseId] = useState<string | undefined>(undefined);
+    const [linkRole, setLinkRole] = useState<'primary' | 'secondary'>('primary');
+
     // Estados para el toggle entre monto total y valor cuota
     const [amountInputMode, setAmountInputMode] = useState<'total' | 'installment'>('total');
     const [installmentAmount, setInstallmentAmount] = useState('');
@@ -281,6 +286,53 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
             : `If you selected ${freqLabel[paymentFrequency]} for ${periods} period${periods === 1 ? '' : 's'}, this expense will repeat ${perText} ${freqMonths} ${monthWord(freqMonths)} for ${periods} ${timesText}, ${durationText}`;
     }, [type, paymentFrequency, recurringPeriods, isOngoing, language]);
 
+    // Filtrar expenses disponibles para vincular
+    const availableExpensesToLink = useMemo(() => {
+        if (!expenses) return [];
+
+        // Determinar el monto mensual del expense actual
+        const currentAmount = parseFloat(originalAmount || '0');
+
+        // Para INSTALLMENT, necesitamos el monto de la cuota, no el total
+        let currentMonthlyAmount = currentAmount;
+        if (type === ExpenseType.INSTALLMENT && installments) {
+            const numInst = parseInt(installments, 10);
+            if (numInst > 0) {
+                currentMonthlyAmount = currentAmount / numInst;
+            }
+        }
+
+        // Determinar si es ingreso o gasto usando el monto mensual
+        const currentIsIncome = originalCurrency === 'CLP'
+            ? currentMonthlyAmount < 0
+            : name.toLowerCase().includes('ingreso') || name.toLowerCase().includes('arriendo');
+
+        return expenses.filter(exp => {
+            // No mostrar el expense actual (si estamos editando)
+            if (expenseToEdit && exp.id === expenseToEdit.id) return false;
+
+            // Solo mostrar del tipo opuesto (ingreso vs gasto)
+            const expIsIncome = exp.amountInClp < 0;
+            if (currentIsIncome === expIsIncome) return false;
+
+            // No mostrar expenses ya vinculados con otros
+            if (exp.linkedExpenseId && exp.linkedExpenseId !== expenseToEdit?.id) {
+                return false;
+            }
+
+            return true;
+        }).sort((a, b) => {
+            // Ordenar: primero por frecuencia coincidente, luego alfabético
+            const aFreqMatch = a.paymentFrequency === paymentFrequency;
+            const bFreqMatch = b.paymentFrequency === paymentFrequency;
+
+            if (aFreqMatch && !bFreqMatch) return -1;
+            if (!aFreqMatch && bFreqMatch) return 1;
+
+            return a.name.localeCompare(b.name);
+        });
+    }, [expenses, expenseToEdit, originalAmount, originalCurrency, name, paymentFrequency, type, installments]);
+
     // Funciones para sincronizar los campos de monto total y valor cuota
     const handleTotalAmountChange = (value: string) => {
         setOriginalAmount(value);
@@ -360,7 +412,11 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                     // VARIABLE
                     setInstallments('1');
                 }
-                
+
+                // Cargar campos de vinculación
+                setLinkedExpenseId(expenseToEdit.linkedExpenseId);
+                setLinkRole(expenseToEdit.linkRole || 'primary');
+
             } else {
                 resetForm();
             }
@@ -370,8 +426,14 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
     // If categories list becomes available and we don't have a category yet, choose last or first
     useEffect(() => {
         if (!expenseToEdit && isOpen) {
-            setCategory(prev => prev || lastCategory || categories[0] || '');
-            setOriginalCurrency(prev => prev || lastCurrency || 'CLP');
+            if (!category || category === '') {
+                const newCategory = lastCategory || categories[0] || '';
+                setCategory(newCategory);
+            }
+
+            if (!originalCurrency || originalCurrency === '') {
+                setOriginalCurrency(lastCurrency || 'CLP');
+            }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [categories, isOpen]);
@@ -404,7 +466,30 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
         setAmountError(aErr);
         setCategoryError(cErr);
         if (nErr || aErr || cErr) return;
-        
+
+        // Validación de vinculación
+        if (linkedExpenseId) {
+            const linkedExpense = expenses.find(e => e.id === linkedExpenseId);
+
+            if (!linkedExpense) {
+                alert('Error: El expense vinculado no existe');
+                return;
+            }
+
+            // Validar que tengan frecuencias compatibles
+            const finalFreq = type === ExpenseType.VARIABLE ? PaymentFrequency.ONCE
+                : (type === ExpenseType.INSTALLMENT ? PaymentFrequency.MONTHLY : paymentFrequency);
+
+            if (linkedExpense.paymentFrequency !== finalFreq) {
+                const confirmDifferentFreq = confirm(
+                    `Advertencia: "${name}" es ${finalFreq} pero "${linkedExpense.name}" es ${linkedExpense.paymentFrequency}.\n\n` +
+                    `Esto puede causar descuadres en algunos meses. ¿Continuar de todos modos?`
+                );
+
+                if (!confirmDifferentFreq) return;
+            }
+        }
+
         const amount = parseFloat(originalAmount) || 0;
         
         // Different logic for different expense types
@@ -442,6 +527,9 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
             paymentFrequency: finalPaymentFrequency,
             isImportant,
             dueDate: parseInt(dueDate) || 1,
+            // Vinculación de gastos
+            linkedExpenseId: linkedExpenseId || undefined,
+            linkRole: linkedExpenseId ? linkRole : undefined,
         };
 
         // Debug logging
@@ -492,7 +580,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                             <label htmlFor="name" className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Nombre del Gasto</label>
                             <input
                                 id="name"
-                                className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
+                                className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
                                 type="text"
                                 value={name}
                                 onChange={(e) => { setName(e.target.value); setNameError(validateName(e.target.value)); }}
@@ -536,7 +624,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                             onClick={() => setAmountInputMode('total')}
                                             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                                                 amountInputMode === 'total'
-                                                    ? 'bg-teal-500 text-white shadow-sm'
+                                                    ? 'bg-sky-500 text-white shadow-sm'
                                                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                                             }`}
                                         >
@@ -547,7 +635,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                             onClick={() => setAmountInputMode('installment')}
                                             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                                                 amountInputMode === 'installment'
-                                                    ? 'bg-teal-500 text-white shadow-sm'
+                                                    ? 'bg-sky-500 text-white shadow-sm'
                                                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                                             }`}
                                         >
@@ -567,7 +655,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                                     onClick={() => handleCurrencySwitch(unit)}
                                                     className={`px-3 py-1.5 text-sm font-medium transition-colors ${
                                                         originalCurrency === unit
-                                                            ? 'bg-teal-500 text-white'
+                                                            ? 'bg-sky-500 text-white'
                                                             : 'bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                                                     } ${unit !== 'UTM' ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}
                                                     aria-pressed={originalCurrency === unit}
@@ -590,7 +678,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                     <div>
                                         <label htmlFor="totalAmount" className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">
                                             Monto Total
-                                            <span className="text-teal-500 ml-1">*</span>
+                                            <span className="text-sky-500 ml-1">*</span>
                                         </label>
                                         <input
                                             type="text"
@@ -599,7 +687,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                             value={originalCurrency === 'CLP' ? formatCLPInput(originalAmount) : originalAmount}
                                             onChange={e => handleTotalAmountChange(originalCurrency === 'CLP' ? stripSeparators(e.target.value) : e.target.value)}
                                             onFocus={() => setAmountInputMode('total')}
-                                            className={`w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all`}
+                                            className={`w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all`}
                                             placeholder={originalCurrency === 'CLP' ? '3.600.000' : '3600000'}
                                             required
                                         />
@@ -608,7 +696,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                     <div>
                                         <label htmlFor="installmentAmount" className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">
                                             Valor por Cuota
-                                            <span className="text-teal-500 ml-1">*</span>
+                                            <span className="text-sky-500 ml-1">*</span>
                                         </label>
                                         <input
                                             type="text"
@@ -617,7 +705,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                             value={originalCurrency === 'CLP' ? formatCLPInput(installmentAmount) : installmentAmount}
                                             onChange={e => handleInstallmentAmountChange(originalCurrency === 'CLP' ? stripSeparators(e.target.value) : e.target.value)}
                                             onFocus={() => setAmountInputMode('installment')}
-                                            className={`w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all`}
+                                            className={`w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all`}
                                             placeholder={originalCurrency === 'CLP' ? '600.000' : '600000'}
                                             required
                                         />
@@ -641,7 +729,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                         setAmountError(validateAmount(raw));
                                     }}
                                     onBlur={() => setAmountError(validateAmount(originalAmount))}
-                                    className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
+                                    className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
                                     placeholder={originalCurrency === 'CLP' ? '150.000' : '150000'}
                                     required
                                 />
@@ -661,7 +749,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                                 onClick={() => handleCurrencySwitch(unit)}
                                                 className={`px-3 py-1.5 text-sm font-medium transition-colors ${
                                                     originalCurrency === unit
-                                                        ? 'bg-teal-500 text-white'
+                                                        ? 'bg-sky-500 text-white'
                                                         : 'bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                                                 } ${unit !== 'UTM' ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}
                                                 aria-pressed={originalCurrency === unit}
@@ -705,7 +793,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                         type="button"
                                         onClick={() => { setType(opt.k); if (opt.k === ExpenseType.INSTALLMENT) setAmountInputMode('total'); }}
                                         className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                                            type === opt.k ? 'bg-teal-500 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                            type === opt.k ? 'bg-sky-500 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                         } ${idx < 2 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}
                                         aria-pressed={type === opt.k}
                                     >
@@ -736,7 +824,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                         id="paymentFrequency"
                                         value={paymentFrequency}
                                         onChange={e => setPaymentFrequency(e.target.value as PaymentFrequency)}
-                                        className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
+                                        className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
                                         required
                                     >
                                         {frequencyOptions.filter(option => option.value !== PaymentFrequency.ONCE).map(option => (
@@ -750,7 +838,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                         id="startMonth"
                                         value={startMonth}
                                         onChange={e => setStartMonth(parseInt(e.target.value))}
-                                        className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
+                                        className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
                                         required
                                     >
                                         {monthOptions.map((month, index) => (
@@ -764,7 +852,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                         id="startYear"
                                         value={startYear}
                                         onChange={e => setStartYear(parseInt(e.target.value))}
-                                        className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
+                                        className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
                                         required
                                     >
                                         {yearOptions.map(year => (
@@ -788,7 +876,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                             id="recurringInstallments"
                                             value={recurringPeriods}
                                             onChange={e => setRecurringPeriods(e.target.value)}
-                                            className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
+                                            className="w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all"
                                             placeholder="12"
                                             required
                                             min="1"
@@ -835,15 +923,15 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
 
 
                     {type === ExpenseType.INSTALLMENT && (
-                        <div className="space-y-3 p-3 bg-teal-100 dark:bg-teal-900/30 rounded-lg border-l-4 border-teal-500">
+                        <div className="space-y-3 p-3 bg-sky-100 dark:bg-sky-900/30 rounded-lg border-l-4 border-sky-500">
                             <div className="flex items-center gap-2 mb-3">
-                                <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
+                                <div className="w-2 h-2 bg-sky-500 rounded-full"></div>
                                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                     {t('form.installmentFieldsTitle')}
                                 </span>
                             </div>
-                            <div className="bg-teal-50 dark:bg-teal-900/20 p-3 rounded-md border border-teal-200 dark:border-teal-800 mb-4">
-                                <p className="text-sm text-teal-800 dark:text-teal-200">
+                            <div className="bg-sky-50 dark:bg-sky-900/20 p-3 rounded-md border border-sky-200 dark:border-sky-800 mb-4">
+                                <p className="text-sm text-sky-800 dark:text-sky-200">
                                     <strong>💡 Tip:</strong> Puedes elegir si ingresar el monto total o el valor por cuota. Los campos se sincronizan automáticamente.
                                 </p>
                             </div>
@@ -941,7 +1029,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                     type="checkbox"
                                     checked={isOngoing}
                                     onChange={e => setIsOngoing(e.target.checked)}
-                                    className="h-4 w-4 rounded border-slate-400 dark:border-slate-500 text-teal-500 focus:ring-teal-600 bg-slate-100 dark:bg-slate-700/50"
+                                    className="h-4 w-4 rounded border-slate-400 dark:border-slate-500 text-sky-500 focus:ring-sky-600 bg-slate-100 dark:bg-slate-700/50"
                                 />
                                 <label htmlFor="isOngoing" className="ml-2 block text-sm text-slate-700 dark:text-slate-300">
                                     Sin fecha de fin
@@ -949,6 +1037,124 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                                         Para suscripciones indefinidas (ej: Netflix, Spotify, luz)
                                     </span>
                                 </label>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Vinculación de gastos */}
+                    <div className="space-y-3 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700/50">
+                        <div>
+                            <label htmlFor="linkedExpense" className={formLabelClasses}>
+                                Vincular con otro gasto/ingreso
+                                <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
+                                    (Para compensar montos, ej: arriendo vs hipoteca)
+                                </span>
+                            </label>
+                            <select
+                                id="linkedExpense"
+                                value={linkedExpenseId || ''}
+                                onChange={(e) => setLinkedExpenseId(e.target.value || undefined)}
+                                className={formSelectClasses}
+                            >
+                                <option value="">Sin vincular</option>
+                                {availableExpensesToLink.map((exp) => {
+                                    const freqLabel = exp.paymentFrequency === paymentFrequency ? '✓ ' : '';
+                                    const typeLabel = exp.amountInClp < 0 ? '💰 Ingreso' : '💳 Gasto';
+
+                                    // ✅ Usar getInstallmentAmount para obtener el monto correcto
+                                    const monthlyAmount = getInstallmentAmount(exp);
+                                    const displayAmount = Math.abs(monthlyAmount);
+
+                                    // Agregar indicador para gastos en cuotas
+                                    const installmentLabel = exp.type === 'INSTALLMENT'
+                                        ? ` (${exp.installments} cuotas)`
+                                        : '';
+
+                                    return (
+                                        <option key={exp.id} value={exp.id}>
+                                            {freqLabel}{exp.name} ({typeLabel}, {formatClp(displayAmount)}/mes{installmentLabel})
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                💡 Selecciona el gasto/ingreso complementario para mostrar solo el neto en estadísticas
+                            </p>
+                        </div>
+
+                        {linkedExpenseId && (
+                            <div className="space-y-2">
+                                <label className={formLabelClasses}>Rol en la vinculación</label>
+                                <div className="flex gap-4">
+                                    <label className="flex items-center cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="linkRole"
+                                            value="primary"
+                                            checked={linkRole === 'primary'}
+                                            onChange={() => setLinkRole('primary')}
+                                            className="h-4 w-4 text-sky-500 focus:ring-sky-500 border-slate-400 dark:border-slate-500"
+                                        />
+                                        <span className="ml-2 text-sm text-slate-700 dark:text-slate-300">
+                                            <strong>Principal</strong> - Se muestra el neto en totales
+                                        </span>
+                                    </label>
+                                    <label className="flex items-center cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="linkRole"
+                                            value="secondary"
+                                            checked={linkRole === 'secondary'}
+                                            onChange={() => setLinkRole('secondary')}
+                                            className="h-4 w-4 text-slate-500 focus:ring-slate-500 border-slate-400 dark:border-slate-500"
+                                        />
+                                        <span className="ml-2 text-sm text-slate-700 dark:text-slate-300">
+                                            <strong>Secundario</strong> - Se excluye de totales
+                                        </span>
+                                    </label>
+                                </div>
+
+                                {/* Preview del expense vinculado */}
+                                <div className="mt-3 p-3 bg-sky-50 dark:bg-sky-900/20 rounded-lg border border-sky-200 dark:border-sky-800">
+                                    <p className="text-sm text-sky-800 dark:text-sky-200">
+                                        {(() => {
+                                            const linked = expenses.find(e => e.id === linkedExpenseId);
+                                            if (!linked) return 'Expense vinculado no encontrado';
+
+                                            // Calcular monto mensual del expense actual
+                                            let currentMonthlyAmount = parseFloat(originalAmount || '0');
+                                            if (type === ExpenseType.INSTALLMENT && installments) {
+                                                const numInst = parseInt(installments, 10);
+                                                if (numInst > 0) {
+                                                    currentMonthlyAmount = currentMonthlyAmount / numInst;
+                                                }
+                                            }
+
+                                            // Calcular monto mensual del expense vinculado
+                                            const linkedMonthlyAmount = getInstallmentAmount(linked);
+
+                                            // Calcular neto mensual
+                                            const netAmount = linkRole === 'primary'
+                                                ? Math.abs(currentMonthlyAmount) - Math.abs(linkedMonthlyAmount)
+                                                : 0;
+
+                                            return (
+                                                <>
+                                                    <strong>Vinculado con:</strong> {linked.name}
+                                                    {linked.type === 'INSTALLMENT' && ` (${linked.installments} cuotas)`}<br/>
+                                                    {linkRole === 'primary' && (
+                                                        <>
+                                                            <strong>Monto neto mensual:</strong> {formatClp(Math.abs(netAmount))}
+                                                            <span className="text-xs ml-2">
+                                                                ({formatClp(Math.abs(currentMonthlyAmount))}/mes - {formatClp(Math.abs(linkedMonthlyAmount))}/mes)
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
+                                    </p>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -963,7 +1169,7 @@ const ExpenseFormWorking: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSav
                         </button>
                         <button
                             type="submit"
-                            className="px-5 py-2 rounded-lg bg-teal-500 hover:bg-teal-600 dark:hover:bg-teal-400 text-white transition-colors font-medium shadow-lg shadow-teal-500/20"
+                            className="px-5 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 dark:hover:bg-sky-400 text-white transition-colors font-medium shadow-lg shadow-sky-500/20"
                         >
                             {expenseToEdit ? t('form.save') : t('form.add')}
                         </button>

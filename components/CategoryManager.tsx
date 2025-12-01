@@ -11,7 +11,7 @@ interface CategoryManagerProps {
     onDelete: (category: string) => void;
 }
 
-const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
+const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
 
 const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClose, categories, onAdd, onEdit, onDelete }) => {
     const { t } = useLocalization();
@@ -62,7 +62,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClose, cate
                                         type="text"
                                         value={editingValue}
                                         onChange={e => setEditingValue(e.target.value)}
-                                        className="flex-grow bg-slate-200 dark:bg-slate-600 border-slate-400 dark:border-slate-500 text-slate-900 dark:text-white rounded-md p-1 focus:ring-teal-500 focus:border-teal-500"
+                                        className="flex-grow bg-slate-200 dark:bg-slate-600 border-slate-400 dark:border-slate-500 text-slate-900 dark:text-white rounded-md p-1 focus:ring-sky-500 focus:border-sky-500"
                                         autoFocus
                                         onKeyDown={e => {
                                             if (e.key === 'Enter') handleSaveEdit();
@@ -78,7 +78,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClose, cate
                                 <>
                                     <span className="text-slate-800 dark:text-slate-200">{cat}</span>
                                     <div className="flex items-center">
-                                        <button onClick={() => handleStartEdit(cat)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400" aria-label={`${t('form.editTitle')} ${cat}`}><EditIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => handleStartEdit(cat)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400" aria-label={`${t('form.editTitle')} ${cat}`}><EditIcon className="w-4 h-4" /></button>
                                         {cat !== uncategorizedLabel && (
                                            <button onClick={() => onDelete(cat)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400" aria-label={`Delete ${cat}`}><TrashIcon className="w-4 h-4" /></button>
                                         )}
@@ -102,7 +102,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClose, cate
                         />
                         <button
                             onClick={handleAdd}
-                            className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-teal-500 hover:bg-teal-600 dark:hover:bg-teal-400 text-white transition-colors font-medium"
+                            className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 dark:hover:bg-sky-400 text-white transition-colors font-medium"
                         >
                             <PlusIcon className="w-5 h-5" />
                             <span className="hidden sm:inline">{t('category.add')}</span>

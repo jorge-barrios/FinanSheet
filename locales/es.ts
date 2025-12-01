@@ -2,12 +2,19 @@
 export const es = {
   "header.export": "Exportar a Excel",
   "header.addExpense": "Añadir Gasto",
+  "header.settings": "Menú",
+  "header.actions": "Acciones",
   "header.language": "Idioma",
   "header.currency": "Moneda",
   "header.english": "Inglés",
   "header.spanish": "Español",
   "header.lightMode": "Cambiar a Modo Claro",
   "header.darkMode": "Cambiar a Modo Oscuro",
+  "header.logout": "Cerrar sesión",
+  "header.refreshRates": "Actualizar tasas de cambio",
+  "header.lastUpdated": "Última actualización",
+  "header.updating": "Actualizando...",
+  "header.never": "Nunca",
   "header.today": "Hoy",
   "header.prevMonth": "Mes anterior",
   "header.nextMonth": "Mes siguiente",
@@ -90,12 +97,16 @@ export const es = {
   "frequency.annually": "Anual",
 
   "save.expenseError": "Error al guardar el gasto",
+  "save.expenseCreated": "Gasto creado exitosamente",
+  "save.expenseUpdated": "Gasto actualizado exitosamente",
+  "save.saving": "Guardando...",
 
   "delete.confirm": "¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.",
   "delete.confirmExpense": "¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.",
   "delete.expenseError": "Error al eliminar gasto",
   "delete.title": "Eliminar Gasto",
   "delete.message": "¿Estás seguro de que quieres eliminar este gasto? Esta acción no se puede deshacer.",
+  "delete.expenseSuccess": "Gasto eliminado exitosamente",
 
   "common.cancel": "Cancelar",
   "common.confirm": "Confirmar",
@@ -133,17 +144,46 @@ export const es = {
   "cell_edit.markUnpaid": "Marcar como Pendiente",
   "cell_edit.save": "Guardar",
   "cell_edit.cancel": "Cancelar",
-  
+
   "unit.CLP": "Peso Chileno (CLP)",
   "unit.USD": "Dólar Americano (USD)",
   "unit.UF": "Unidad de Fomento (UF)",
   "unit.UTM": "Unidad Tributaria Mensual (UTM)",
-  
+
   "category.managerTitle": "Gestionar Categorías",
   "category.add": "Añadir",
   "category.addNew": "Añadir nueva categoría",
   "category.placeholder": "Nombre de nueva categoría",
   "category.save": "Guardar",
   "category.cancel": "Cancelar",
-  "category.alreadyExistsError": "La categoría '{{category}}' ya existe."
+  "category.alreadyExistsError": "La categoría '{{category}}' ya existe.",
+
+  "login.title": "Iniciar sesión en FinanSheet",
+  "login.subtitle": "Gestiona tus finanzas personales",
+  "login.email": "Correo electrónico",
+  "login.password": "Contraseña",
+  "login.loading": "Iniciando sesión...",
+  "login.submit": "Iniciar sesión",
+  "login.noAccount": "¿No tienes una cuenta? Regístrate",
+  "login.error": "Error al iniciar sesión",
+  "login.success": "¡Bienvenido de vuelta!",
+
+  "signup.title": "Crea tu cuenta",
+  "signup.subtitle": "Empieza a controlar tus finanzas hoy",
+  "signup.email": "Correo electrónico",
+  "signup.password": "Contraseña",
+  "signup.confirmPassword": "Confirmar Contraseña",
+  "signup.loading": "Creando cuenta...",
+  "signup.submit": "Registrarse",
+  "signup.hasAccount": "¿Ya tienes una cuenta? Inicia sesión",
+  "signup.passwordMismatch": "Las contraseñas no coinciden",
+  "signup.passwordTooShort": "La contraseña debe tener al menos 6 caracteres",
+  "signup.error": "Error al crear cuenta",
+  "signup.successToast": "¡Cuenta creada! Revisa tu correo",
+  "signup.success.title": "¡Revisa tu correo!",
+  "signup.success.message": "Te enviamos un enlace de confirmación. Por favor revisa tu correo para activar tu cuenta.",
+  "signup.success.backToLogin": "Volver al inicio de sesión",
+
+  "auth.promo.title": "Domina tu dinero, diseña tu vida.",
+  "auth.promo.subtitle": "Controla gastos, gestiona presupuestos y obtén información con el rastreador de finanzas personales más intuitivo."
 };

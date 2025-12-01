@@ -133,7 +133,7 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
     };
 
     const getStatusStyles = (isPaid: boolean, isOverdue: boolean) => {
-        if (isPaid) return { borderColor: 'border-l-teal-400', textColor: 'text-teal-500 dark:text-teal-300', dateColor: 'text-teal-600 dark:text-teal-400' };
+        if (isPaid) return { borderColor: 'border-l-sky-400', textColor: 'text-sky-500 dark:text-sky-300', dateColor: 'text-sky-600 dark:text-sky-400' };
         if (isOverdue) return { borderColor: 'border-l-rose-500', textColor: 'text-rose-500 dark:text-rose-400', dateColor: 'text-rose-500 dark:text-rose-400' };
         return { borderColor: 'border-l-amber-500', textColor: 'text-amber-600 dark:text-amber-400', dateColor: 'text-slate-500 dark:text-slate-500' };
     };
@@ -231,7 +231,7 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
                         case ExpenseType.INSTALLMENT:
                             return {
                                 label: t('form.type.installment'),
-                                className: 'bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-300'
+                                className: 'bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-300'
                             };
                         default:
                             return {
@@ -250,7 +250,7 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
                             </span>
                         </div>
                         <div className="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity duration-200 flex-shrink-0">
-                            <button onClick={() => onEditExpense(expense)} aria-label={`Edit ${expense.name}`} className="text-slate-500 dark:text-slate-400 hover:text-teal-500 dark:hover:text-teal-400 transition-colors p-2 rounded-full hover:bg-slate-200/70 dark:hover:bg-slate-700/50"><EditIcon /></button>
+                            <button onClick={() => onEditExpense(expense)} aria-label={`Edit ${expense.name}`} className="text-slate-500 dark:text-slate-400 hover:text-sky-500 dark:hover:text-sky-400 transition-colors p-2 rounded-full hover:bg-slate-200/70 dark:hover:bg-slate-700/50"><EditIcon /></button>
                             <button onClick={() => { console.log('Delete button clicked for expense:', expense.id); onDeleteExpense(expense.id); }} aria-label={`Delete ${expense.name}`} className="text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors p-2 rounded-full hover:bg-slate-200/70 dark:hover:bg-slate-700/50"><TrashIcon /></button>
                         </div>
                     </div>
@@ -265,7 +265,7 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
             const monthIndex = date.getMonth();
             const monthName = date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { month: 'short' });
             const isCurrentMonth = today.getFullYear() === year && today.getMonth() === monthIndex;
-            const highlightHeaderClass = isCurrentMonth ? 'bg-teal-100 dark:bg-teal-900/40' : '';
+            const highlightHeaderClass = isCurrentMonth ? 'bg-sky-100 dark:bg-sky-900/40' : '';
             
             return columnHelper.display({
                 id: `${year}-${monthIndex}`,
@@ -275,7 +275,7 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
                         <br />
                         <span className="text-xs text-slate-500 dark:text-slate-500">{year}</span>
                         {isCurrentMonth && (
-                            <div className="absolute top-1 right-1 text-teal-700 dark:text-teal-300" aria-label="Mes actual" title="Mes actual">
+                            <div className="absolute top-1 right-1 text-sky-700 dark:text-sky-300" aria-label="Mes actual" title="Mes actual">
                                 <ChevronDownIcon className="w-4 h-4" />
                             </div>
                         )}
@@ -288,7 +288,7 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
                         ? isInstallmentInMonthWithVersioning(expenses, expense, year, monthIndex)
                         : isInstallmentInMonth(expense, year, monthIndex);
                     
-                    const cellBgClass = isCurrentMonth ? 'bg-teal-50/30 dark:bg-teal-900/20' : '';
+                    const cellBgClass = isCurrentMonth ? 'bg-sky-50/30 dark:bg-sky-900/20' : '';
 
                     // Special handling for VARIABLE expenses
                     if (expense.type === ExpenseType.VARIABLE) {
@@ -301,12 +301,12 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
                             return (
                                 <div className={`h-full w-full p-1 transition-colors ${cellBgClass}`}>
                                     <div 
-                                        className="cursor-pointer w-full h-full flex items-center justify-center rounded-md px-3 py-2 transition-colors bg-slate-50/50 dark:bg-slate-800/20 hover:bg-teal-100/60 dark:hover:bg-teal-900/40 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-teal-400 dark:hover:border-teal-500"
+                                        className="cursor-pointer w-full h-full flex items-center justify-center rounded-md px-3 py-2 transition-colors bg-slate-50/50 dark:bg-slate-800/20 hover:bg-sky-100/60 dark:hover:bg-sky-900/40 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-sky-400 dark:hover:border-sky-500"
                                         onClick={() => onOpenCellEditor(expense.id, year, monthIndex)}
                                         title={`Agregar ${expense.name} en ${monthOptions[monthIndex]} ${year}`}
                                     >
                                         <div className="text-center">
-                                            <div className="text-2xl text-slate-400 dark:text-slate-500 hover:text-teal-500 dark:hover:text-teal-400 transition-colors mb-1">+</div>
+                                            <div className="text-2xl text-slate-400 dark:text-slate-500 hover:text-sky-500 dark:hover:text-sky-400 transition-colors mb-1">+</div>
                                             <div className="text-xs text-slate-500 dark:text-slate-400">{t('grid.addOccurrence')}</div>
                                         </div>
                                     </div>
@@ -467,7 +467,7 @@ const ExpenseGrid: React.FC<ExpenseGridProps> = ({ expenses, paymentStatus, focu
                         }
                         return sum;
                     }, 0);
-                    return <div className={`text-right font-bold font-mono tabular-nums text-teal-600 dark:text-teal-300 py-4 px-4 transition-colors ${highlightHeaderClass}`}>{totalInBase > 0 ? formatClp(totalInBase) : '-'}</div>;
+                    return <div className={`text-right font-bold font-mono tabular-nums text-sky-600 dark:text-sky-300 py-4 px-4 transition-colors ${highlightHeaderClass}`}>{totalInBase > 0 ? formatClp(totalInBase) : '-'}</div>;
                 },
                 size: viewConfig.columnWidth,
             });

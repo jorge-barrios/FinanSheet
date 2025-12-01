@@ -1,8 +1,11 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
 import { LocalizationProvider } from './context/LocalizationContext';
+import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
+import { ProtectedApp } from './components/ProtectedApp';
+import ToastContainer from './components/ToastContainer';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -12,8 +15,13 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <LocalizationProvider>
-      <App />
-    </LocalizationProvider>
+    <AuthProvider>
+      <LocalizationProvider>
+        <ToastProvider>
+          <ProtectedApp />
+          <ToastContainer />
+        </ToastProvider>
+      </LocalizationProvider>
+    </AuthProvider>
   </React.StrictMode>
 );

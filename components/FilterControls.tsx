@@ -27,7 +27,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({
         return (
             <button
                 onClick={() => onClick(value)}
-                className={`px-3 py-1 text-sm rounded-md transition-colors ${isActive ? 'bg-teal-600 text-white font-semibold' : 'bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700'}`}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${isActive ? 'bg-sky-600 text-white font-semibold' : 'bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700'}`}
             >
                 {label}
             </button>
@@ -45,7 +45,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({
                     placeholder={t('filter.search')}
                     value={searchTerm}
                     onChange={(e) => onSearchTermChange(e.target.value)}
-                    className="w-full bg-slate-200 dark:bg-slate-800 border-transparent text-slate-800 dark:text-white rounded-lg p-2 pl-10 focus:ring-2 focus:ring-teal-500 transition"
+                    className="w-full bg-slate-200 dark:bg-slate-800 border-transparent text-slate-800 dark:text-white rounded-lg p-2 pl-10 focus:ring-2 focus:ring-sky-500 transition"
                 />
             </div>
 

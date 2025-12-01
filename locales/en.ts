@@ -2,12 +2,19 @@
 export const en = {
   "header.export": "Export to Excel",
   "header.addExpense": "Add Expense",
+  "header.settings": "Menu",
+  "header.actions": "Actions",
   "header.language": "Language",
   "header.currency": "Currency",
   "header.english": "English",
   "header.spanish": "Spanish",
   "header.lightMode": "Switch to Light Mode",
   "header.darkMode": "Switch to Dark Mode",
+  "header.logout": "Sign out",
+  "header.refreshRates": "Refresh exchange rates",
+  "header.lastUpdated": "Last updated",
+  "header.updating": "Updating...",
+  "header.never": "Never",
   "header.today": "Today",
   "header.prevMonth": "Previous month",
   "header.nextMonth": "Next month",
@@ -88,12 +95,16 @@ export const en = {
   "frequency.annually": "Annually",
 
   "save.expenseError": "Error saving expense",
+  "save.expenseCreated": "Expense created successfully",
+  "save.expenseUpdated": "Expense updated successfully",
+  "save.saving": "Saving...",
 
   "delete.confirm": "Are you sure you want to delete this expense? This action cannot be undone.",
   "delete.confirmExpense": "Are you sure you want to delete this expense? This action cannot be undone.",
   "delete.expenseError": "Error deleting expense",
   "delete.title": "Delete Expense",
   "delete.message": "Are you sure you want to delete this expense? This action cannot be undone.",
+  "delete.expenseSuccess": "Expense deleted successfully",
 
   "common.cancel": "Cancel",
   "common.confirm": "Confirm",
@@ -121,9 +132,9 @@ export const en = {
   "viewSwitcher.table": "Table",
   "viewSwitcher.graph": "Graph",
   "viewSwitcher.calendar": "Calendar",
-  
+
   "mobile.closeMenu": "Close Menu",
-  
+
   "cell_edit.title": "Edit Payment Details",
   "cell_edit.amount": "Amount",
   "cell_edit.unit": "Unit",
@@ -134,7 +145,7 @@ export const en = {
   "cell_edit.markUnpaid": "Mark as Unpaid",
   "cell_edit.save": "Save",
   "cell_edit.cancel": "Cancel",
-  
+
   "unit.CLP": "Chilean Peso (CLP)",
   "unit.USD": "US Dollar (USD)",
   "unit.UF": "Unidad de Fomento (UF)",
@@ -146,5 +157,34 @@ export const en = {
   "category.placeholder": "New category name",
   "category.save": "Save",
   "category.cancel": "Cancel",
-  "category.alreadyExistsError": "Category '{{category}}' already exists."
+  "category.alreadyExistsError": "Category '{{category}}' already exists.",
+
+  "login.title": "Sign in to FinanSheet",
+  "login.subtitle": "Manage your personal finances",
+  "login.email": "Email",
+  "login.password": "Password",
+  "login.loading": "Signing in...",
+  "login.submit": "Sign in",
+  "login.noAccount": "Don't have an account? Sign up",
+  "login.error": "Error signing in",
+  "login.success": "Welcome back!",
+
+  "signup.title": "Create your account",
+  "signup.subtitle": "Start tracking your finances today",
+  "signup.email": "Email",
+  "signup.password": "Password",
+  "signup.confirmPassword": "Confirm Password",
+  "signup.loading": "Creating account...",
+  "signup.submit": "Sign up",
+  "signup.hasAccount": "Already have an account? Sign in",
+  "signup.passwordMismatch": "Passwords do not match",
+  "signup.passwordTooShort": "Password must be at least 6 characters",
+  "signup.error": "Error creating account",
+  "signup.successToast": "Account created! Check your email",
+  "signup.success.title": "Check your email!",
+  "signup.success.message": "We sent you a confirmation link. Please check your email to activate your account.",
+  "signup.success.backToLogin": "Back to login",
+
+  "auth.promo.title": "Master your money, design your life.",
+  "auth.promo.subtitle": "Track expenses, manage budgets, and gain insights with the most intuitive personal finance tracker."
 };

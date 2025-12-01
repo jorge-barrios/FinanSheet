@@ -39,9 +39,9 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ currentView, onViewChange }
                         <button
                             key={view.id}
                             onClick={() => onViewChange(view.id)}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-200 dark:focus-visible:ring-offset-slate-800 ${
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-200 dark:focus-visible:ring-offset-slate-800 ${
                                 isActive 
-                                ? 'bg-teal-600 text-white shadow' 
+                                ? 'bg-sky-600 text-white shadow' 
                                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-300/50 dark:hover:bg-slate-700/50'
                             }`}
                             aria-current={isActive ? 'page' : undefined}

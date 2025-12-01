@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Expense, PaymentDetails, PaymentUnit } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
-import { getInstallmentAmount } from '../utils/expenseCalculations';
+import { getAmountForMonth } from '../utils/expenseCalculations';
 import CurrencyService from '../services/currencyService';
 import { getExchangeRate } from '../services/exchangeRateService';
 
@@ -17,7 +17,7 @@ interface CellEditModalProps {
     onDelete?: () => void;
 }
 
-const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
+const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:bg-white dark:focus:bg-slate-700 outline-none transition-all";
 const formLabelClasses = "block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5";
 
 
@@ -29,6 +29,7 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
     const [isPaid, setIsPaid] = useState(false);
     const [paymentDate, setPaymentDate] = useState(''); // YYYY-MM-DD format
     const [unit, setUnit] = useState<PaymentUnit>(currency);
+    const [defaultAmountInBase, setDefaultAmountInBase] = useState(0);
 
     // Convert an amount from one unit to another using API-backed rates.
     // If paid and a payment date is present, use historical rates for that date; else use current snapshot.
@@ -88,18 +89,16 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
         setMouseDownOnOverlay(false);
     };
 
-    const defaultAmountInBase = getInstallmentAmount(expense);
-
     useEffect(() => {
         if (isOpen) {
-            const amountInBase = paymentDetails?.overriddenAmount ?? defaultAmountInBase;
-            // Since getInstallmentAmount already returns CLP amounts, don't apply currency conversion
-            // This ensures consistency with the grid display
-            setDisplayAmount(String(amountInBase.toFixed(0)));
-            
+            // Compute amount using centralized function
+            const computedDefaultAmount = getAmountForMonth(expense, year, month, paymentDetails);
+            setDefaultAmountInBase(computedDefaultAmount);
+            setDisplayAmount(String(computedDefaultAmount.toFixed(0)));
+
             setDueDate(paymentDetails?.overriddenDueDate ?? expense.dueDate);
             setIsPaid(paymentDetails?.paid ?? false);
-            
+
             setUnit(currency); // Reset to current display currency on open
 
             if (paymentDetails?.paymentDate) {
@@ -108,7 +107,7 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
                 setPaymentDate(new Date().toISOString().split('T')[0]); // Default to today
             }
         }
-    }, [isOpen, paymentDetails, defaultAmountInBase, expense.dueDate, currency]);
+    }, [isOpen, paymentDetails, expense, year, month, currency]);
 
 
     useEffect(() => {
@@ -200,7 +199,7 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
                                 className={formInputClasses}
                                 step="any"
                             />
-                            <select id="cell-unit" value={unit} onChange={e => handleUnitChange(e.target.value as PaymentUnit)} className="w-40 bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                            <select id="cell-unit" value={unit} onChange={e => handleUnitChange(e.target.value as PaymentUnit)} className="w-40 bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
                                 <option value="CLP">{t('unit.CLP')}</option>
                                 <option value="USD">{t('unit.USD')}</option>
                                 <option value="UF">{t('unit.UF')}</option>
@@ -264,7 +263,7 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
                     </div>
                     <div className="flex gap-4">
                         <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors font-medium">{t('cell_edit.cancel')}</button>
-                        <button type="button" onClick={handleSave} className="px-4 py-2 rounded-lg bg-teal-500 hover:bg-teal-600 dark:hover:bg-teal-400 text-white transition-colors font-medium">{t('cell_edit.save')}</button>
+                        <button type="button" onClick={handleSave} className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 dark:hover:bg-sky-400 text-white transition-colors font-medium">{t('cell_edit.save')}</button>
                     </div>
                 </div>
             </div>
