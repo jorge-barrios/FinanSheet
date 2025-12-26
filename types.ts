@@ -52,10 +52,10 @@ export interface Expense {
 }
 
 export interface PaymentDetails {
-    paid: boolean;
-    paymentDate?: number; // timestamp
-    overriddenAmount?: number;
-    overriddenDueDate?: number; // Day of month, 1-31
+  paid: boolean;
+  paymentDate?: number; // timestamp
+  overriddenAmount?: number;
+  overriddenDueDate?: number; // Day of month, 1-31
 }
 
 // To track payment status separately. Key is `expense.id`.

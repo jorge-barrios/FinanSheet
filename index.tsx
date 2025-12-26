@@ -4,6 +4,8 @@ import ReactDOM from 'react-dom/client';
 import { LocalizationProvider } from './context/LocalizationContext';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { FeatureFlagsProvider } from './context/FeatureFlagsContext';
+import { CommitmentsProvider } from './context/CommitmentsContext';
 import { ProtectedApp } from './components/ProtectedApp';
 import ToastContainer from './components/ToastContainer';
 
@@ -17,10 +19,14 @@ root.render(
   <React.StrictMode>
     <AuthProvider>
       <LocalizationProvider>
-        <ToastProvider>
-          <ProtectedApp />
-          <ToastContainer />
-        </ToastProvider>
+        <FeatureFlagsProvider>
+          <ToastProvider>
+            <CommitmentsProvider>
+              <ProtectedApp />
+              <ToastContainer />
+            </CommitmentsProvider>
+          </ToastProvider>
+        </FeatureFlagsProvider>
       </LocalizationProvider>
     </AuthProvider>
   </React.StrictMode>

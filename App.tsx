@@ -70,24 +70,33 @@ const toSpanishCanonical = (raw: string) => CATEGORY_LABELS_ES[getCategoryId(raw
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Header from './components/Header';
-import ExpenseForm from './components/ExpenseFormWorking';
+import { ExpenseCommitmentFormWrapper } from './components/ExpenseCommitmentFormWrapper';
 import FilterControls from './components/FilterControls';
 // ViewSwitcher moved into Header
 import CellEditModal from './components/CellEditModal';
 // Lazy page views to keep initial bundle small
 const TableView = React.lazy(() => import('./components/ExpenseGridVirtual'));
+const TableViewV2 = React.lazy(() => import('./components/ExpenseGridVirtual.v2'));
 const CalendarView = React.lazy(() => import('./components/CalendarView'));
 const DashboardLazy = React.lazy(() => import('./components/Dashboard'));
 const DashboardBody = React.lazy(() => import('./components/Dashboard').then(m => ({ default: m.DashboardBody })));
+const DashboardV2 = React.lazy(() => import('./components/Dashboard.v2'));
+const DashboardFullV2 = React.lazy(() => import('./components/DashboardFull.v2'));
+const PaymentRecorderV2 = React.lazy(() => import('./components/PaymentRecorder.v2'));
 import CategoryManager from './components/CategoryManager';
 import ConfirmationModal from './components/ConfirmationModal';
 import { Expense, PaymentStatus, ExpenseType, View, PaymentDetails, PaymentFrequency, PaymentUnit } from './types';
+import type { CommitmentWithTerm } from './types.v2';
 import { exportToExcel } from './services/exportService';
 import { useLocalization } from './hooks/useLocalization';
 import usePersistentState from './hooks/usePersistentState';
 import { supabase, isSupabaseConfigured } from './services/supabaseClient';
 import { useToast } from './context/ToastContext';
 import { useAuth } from './context/AuthContext';
+import { useFeature } from './context/FeatureFlagsContext';
+import { useCommitments } from './context/CommitmentsContext';
+import { CommitmentService, PaymentService, getCurrentUserId } from './services/dataService.v2';
+import type { Payment } from './types.v2';
 
 import { getExchangeRate } from './services/exchangeRateService';
 import { format } from 'date-fns';
@@ -99,6 +108,8 @@ const App: React.FC = () => {
     const { t, getLocalizedMonths, currency, language, exchangeRates } = useLocalization();
     const { showToast, removeToast } = useToast();
     const { user } = useAuth();
+    const useV2Dashboard = useFeature('useV2Dashboard');
+    const { refresh: refreshCommitments, commitments: contextCommitments, payments: contextPayments } = useCommitments();
 
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>({});
@@ -109,7 +120,21 @@ const App: React.FC = () => {
     const [focusedDate, setFocusedDate] = useState(new Date());
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+    const [editingCommitment, setEditingCommitment] = useState<CommitmentWithTerm | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    // V2 data (preloaded at app startup for instant tab switching)
+    const [commitmentsV2, setCommitmentsV2] = useState<CommitmentWithTerm[]>([]);
+    const [paymentsV2, setPaymentsV2] = useState<Map<string, Payment[]>>(new Map());
+    // PaymentRecorder V2 state
+    const [paymentRecorderState, setPaymentRecorderState] = useState<{
+        isOpen: boolean;
+        commitment: CommitmentWithTerm | null;
+        year: number;
+        month: number;
+    }>({ isOpen: false, commitment: null, year: 0, month: 0 });
+
+    // Trigger for Dashboard.v2 to refetch after payment save
+    const [dashboardRefreshTrigger, setDashboardRefreshTrigger] = useState(0);
     const [editingCell, setEditingCell] = useState<{ expenseId: string; year: number; month: number; } | null>(null);
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -117,7 +142,7 @@ const App: React.FC = () => {
     const [filterImportance, setFilterImportance] = useState<'all' | 'important'>('all');
     const [view, setView] = useState<View>('table');
     const [theme, setTheme] = usePersistentState<Theme>('finansheet-theme', 'dark');
-    const [visibleMonthsCount, setVisibleMonthsCount] = usePersistentState<number>('finansheet-visible-months', 7);
+    const [visibleMonthsCount, setVisibleMonthsCount] = usePersistentState<number>('finansheet-visible-months', 6);
 
     // Confirmation modal state (expense deletion)
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -125,6 +150,8 @@ const App: React.FC = () => {
     // Confirmation modal state (payment deletion)
     const [isDeletePaymentModalOpen, setIsDeletePaymentModalOpen] = useState(false);
     const [paymentToDelete, setPaymentToDelete] = useState<{ expenseId: string; year: number; month: number; } | null>(null);
+    // Confirmation modal state (commitment deletion V2)
+    const [commitmentToDelete, setCommitmentToDelete] = useState<string | null>(null);
 
     useEffect(() => {
         const root = window.document.documentElement;
@@ -297,6 +324,35 @@ const App: React.FC = () => {
             // Categories already set on line 219 with Spanish canonical labels
             // Don't overwrite them here with raw database names
 
+            // ============ V2 DATA PRELOAD (in parallel) ============
+            try {
+                const userId = await getCurrentUserId();
+                if (userId) {
+                    const currentYear = new Date().getFullYear();
+
+                    // Fetch V2 commitments and payments in parallel
+                    const [commitments, allPayments] = await Promise.all([
+                        CommitmentService.getCommitmentsWithTerms(userId),
+                        PaymentService.getPaymentsByDateRange(userId, `${currentYear}-01-01`, `${currentYear + 1}-01-01`)
+                    ]);
+
+                    setCommitmentsV2(commitments);
+
+                    // Group payments by commitment_id
+                    const paymentsByCommitment = new Map<string, Payment[]>();
+                    allPayments.forEach(p => {
+                        const existing = paymentsByCommitment.get(p.commitment_id) || [];
+                        paymentsByCommitment.set(p.commitment_id, [...existing, p]);
+                    });
+                    setPaymentsV2(paymentsByCommitment);
+
+                    console.log('V2 data preloaded:', { commitments: commitments.length, payments: allPayments.length });
+                }
+            } catch (v2Error) {
+                console.error('V2 preload error (non-fatal):', v2Error);
+            }
+            // ============ END V2 PRELOAD ============
+
         } catch (error) {
             console.error('Error fetching data:', error);
             alert('Failed to fetch data. Please check your Supabase connection and configuration.');
@@ -308,6 +364,37 @@ const App: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // ============ V2 HOT RELOAD FUNCTION ============
+    const refreshV2Data = useCallback(async () => {
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) return;
+
+            const currentYear = new Date().getFullYear();
+
+            // Fetch V2 commitments and payments in parallel
+            const [commitments, allPayments] = await Promise.all([
+                CommitmentService.getCommitmentsWithTerms(userId),
+                PaymentService.getPaymentsByDateRange(userId, `${currentYear}-01-01`, `${currentYear + 1}-01-01`)
+            ]);
+
+            setCommitmentsV2(commitments);
+
+            // Group payments by commitment_id
+            const paymentsByCommitment = new Map<string, Payment[]>();
+            allPayments.forEach(p => {
+                const existing = paymentsByCommitment.get(p.commitment_id) || [];
+                paymentsByCommitment.set(p.commitment_id, [...existing, p]);
+            });
+            setPaymentsV2(paymentsByCommitment);
+
+            console.log('V2 data refreshed:', { commitments: commitments.length, payments: allPayments.length });
+        } catch (error) {
+            console.error('V2 refresh error:', error);
+            throw error; // Re-throw for caller to handle
+        }
+    }, []);
 
     // removed unused handleDateChange
 
@@ -768,6 +855,20 @@ const App: React.FC = () => {
         setEditingCell({ expenseId, year, month });
     };
 
+    // Centralized handler for opening PaymentRecorder V2
+    // Month is 0-indexed (0 = January, 11 = December)
+    const handleOpenPaymentRecorder = useCallback((commitmentId: string, year: number, month: number) => {
+        const commitment = commitmentsV2.find(c => c.id === commitmentId);
+        if (commitment) {
+            setPaymentRecorderState({
+                isOpen: true,
+                commitment,
+                year,
+                month,
+            });
+        }
+    }, [commitmentsV2]);
+
     const handleSavePaymentDetails = useCallback(async (expenseId: string, year: number, month: number, details: Partial<PaymentDetails>) => {
         const date_key = `${year}-${month}`;
 
@@ -934,13 +1035,23 @@ const App: React.FC = () => {
     return (
         <div className={`flex h-screen font-sans antialiased theme-${theme}`}>
             <React.Suspense fallback={<div className="p-4 text-slate-500 dark:text-slate-400">Cargando panel…</div>}>
-                <DashboardLazy
-                    expenses={expenses}
-                    paymentStatus={paymentStatus}
-                    displayYear={focusedDate.getFullYear()}
-                    isOpen={isSidebarOpen}
-                    onClose={() => setIsSidebarOpen(false)}
-                />
+                {useV2Dashboard ? (
+                    <DashboardV2
+                        isOpen={isSidebarOpen}
+                        onClose={() => setIsSidebarOpen(false)}
+                        displayYear={focusedDate.getFullYear()}
+                        displayMonth={focusedDate.getMonth()}
+                        refreshTrigger={dashboardRefreshTrigger}
+                    />
+                ) : (
+                    <DashboardLazy
+                        expenses={expenses}
+                        paymentStatus={paymentStatus}
+                        displayYear={focusedDate.getFullYear()}
+                        isOpen={isSidebarOpen}
+                        onClose={() => setIsSidebarOpen(false)}
+                    />
+                )}
             </React.Suspense>
             <div className="flex-1 flex flex-col min-w-0 bg-slate-100/50 dark:bg-slate-900">
                 {!isSupabaseConfigured && <OfflineBanner />}
@@ -956,46 +1067,66 @@ const App: React.FC = () => {
                 />
                 <main className={`flex-1 min-h-0 overflow-y-auto ${view === 'graph' ? 'lg:overflow-hidden' : 'lg:overflow-hidden'}`}>
                     <div className="max-w-screen-2xl mx-auto pt-4 px-4">
-                        {view === 'table' && (
-                            <FilterControls
-                                searchTerm={searchTerm}
-                                onSearchTermChange={setSearchTerm}
-                                filterType={filterType}
-                                onFilterTypeChange={setFilterType}
-                                filterImportance={filterImportance}
-                                onFilterImportanceChange={setFilterImportance}
-                            />
-                        )}
                         {/* ViewSwitcher relocated to Header */}
                     </div>
 
                     <div className={`max-w-screen-2xl mx-auto min-h-0 px-4 ${view === 'graph' ? 'lg:h-full' : 'lg:h-full'}`}>
                         <React.Suspense fallback={<div className="p-6 text-slate-500 dark:text-slate-400">Cargando…</div>}>
                             {view === 'table' && (
-                                <TableView
-                                    expenses={filteredAndSortedExpenses}
-                                    paymentStatus={paymentStatus}
-                                    focusedDate={focusedDate}
-                                    visibleMonthsCount={visibleMonthsCount}
-                                    onEditExpense={handleEditExpense}
-                                    onDeleteExpense={handleDeleteExpense}
-                                    onOpenCellEditor={handleOpenCellEditor}
-                                    onFocusedDateChange={setFocusedDate}
-                                    onVisibleMonthsCountChange={setVisibleMonthsCount}
-                                />
+                                useV2Dashboard ? (
+                                    <TableViewV2
+                                        focusedDate={focusedDate}
+                                        visibleMonthsCount={visibleMonthsCount}
+                                        preloadedCommitments={commitmentsV2}
+                                        preloadedPayments={contextPayments}
+                                        onEditCommitment={(c) => {
+                                            setEditingCommitment(c);
+                                            setIsFormOpen(true);
+                                        }}
+                                        onDeleteCommitment={(id) => {
+                                            // Open confirmation modal instead of window.confirm
+                                            setCommitmentToDelete(id);
+                                        }}
+                                        onRecordPayment={handleOpenPaymentRecorder}
+                                        onFocusedDateChange={setFocusedDate}
+                                        onVisibleMonthsCountChange={setVisibleMonthsCount}
+                                    />
+                                ) : (
+                                    <TableView
+                                        expenses={filteredAndSortedExpenses}
+                                        paymentStatus={paymentStatus}
+                                        focusedDate={focusedDate}
+                                        visibleMonthsCount={visibleMonthsCount}
+                                        onEditExpense={handleEditExpense}
+                                        onDeleteExpense={handleDeleteExpense}
+                                        onOpenCellEditor={handleOpenCellEditor}
+                                        onFocusedDateChange={setFocusedDate}
+                                        onVisibleMonthsCountChange={setVisibleMonthsCount}
+                                    />
+                                )
                             )}
                             {view === 'graph' && (
-                                <DashboardBody
-                                    expenses={expenses}
-                                    paymentStatus={paymentStatus}
-                                    displayYear={focusedDate.getFullYear()}
-                                    displayMonth={focusedDate.getMonth()}
-                                    onOpenCellEditor={handleOpenCellEditor}
-                                    onSelectMonth={(m) => setFocusedDate(new Date(focusedDate.getFullYear(), m, 1))}
-                                    onRequestGoToTable={(m) => { setFocusedDate(new Date(focusedDate.getFullYear(), m, 1)); setView('table'); }}
-                                />
+                                useV2Dashboard ? (
+                                    <DashboardFullV2
+                                        displayYear={focusedDate.getFullYear()}
+                                        displayMonth={focusedDate.getMonth()}
+                                        onMonthChange={(m) => setFocusedDate(prev => new Date(prev.getFullYear(), m, 1))}
+                                        onYearChange={(y) => setFocusedDate(prev => new Date(y, prev.getMonth(), 1))}
+                                        onOpenPaymentRecorder={handleOpenPaymentRecorder}
+                                    />
+                                ) : (
+                                    <DashboardBody
+                                        expenses={expenses}
+                                        paymentStatus={paymentStatus}
+                                        displayYear={focusedDate.getFullYear()}
+                                        displayMonth={focusedDate.getMonth()}
+                                        onOpenCellEditor={handleOpenCellEditor}
+                                        onSelectMonth={(m) => setFocusedDate(new Date(focusedDate.getFullYear(), m, 1))}
+                                        onRequestGoToTable={(m) => { setFocusedDate(new Date(focusedDate.getFullYear(), m, 1)); setView('table'); }}
+                                    />
+                                )
                             )}
-                            {view === 'calendar' && (
+                            {view === 'calendar' && !useV2Dashboard && (
                                 <CalendarView
                                     expenses={filteredAndSortedExpenses}
                                     paymentStatus={paymentStatus}
@@ -1006,13 +1137,27 @@ const App: React.FC = () => {
                     </div>
                 </main>
             </div>
-            <ExpenseForm
+            <ExpenseCommitmentFormWrapper
                 isOpen={isFormOpen}
-                onClose={() => setIsFormOpen(false)}
+                onClose={() => {
+                    setIsFormOpen(false);
+                    setEditingExpense(null);
+                    setEditingCommitment(null);
+                }}
                 onSave={handleSaveExpense}
                 expenseToEdit={editingExpense}
+                commitmentToEdit={editingCommitment}
                 categories={categories}
                 expenses={expenses}
+                onRefresh={async () => {
+                    showToast('Actualizando datos...', 'loading');
+                    try {
+                        await refreshV2Data();
+                        showToast('Datos actualizados', 'success');
+                    } catch {
+                        showToast('Error al actualizar', 'error');
+                    }
+                }}
             />
             {editingCell && (() => {
                 const expense = expenses.find(e => e.id === editingCell.expenseId);
@@ -1064,6 +1209,76 @@ const App: React.FC = () => {
                 onCancel={cancelDeletePayment}
                 isDangerous={true}
             />
+            {/* Commitment V2 deletion modal */}
+            <ConfirmationModal
+                isOpen={!!commitmentToDelete}
+                title={'Eliminar compromiso'}
+                message={(function () {
+                    if (!commitmentToDelete) return '¿Seguro que deseas eliminar este compromiso?';
+                    const commitment = commitmentsV2.find(c => c.id === commitmentToDelete);
+                    const name = commitment ? `"${commitment.name}"` : 'este compromiso';
+                    return `Vas a eliminar ${name} y todos sus pagos asociados.\n\nEsta acción no se puede deshacer.`;
+                })()}
+                confirmText={'Eliminar'}
+                cancelText={t('common.cancel')}
+                onConfirm={async () => {
+                    if (!commitmentToDelete) return;
+                    const toastId = showToast('Eliminando compromiso...', 'loading');
+                    try {
+                        const success = await CommitmentService.deleteCommitment(commitmentToDelete);
+                        if (success) {
+                            removeToast(toastId);
+                            showToast('Compromiso eliminado', 'success');
+                            await refreshV2Data();
+                        } else {
+                            removeToast(toastId);
+                            showToast('Error al eliminar. Revisa la consola.', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting commitment:', error);
+                        removeToast(toastId);
+                        const errMsg = error instanceof Error ? error.message : 'Error desconocido';
+                        showToast(`Error: ${errMsg}`, 'error');
+                    } finally {
+                        setCommitmentToDelete(null);
+                    }
+                }}
+                onCancel={() => setCommitmentToDelete(null)}
+                isDangerous={true}
+            />
+
+            {/* PaymentRecorder V2 Modal */}
+            {paymentRecorderState.isOpen && paymentRecorderState.commitment && (
+                <React.Suspense fallback={null}>
+                    <PaymentRecorderV2
+                        isOpen={paymentRecorderState.isOpen}
+                        onClose={() => setPaymentRecorderState(prev => ({ ...prev, isOpen: false }))}
+                        onSave={async (operation) => {
+                            // Hot reload data after saving payment
+                            const messages = {
+                                created: 'Pago registrado',
+                                updated: 'Pago actualizado',
+                                deleted: 'Pago eliminado',
+                            };
+                            const toastId = showToast('Procesando...', 'loading');
+                            try {
+                                // Refresh context silently (Grid now uses context data)
+                                await refreshCommitments(true);
+                                // Trigger Dashboard.v2 to refetch its local data
+                                setDashboardRefreshTrigger(prev => prev + 1);
+                                removeToast(toastId);
+                                showToast(messages[operation], 'success');
+                            } catch {
+                                removeToast(toastId);
+                                showToast('Error al actualizar datos', 'error');
+                            }
+                        }}
+                        commitment={paymentRecorderState.commitment}
+                        year={paymentRecorderState.year}
+                        month={paymentRecorderState.month}
+                    />
+                </React.Suspense>
+            )}
         </div>
     );
 };

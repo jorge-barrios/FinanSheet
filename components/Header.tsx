@@ -6,6 +6,8 @@ import { View } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useFeatureFlags } from '../context/FeatureFlagsContext';
+import { FeatureFlagsSettings } from './FeatureFlagsSettings';
 
 interface HeaderProps {
     onAddExpense: () => void;
@@ -23,7 +25,9 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar
     const { lastUpdated, refresh, loading: currencyLoading } = useCurrency();
     const { signOut, user } = useAuth();
     const { showToast } = useToast();
+    const { flags } = useFeatureFlags();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isFeatureFlagsOpen, setIsFeatureFlagsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement | null>(null);
 
     const handleLogout = async () => {
@@ -63,7 +67,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar
         <header className="px-3 py-2 bg-white/80 dark:bg-slate-900/75 backdrop-blur-xl sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700/60 shadow-sm" data-app-header>
             <div className="w-full mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-3 sm:gap-4">
-                     <button onClick={onToggleSidebar} className="lg:hidden p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" aria-label="Open menu">
+                    <button onClick={onToggleSidebar} className="lg:hidden p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" aria-label="Open menu">
                         <MenuIcon />
                     </button>
                     <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight hidden md:block">FinanSheet</h1>
@@ -101,7 +105,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar
 
                                 {/* Idioma */}
                                 <div className="relative px-2 pb-2">
-                                    <LanguageIcon className="w-4 h-4 absolute left-3 pointer-events-none text-slate-400 dark:text-slate-400 top-1/2 -translate-y-1/2"/>
+                                    <LanguageIcon className="w-4 h-4 absolute left-3 pointer-events-none text-slate-400 dark:text-slate-400 top-1/2 -translate-y-1/2" />
                                     <select
                                         value={language}
                                         onChange={(e) => { setLanguage(e.target.value as 'en' | 'es'); setIsMenuOpen(false); }}
@@ -111,7 +115,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar
                                         <option value="en">{t('header.english')}</option>
                                         <option value="es">{t('header.spanish')}</option>
                                     </select>
-                                    <ChevronDownIcon className="w-4 h-4 absolute right-3 pointer-events-none text-slate-400 dark:text-slate-400 top-1/2 -translate-y-1/2"/>
+                                    <ChevronDownIcon className="w-4 h-4 absolute right-3 pointer-events-none text-slate-400 dark:text-slate-400 top-1/2 -translate-y-1/2" />
                                 </div>
 
                                 {/* Tema */}
@@ -120,7 +124,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar
                                     onClick={() => { handleThemeToggle(); setIsMenuOpen(false); }}
                                     className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 transition-colors"
                                 >
-                                    {theme === 'dark' ? <SunIcon className="w-5 h-5"/> : <MoonIcon className="w-5 h-5"/>}
+                                    {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
                                     <span>{t(theme === 'dark' ? 'header.lightMode' : 'header.darkMode')}</span>
                                 </button>
 
@@ -164,6 +168,23 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar
                                 >
                                     <TagIcon className="w-5 h-5" />
                                     <span>Categorías</span>
+                                </button>
+
+                                {/* Feature Flags (v2) */}
+                                <button
+                                    role="menuitem"
+                                    onClick={() => { setIsFeatureFlagsOpen(true); setIsMenuOpen(false); }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 transition-colors"
+                                >
+                                    <span className="text-lg">🚀</span>
+                                    <div className="flex flex-col items-start flex-1">
+                                        <span>Feature Flags</span>
+                                        {flags.useV2UI && (
+                                            <span className="text-xs text-sky-600 dark:text-sky-400">
+                                                v2 enabled
+                                            </span>
+                                        )}
+                                    </div>
                                 </button>
 
                                 {/* Exportar */}
@@ -215,6 +236,12 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar
                     </button>
                 </div>
             </div>
+
+            {/* Feature Flags Modal */}
+            <FeatureFlagsSettings
+                isOpen={isFeatureFlagsOpen}
+                onClose={() => setIsFeatureFlagsOpen(false)}
+            />
         </header>
     );
 };
