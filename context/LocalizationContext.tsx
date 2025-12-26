@@ -1,16 +1,9 @@
-import React, { createContext, useMemo, useCallback, ReactNode } from 'react';
+import React, { createContext, useMemo, useCallback, ReactNode, useState, useEffect } from 'react';
 import { Currency, PaymentUnit } from '../types';
 import { en } from '../locales/en';
 import { es } from '../locales/es';
 import usePersistentState from '../hooks/usePersistentState';
-import { 
-    convertToBaseCurrency, 
-    convertToDisplayCurrency, 
-    formatCurrency,
-    INITIAL_EXCHANGE_RATES,
-    INITIAL_USD_EQUIVALENT_PER_UNIT,
-    convertFromPaymentUnitToBase
-} from '../utils/currency';
+import CurrencyService from '../services/currencyService';
 
 type Language = 'en' | 'es';
 
@@ -19,7 +12,7 @@ interface LocalizationContextType {
     setLanguage: (lang: Language) => void;
     currency: Currency;
     setCurrency: (curr: Currency) => void;
-    t: (key: string, options?: { [key: string]: string | number }) => string;
+    t: (key: string, fallbackOrOptions?: string | { [key: string]: string | number }) => string;
     getLocalizedMonths: (format?: 'long' | 'short' | 'narrow') => string[];
     toBase: (amountInDisplay: number) => number;
     fromBase: (amountInBase: number) => number;
@@ -43,72 +36,107 @@ export const LocalizationContext = createContext<LocalizationContextType | undef
 export const LocalizationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [language, setLanguage] = usePersistentState<Language>('finansheet-lang', 'es');
     const [currency, setCurrency] = usePersistentState<Currency>('finansheet-curr', 'CLP');
-    
-    const [exchangeRates, setExchangeRates] = usePersistentState<Record<Currency, number>>('finansheet-exchange-rates', INITIAL_EXCHANGE_RATES);
-    const [unitRates, setUnitRates] = usePersistentState<Record<PaymentUnit, number>>('finansheet-unit-rates', INITIAL_USD_EQUIVALENT_PER_UNIT);
-    const [lastUpdated, setLastUpdated] = usePersistentState<string>('finansheet-rates-timestamp', new Date().toISOString());
+    const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-    const updateRates = useCallback(() => {
-        // Simulate fetching new rates by applying a small random variation
-        const newCLP = Math.round(INITIAL_EXCHANGE_RATES.CLP + (Math.random() - 0.5) * 40); // +/- 20
-        const newUF = parseFloat((INITIAL_USD_EQUIVALENT_PER_UNIT.UF + (Math.random() - 0.5) * 2).toFixed(2)); // +/- 1
-        const newUTM = parseFloat((INITIAL_USD_EQUIVALENT_PER_UNIT.UTM + (Math.random() - 0.5) * 4).toFixed(2)); // +/- 2
-    
-        const newExchangeRates = { ...exchangeRates, CLP: newCLP };
-        const newUnitRates = { 
-            ...unitRates, 
-            CLP: 1 / newCLP,
-            UF: newUF,
-            UTM: newUTM,
-        };
-        
-        setExchangeRates(newExchangeRates);
-        setUnitRates(newUnitRates);
-        setLastUpdated(new Date().toISOString());
-    }, [exchangeRates, unitRates, setExchangeRates, setUnitRates, setLastUpdated]);
-    
+    // Get exchange rates from CurrencyService (real API)
+    const snapshot = CurrencyService.getSnapshot();
+    const rates = snapshot?.rates || { CLP: 1 };
 
-    const t = useMemo(() => (key: string, options?: { [key: string]: string | number }): string => {
-        let translation = translations[language][key] || key;
-        if (options) {
-            Object.keys(options).forEach(optionKey => {
-                translation = translation.replace(`{{${optionKey}}}`, String(options[optionKey]));
+    // Build exchangeRates in old format (CLP per unit for USD)
+    const exchangeRates: Record<Currency, number> = useMemo(() => ({
+        'CLP': 1,
+        'USD': rates.USD || 950, // Fallback
+    }), [rates]);
+
+    // Build unitRates (USD equivalent per unit)
+    const unitRates: Record<PaymentUnit, number> = useMemo(() => ({
+        'USD': 1,
+        'CLP': rates.USD ? 1 / rates.USD : 1 / 950,
+        'UF': rates.UF ? rates.UF / (rates.USD || 950) : 40,
+        'UTM': rates.UTM ? rates.UTM / (rates.USD || 950) : 70,
+    }), [rates]);
+
+    // Update lastUpdated when snapshot changes
+    useEffect(() => {
+        if (snapshot?.updatedAt) {
+            setLastUpdated(new Date(snapshot.updatedAt));
+        }
+    }, [snapshot?.updatedAt]);
+
+    const updateRates = useCallback(async () => {
+        await CurrencyService.refresh();
+    }, []);
+
+
+    const t = useMemo(() => (key: string, fallbackOrOptions?: string | { [key: string]: string | number }): string => {
+        let translation = translations[language][key];
+
+        // If no translation found, use fallback if it's a string, otherwise use the key
+        if (!translation) {
+            translation = typeof fallbackOrOptions === 'string' ? fallbackOrOptions : key;
+        }
+
+        // Apply interpolation if it's an object
+        if (typeof fallbackOrOptions === 'object') {
+            Object.keys(fallbackOrOptions).forEach(optionKey => {
+                translation = translation.replace(`{{${optionKey}}}`, String(fallbackOrOptions[optionKey]));
             });
         }
+
         return translation;
     }, [language]);
 
     const getLocalizedMonths = useMemo(() => (format: 'long' | 'short' | 'narrow' = 'short'): string[] => {
         const locale = language === 'es' ? 'es-ES' : 'en-US';
         return Array.from({ length: 12 }, (_, i) => {
-           const month = new Date(0, i).toLocaleString(locale, { month: format });
-           return month.charAt(0).toUpperCase() + month.slice(1);
+            const month = new Date(0, i).toLocaleString(locale, { month: format });
+            return month.charAt(0).toUpperCase() + month.slice(1);
         });
     }, [language]);
 
+    // Convert from display currency to USD base
     const toBase = useCallback((amountInDisplay: number): number => {
-        return convertToBaseCurrency(amountInDisplay, currency, exchangeRates);
-    }, [currency, exchangeRates]);
+        if (currency === 'USD') return amountInDisplay;
+        const clpAmount = CurrencyService.fromUnit(amountInDisplay, currency as any);
+        return CurrencyService.toUnit(clpAmount, 'USD');
+    }, [currency]);
 
+    // Convert from USD base to display currency
     const fromBase = useCallback((amountInBase: number): number => {
-        return convertToDisplayCurrency(amountInBase, currency, exchangeRates);
-    }, [currency, exchangeRates]);
+        if (currency === 'USD') return amountInBase;
+        const clpAmount = CurrencyService.fromUnit(amountInBase, 'USD');
+        return CurrencyService.toUnit(clpAmount, currency as any);
+    }, [currency]);
 
+    // Convert from any unit to USD base
     const toBaseFromUnit = useCallback((amount: number, unit: PaymentUnit): number => {
-        return convertFromPaymentUnitToBase(amount, unit, unitRates);
-    }, [unitRates]);
-    
+        const clpAmount = CurrencyService.fromUnit(amount, unit as any);
+        return CurrencyService.toUnit(clpAmount, 'USD');
+    }, []);
+
+    // Format currency helper
+    const formatCurrencyHelper = (amount: number, curr: Currency, lang: 'en' | 'es'): string => {
+        const locale = lang === 'es' ? 'es-CL' : 'en-US';
+        const options: Intl.NumberFormatOptions = {
+            style: 'currency',
+            currency: curr,
+            minimumFractionDigits: curr === 'CLP' ? 0 : 2,
+            maximumFractionDigits: curr === 'CLP' ? 0 : 2,
+        };
+        return new Intl.NumberFormat(locale, options).format(amount);
+    };
+
     const format = useCallback((amountInBase: number): string => {
-        const convertedAmount = convertToDisplayCurrency(amountInBase, currency, exchangeRates);
-        return formatCurrency(convertedAmount, currency, language);
-    }, [currency, language, exchangeRates]);
+        const convertedAmount = fromBase(amountInBase);
+        return formatCurrencyHelper(convertedAmount, currency, language);
+    }, [currency, language, fromBase]);
 
     const formatBase = useCallback((amountInBase: number): string => {
-        return formatCurrency(amountInBase, 'USD', language);
+        return formatCurrencyHelper(amountInBase, 'USD', language);
     }, [language]);
 
     const formatClp = useCallback((amountInClp: number): string => {
-        return formatCurrency(amountInClp, 'CLP', language);
+        return formatCurrencyHelper(amountInClp, 'CLP', language);
     }, [language]);
 
     const value: LocalizationContextType = {
@@ -126,7 +154,7 @@ export const LocalizationProvider: React.FC<{ children: ReactNode }> = ({ childr
         formatBase,
         exchangeRates,
         unitRates,
-        lastUpdated: new Date(lastUpdated),
+        lastUpdated,
         updateRates,
     };
 

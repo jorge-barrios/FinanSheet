@@ -1,34 +1,51 @@
 
 import { Expense, PaymentStatus, ExpenseType, Currency } from '../types';
 import { getInstallmentAmount, isInstallmentInMonth } from '../utils/expenseCalculations';
-import { convertToDisplayCurrency, convertToBaseCurrency, formatCurrency } from '../utils/currency';
+import CurrencyService from '../services/currencyService';
+
+// Format currency helper
+const formatCurrency = (amount: number, currency: Currency, lang: 'en' | 'es'): string => {
+  const locale = lang === 'es' ? 'es-CL' : 'en-US';
+  const options: Intl.NumberFormatOptions = {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: currency === 'CLP' ? 0 : 2,
+    maximumFractionDigits: currency === 'CLP' ? 0 : 2,
+  };
+  return new Intl.NumberFormat(locale, options).format(amount);
+};
+
+// Convert CLP to display currency using CurrencyService
+const convertToDisplay = (amountClp: number, displayCurrency: Currency): number => {
+  if (displayCurrency === 'CLP') return amountClp;
+  return CurrencyService.toUnit(amountClp, displayCurrency as any);
+};
 
 // This function relies on the global 'XLSX' object provided by the script in index.html
 declare var XLSX: any;
 
 export const exportToExcel = (
-    expenses: Expense[],
-    paymentStatus: PaymentStatus,
-    year: number,
-    t: (key: string) => string,
-    monthNames: string[],
-    displayCurrency: Currency,
-    language: 'en' | 'es',
-    exchangeRates: Record<Currency, number>
+  expenses: Expense[],
+  paymentStatus: PaymentStatus,
+  year: number,
+  t: (key: string) => string,
+  monthNames: string[],
+  displayCurrency: Currency,
+  language: 'en' | 'es',
+  _exchangeRates?: Record<Currency, number> // Deprecated, uses CurrencyService now
 ) => {
   const dataForSheet = expenses.map(expense => {
-    // amountInClp is stored in CLP; convert to base (USD) first, then to display
-    const amountInBase = convertToBaseCurrency(expense.amountInClp, 'CLP', exchangeRates);
-    const totalAmountInDisplay = convertToDisplayCurrency(amountInBase, displayCurrency, exchangeRates);
-    
+    // Convert CLP to display currency using CurrencyService
+    const totalAmountInDisplay = convertToDisplay(expense.amountInClp, displayCurrency);
+
     const row: { [key: string]: string | number } = {
       [t('grid.expense')]: expense.name,
       [t('form.typeLabel')]: t(
         expense.type === ExpenseType.RECURRING
           ? 'form.type.recurring'
           : expense.type === ExpenseType.INSTALLMENT
-          ? 'form.type.installment'
-          : 'form.type.variable'
+            ? 'form.type.installment'
+            : 'form.type.variable'
       ),
       [t('grid.totalAmount')]: totalAmountInDisplay, // Export in display currency
       [t('grid.installments')]: expense.installments,
@@ -46,11 +63,10 @@ export const exportToExcel = (
         const amountInClp = getInstallmentAmount(expense);
         const paymentDetails = paymentStatus[expense.id]?.[`${year}-${monthIndex}`];
         const isPaid = paymentDetails?.paid ?? false;
-        
+
         const finalAmountInClp = paymentDetails?.overriddenAmount ?? amountInClp;
-        const finalAmountInBase = convertToBaseCurrency(finalAmountInClp, 'CLP', exchangeRates);
-        const finalAmountInDisplay = convertToDisplayCurrency(finalAmountInBase, displayCurrency, exchangeRates);
-        
+        const finalAmountInDisplay = convertToDisplay(finalAmountInClp, displayCurrency);
+
         const formatted = formatCurrency(finalAmountInDisplay, displayCurrency, language);
         row[monthName] = `${formatted} ${isPaid ? `(${t('grid.paid')})` : ''}`;
       } else {
@@ -63,25 +79,24 @@ export const exportToExcel = (
 
   // Calculate totals in display currency
   const totalsRow: { [key: string]: string | number } = {
-      [t('grid.expense')]: t('grid.monthlyTotal'),
-      [t('form.typeLabel')]: '',
-      [t('grid.totalAmount')]: '',
-      [t('grid.installments')]: '',
-      [t('grid.startDate')]: '',
+    [t('grid.expense')]: t('grid.monthlyTotal'),
+    [t('form.typeLabel')]: '',
+    [t('grid.totalAmount')]: '',
+    [t('grid.installments')]: '',
+    [t('grid.startDate')]: '',
   };
 
   monthNames.forEach((monthName, monthIndex) => {
-       const totalInClp = expenses.reduce((sum, expense) => {
-            if (isInstallmentInMonth(expense, year, monthIndex)) {
-                const paymentDetails = paymentStatus[expense.id]?.[`${year}-${monthIndex}`];
-                const amountInClp = paymentDetails?.overriddenAmount ?? getInstallmentAmount(expense);
-                return sum + amountInClp;
-            }
-            return sum;
-        }, 0);
-      const totalInBase = convertToBaseCurrency(totalInClp, 'CLP', exchangeRates);
-      const totalInDisplay = convertToDisplayCurrency(totalInBase, displayCurrency, exchangeRates);
-      totalsRow[monthName] = totalInDisplay > 0 ? formatCurrency(totalInDisplay, displayCurrency, language) : '-';
+    const totalInClp = expenses.reduce((sum, expense) => {
+      if (isInstallmentInMonth(expense, year, monthIndex)) {
+        const paymentDetails = paymentStatus[expense.id]?.[`${year}-${monthIndex}`];
+        const amountInClp = paymentDetails?.overriddenAmount ?? getInstallmentAmount(expense);
+        return sum + amountInClp;
+      }
+      return sum;
+    }, 0);
+    const totalInDisplay = convertToDisplay(totalInClp, displayCurrency);
+    totalsRow[monthName] = totalInDisplay > 0 ? formatCurrency(totalInDisplay, displayCurrency, language) : '-';
   });
   dataForSheet.push(totalsRow);
 

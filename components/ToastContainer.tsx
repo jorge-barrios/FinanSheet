@@ -11,15 +11,16 @@ const ToastItem: React.FC<{ toast: Toast }> = ({ toast }) => {
         setTimeout(() => removeToast(toast.id), 300);
     };
 
-    // Auto-close animation before removal
+    // Auto-close animation before removal (skip for loading toasts)
     useEffect(() => {
+        if (toast.type === 'loading') return; // Loading toasts don't auto-close
         if (toast.duration && toast.duration > 0) {
             const timer = setTimeout(() => {
                 setIsExiting(true);
             }, toast.duration - 300);
             return () => clearTimeout(timer);
         }
-    }, [toast.duration]);
+    }, [toast.duration, toast.type]);
 
     const getIcon = (type: ToastType) => {
         switch (type) {
@@ -29,6 +30,8 @@ const ToastItem: React.FC<{ toast: Toast }> = ({ toast }) => {
                 return <XCircleIcon className="w-5 h-5 text-red-500" />;
             case 'warning':
                 return <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />;
+            case 'loading':
+                return <span className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />;
             case 'info':
             default:
                 return <InformationCircleIcon className="w-5 h-5 text-blue-500" />;
@@ -43,6 +46,8 @@ const ToastItem: React.FC<{ toast: Toast }> = ({ toast }) => {
                 return 'bg-rose-50/95 dark:bg-rose-950/90 backdrop-blur-md border-rose-200 dark:border-rose-800';
             case 'warning':
                 return 'bg-amber-50/95 dark:bg-amber-950/90 backdrop-blur-md border-amber-200 dark:border-amber-800';
+            case 'loading':
+                return 'bg-slate-50/95 dark:bg-slate-800/90 backdrop-blur-md border-slate-200 dark:border-slate-700';
             case 'info':
             default:
                 return 'bg-sky-50/95 dark:bg-sky-950/90 backdrop-blur-md border-sky-200 dark:border-sky-800';
