@@ -122,6 +122,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return { error: new Error('Supabase not configured') as AuthError };
     }
 
+    console.log('[Auth] Google Sign In - Redirecting to:', window.location.origin);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

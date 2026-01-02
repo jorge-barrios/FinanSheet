@@ -660,6 +660,13 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     {formatClp((propTotals || monthlyTotals).income)}
                                 </span>
                             </div>
+                            {/* Paid Total Badge */}
+                            <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200/50 dark:border-indigo-800/30">
+                                <CheckCircleIcon className="w-3 h-3 text-indigo-500" />
+                                <span className="text-xs font-bold font-mono tabular-nums text-indigo-600 dark:text-indigo-400">
+                                    {formatClp(calculateMonthPaidTotal(focusedDate))}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -714,23 +721,38 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
             {/* Mobile View */}
             <div className="lg:hidden p-4 space-y-4">
                 {commitments.length > 0 ? commitments.map(c => {
-                    const term = c.active_term;
+                    // Sync logic with desktop cells
+                    const monthDate = focusedDate;
+                    const term = getTermForPeriod(c, monthDate);
                     const dueDay = term?.due_day_of_month ?? 1;
-                    const { isPaid, amount: paidAmount } = getPaymentStatus(c.id, focusedDate, dueDay);
+                    const { isPaid, amount: paidAmount } = getPaymentStatus(c.id, monthDate, dueDay);
+
+                    const commitmentPayments = payments.get(c.id) || [];
+                    const periodStr = periodToString({ year: monthDate.getFullYear(), month: monthDate.getMonth() + 1 });
+                    const hasPaymentRecord = commitmentPayments.some(p => p.period_date.substring(0, 7) === periodStr);
+
+                    // Calculation logic exactly like desktop
+                    const totalAmount = term?.amount_in_base ?? term?.amount_original ?? 0;
+                    const installmentsCount = term?.installments_count ?? null;
+                    const perPeriodAmount = term?.is_divided_amount && installmentsCount && installmentsCount > 1
+                        ? totalAmount / installmentsCount
+                        : totalAmount;
+
+                    const amount = (hasPaymentRecord && paidAmount !== null) ? paidAmount : perPeriodAmount;
 
                     const today = new Date();
-                    const dueDate = new Date(focusedDate.getFullYear(), focusedDate.getMonth(), dueDay);
-                    const isOverdue = !isPaid && dueDate < today && focusedDate <= today;
+                    const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
+                    const isOverdue = !isPaid && dueDate < today && monthDate <= today;
                     const isPending = !isPaid && !isOverdue;
-                    const amount = isPaid ? paidAmount : (term?.amount_in_base ?? term?.amount_original ?? 0);
 
                     return (
                         <div
                             key={c.id}
-                            onClick={() => !isPaid && onRecordPayment(c.id, focusedDate.getFullYear(), focusedDate.getMonth())}
-                            className={`bg-white dark:bg-slate-800 rounded-xl p-4 border transition-all active:scale-[0.98] ${isPaid ? 'border-emerald-200 dark:border-emerald-800/30' :
-                                isOverdue ? 'border-red-200 dark:border-red-800/30 bg-red-50/10' :
-                                    'border-slate-200 dark:border-slate-700'
+                            onClick={() => !isPaid && onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth())}
+                            className={`bg-white dark:bg-slate-800 rounded-xl p-4 border transition-all active:scale-[1.01] ${isPaid ? 'border-emerald-500/20 bg-emerald-500/5' :
+                                    isOverdue ? 'border-red-500/20 bg-red-500/5' :
+                                        isPending ? 'border-amber-500/20 bg-amber-500/5' :
+                                            'border-slate-200 dark:border-slate-700'
                                 } shadow-sm`}
                         >
                             <div className="flex items-start justify-between">
@@ -741,7 +763,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                         {c.is_important && <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded">
+                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
                                             {getTranslatedCategoryName(c)}
                                         </span>
                                         {isPaid && (
@@ -763,8 +785,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                 </div>
                                 <div className="text-right ml-4">
                                     <p className={`text-lg font-bold font-mono tabular-nums ${isPaid ? 'text-emerald-600' :
-                                        isOverdue ? 'text-red-600' :
-                                            'text-slate-900 dark:text-white'
+                                            isOverdue ? 'text-red-500' :
+                                                'text-slate-900 dark:text-white'
                                         }`}>
                                         {formatClp(amount ?? 0)}
                                     </p>
@@ -779,14 +801,16 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onRecordPayment(c.id, focusedDate.getFullYear(), focusedDate.getMonth());
+                                            onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth());
                                         }}
-                                        className={`flex-1 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition-all active:scale-95 ${isOverdue
-                                            ? 'bg-red-500 text-white hover:bg-red-400 shadow-red-200'
-                                            : 'bg-sky-500 text-white hover:bg-sky-400 shadow-sky-200'
+                                        className={`flex-1 text-xs font-bold py-2 px-4 rounded-lg transition-all active:scale-95 border-2 ${isOverdue
+                                                ? 'border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20'
+                                                : isPending
+                                                    ? 'border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20'
+                                                    : 'border-sky-500/30 text-sky-600 dark:text-sky-400 hover:bg-sky-50'
                                             }`}
                                     >
-                                        Pagar este mes
+                                        Registrar pago
                                     </button>
                                 </div>
                             )}
