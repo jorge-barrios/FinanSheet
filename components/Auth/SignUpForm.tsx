@@ -61,15 +61,15 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onToggleMode }) => {
         subtitle=""
       >
         <div className="text-center space-y-6">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/30">
-            <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-900/30 border border-green-800/50">
+            <CheckCircle2 className="h-8 w-8 text-green-400" />
           </div>
-          <p className="text-slate-600 dark:text-slate-300">
+          <p className="text-slate-300">
             {t('signup.success.message')}
           </p>
           <button
             onClick={onToggleMode}
-            className="text-sky-600 hover:text-sky-500 font-medium transition-colors"
+            className="text-teal-400 hover:text-teal-300 font-medium transition-colors underline underline-offset-4 decoration-teal-400/50 hover:decoration-teal-300"
           >
             {t('signup.success.backToLogin')}
           </button>
@@ -86,12 +86,12 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onToggleMode }) => {
       <form className="space-y-6" onSubmit={handleSubmit}>
         <div className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
+            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1">
               {t('signup.email')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Mail className="h-5 w-5 text-slate-400" />
+                <Mail className="h-5 w-5 text-slate-500" />
               </div>
               <input
                 id="email"
@@ -101,19 +101,19 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onToggleMode }) => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all duration-200"
+                className="block w-full pl-10 pr-3 py-2.5 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent focus:bg-slate-800 transition-all duration-200"
                 placeholder="name@example.com"
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1">
               {t('signup.password')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock className="h-5 w-5 text-slate-400" />
+                <Lock className="h-5 w-5 text-slate-500" />
               </div>
               <input
                 id="password"
@@ -123,19 +123,19 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onToggleMode }) => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all duration-200"
+                className="block w-full pl-10 pr-3 py-2.5 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent focus:bg-slate-800 transition-all duration-200"
                 placeholder="••••••••"
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 mb-1">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-1">
               {t('signup.confirmPassword')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock className="h-5 w-5 text-slate-400" />
+                <Lock className="h-5 w-5 text-slate-500" />
               </div>
               <input
                 id="confirmPassword"
@@ -145,7 +145,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onToggleMode }) => {
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all duration-200"
+                className="block w-full pl-10 pr-3 py-2.5 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent focus:bg-slate-800 transition-all duration-200"
                 placeholder="••••••••"
               />
             </div>
@@ -153,8 +153,8 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onToggleMode }) => {
         </div>
 
         {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-4">
-            <p className="text-sm text-red-600 text-center font-medium">{error}</p>
+          <div className="rounded-lg bg-red-900/30 border border-red-800/50 p-4">
+            <p className="text-sm text-red-400 text-center font-medium">{error}</p>
           </div>
         )}
 
@@ -162,7 +162,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onToggleMode }) => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg text-sm font-semibold text-white bg-sky-500 hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-sky-500/25 hover:shadow-sky-400/30 hover:shadow-xl"
           >
             {loading ? (
               <>
@@ -174,13 +174,16 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onToggleMode }) => {
             )}
           </button>
 
-          <div className="text-center">
+          <div className="text-center pt-4">
+            <span className="text-sm text-slate-400">
+              ¿Ya tienes una cuenta?{" "}
+            </span>
             <button
               type="button"
               onClick={onToggleMode}
-              className="text-sm font-medium text-sky-600 hover:text-sky-500 transition-colors duration-200"
+              className="text-sm font-medium text-sky-400 hover:text-sky-300 transition-colors duration-200 underline underline-offset-4 decoration-sky-400/50 hover:decoration-sky-300"
             >
-              {t('signup.hasAccount')}
+              Inicia sesión
             </button>
           </div>
         </div>

@@ -10,11 +10,14 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { CommitmentService, PaymentService, getCurrentUserId } from '../services/dataService.v2';
 import type { CommitmentWithTerm, Payment, FlowType } from '../types.v2';
 import { extractYearMonth, getPerPeriodAmount, getCuotaNumber } from '../utils/financialUtils.v2';
+import { useAuth } from './AuthContext';
 import { periodToString } from '../types.v2';
 
 // =============================================================================
 // TYPES
 // =============================================================================
+
+type UrgencyGroup = 'overdue' | 'next7days' | 'restOfMonth';
 
 interface UpcomingPayment {
     commitmentId: string;
@@ -28,6 +31,8 @@ interface UpcomingPayment {
     cuotaNumber: number | null;
     totalCuotas: number | null;
     flowType: FlowType;
+    urgencyGroup: UrgencyGroup; // For grouping in UI
+    daysUntilDue: number; // Negative if overdue
 }
 
 interface MonthlyData {
@@ -48,7 +53,7 @@ interface CommitmentsContextValue {
     error: string | null;
 
     // Refresh function
-    refresh: () => Promise<void>;
+    refresh: (silent?: boolean) => Promise<void>;
 
     // Display year and month for rolling window calculations
     displayYear: number;
@@ -57,7 +62,7 @@ interface CommitmentsContextValue {
     setDisplayMonth: (month: number) => void;
 
     // Derived data (calculated from raw data)
-    getUpcomingPayments: (currentMonth: number, nextMonth?: number) => UpcomingPayment[];
+    getUpcomingPayments: (selectedMonth: number) => UpcomingPayment[];
     getMonthlyData: () => MonthlyData[];
     isPaymentMade: (commitmentId: string, year: number, month: number) => boolean;
 }
@@ -77,6 +82,7 @@ interface CommitmentsProviderProps {
 }
 
 export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ children }) => {
+    const { user } = useAuth(); // SECURITY: Monitor user changes
     const [commitments, setCommitments] = useState<CommitmentWithTerm[]>([]);
     const [payments, setPayments] = useState<Map<string, Payment[]>>(new Map());
     const [loading, setLoading] = useState(true);
@@ -146,11 +152,21 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
         }
     }, [displayYear, displayMonth]);
 
-    // Initial load only (not on every displayYear/displayMonth change)
+    // SECURITY: Clear data when user logs out
     useEffect(() => {
-        refresh();
+        if (!user) {
+            console.log('CommitmentsContext: User logged out, clearing data');
+            setCommitments([]);
+            setPayments(new Map());
+            setError(null);
+            setLoading(false);
+        } else {
+            // User logged in - load data
+            console.log('CommitmentsContext: User logged in, loading data');
+            refresh();
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Empty deps = only on mount
+    }, [user]); // Re-run when user changes (login/logout)
 
     // ==========================================================================
     // HELPER FUNCTIONS
@@ -209,74 +225,81 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
     // DERIVED DATA
     // ==========================================================================
 
-    const getUpcomingPayments = useCallback((currentMonth: number, nextMonth?: number): UpcomingPayment[] => {
+    const getUpcomingPayments = useCallback((selectedMonth: number): UpcomingPayment[] => {
         const items: UpcomingPayment[] = [];
         const today = new Date();
-        const currentDay = today.getDate();
+        const todayTime = today.getTime();
         const currentYear = today.getFullYear();
         const currentMonthActual = today.getMonth();
 
-        // 1. Get pending payments for current and next month
-        const monthsToCheck = [currentMonth];
-        if (nextMonth !== undefined && nextMonth !== currentMonth) {
-            monthsToCheck.push(nextMonth);
-        } else if (currentMonth < 11) {
-            monthsToCheck.push(currentMonth + 1);
-        }
+        // Helper to calculate days until due and urgency group
+        const calculateUrgency = (dueYear: number, dueMonth: number, dueDay: number): { daysUntilDue: number; urgencyGroup: UrgencyGroup } => {
+            const dueDate = new Date(dueYear, dueMonth, dueDay);
+            const diffTime = dueDate.getTime() - todayTime;
+            const daysUntilDue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-        monthsToCheck.forEach(month => {
-            const yearForMonth = month > 11 ? displayYear + 1 : displayYear;
-            const actualMonth = month % 12;
+            if (daysUntilDue < 0) {
+                return { daysUntilDue, urgencyGroup: 'overdue' };
+            } else if (daysUntilDue <= 7) {
+                return { daysUntilDue, urgencyGroup: 'next7days' };
+            } else {
+                return { daysUntilDue, urgencyGroup: 'restOfMonth' };
+            }
+        };
 
-            commitments.forEach(commitment => {
-                const term = commitment.active_term;
-                if (!term) return;
-                if (commitment.flow_type !== 'EXPENSE') return;
-                if (!isTermActiveForMonth(term, yearForMonth, actualMonth)) return;
-                if (isPaymentMade(commitment.id, yearForMonth, actualMonth)) return;
+        // 1. Get pending payments for the SELECTED month only (not next month)
+        const yearForMonth = displayYear;
+        const actualMonth = selectedMonth;
 
-                const dueDay = term.due_day_of_month || 1;
-                const commitmentPayments = payments.get(commitment.id) || [];
-                const periodStr = periodToString({ year: yearForMonth, month: actualMonth + 1 });
-                const paymentRecord = commitmentPayments.find(p =>
-                    p.period_date.substring(0, 7) === periodStr
-                );
-                const amount = paymentRecord && paymentRecord.amount_in_base
-                    ? paymentRecord.amount_in_base
-                    : getPerPeriodAmount(term, true);
+        commitments.forEach(commitment => {
+            const term = commitment.active_term;
+            if (!term) return;
+            if (commitment.flow_type !== 'EXPENSE') return;
+            if (!isTermActiveForMonth(term, yearForMonth, actualMonth)) return;
+            if (isPaymentMade(commitment.id, yearForMonth, actualMonth)) return;
 
-                const isCurrentPeriod = actualMonth === currentMonthActual && yearForMonth === currentYear;
-                const isOverdue = isCurrentPeriod && currentDay > dueDay;
+            const dueDay = term.due_day_of_month || 1;
+            const commitmentPayments = payments.get(commitment.id) || [];
+            const periodStr = periodToString({ year: yearForMonth, month: actualMonth + 1 });
+            const paymentRecord = commitmentPayments.find(p =>
+                p.period_date.substring(0, 7) === periodStr
+            );
+            const amount = paymentRecord && paymentRecord.amount_in_base
+                ? paymentRecord.amount_in_base
+                : getPerPeriodAmount(term, true);
 
-                const monthDate = new Date(yearForMonth, actualMonth, 1);
-                const cuotaNumber = getCuotaNumber(term, monthDate);
-                const totalCuotas = term.installments_count && term.installments_count > 1
-                    ? term.installments_count
-                    : null;
+            const { daysUntilDue, urgencyGroup } = calculateUrgency(yearForMonth, actualMonth, dueDay);
+            const isOverdue = urgencyGroup === 'overdue';
 
-                items.push({
-                    commitmentId: commitment.id,
-                    commitmentName: commitment.name,
-                    amount,
-                    dueDay,
-                    dueMonth: actualMonth,
-                    dueYear: yearForMonth,
-                    isOverdue,
-                    isPaid: false,
-                    cuotaNumber,
-                    totalCuotas,
-                    flowType: commitment.flow_type as FlowType,
-                });
+            const monthDate = new Date(yearForMonth, actualMonth, 1);
+            const cuotaNumber = getCuotaNumber(term, monthDate);
+            const totalCuotas = term.installments_count && term.installments_count > 1
+                ? term.installments_count
+                : null;
+
+            items.push({
+                commitmentId: commitment.id,
+                commitmentName: commitment.name,
+                amount,
+                dueDay,
+                dueMonth: actualMonth,
+                dueYear: yearForMonth,
+                isOverdue,
+                isPaid: false,
+                cuotaNumber,
+                totalCuotas,
+                flowType: commitment.flow_type as FlowType,
+                urgencyGroup,
+                daysUntilDue,
             });
         });
 
-        // 2. Search for overdue payments from past months (all commitments, even if "finished")
+        // 2. Search for overdue payments from past months (up to 3 months back)
         commitments.forEach(commitment => {
             const term = commitment.active_term;
             if (!term) return;
             if (commitment.flow_type !== 'EXPENSE') return;
 
-            // Check last 3 months for unpaid periods (reduced from 12 to avoid clutter)
             for (let i = 1; i <= 3; i++) {
                 const checkDate = new Date(currentYear, currentMonthActual - i, 1);
                 const checkYear = checkDate.getFullYear();
@@ -288,21 +311,10 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
                 // Skip if already paid
                 if (isPaymentMade(commitment.id, checkYear, checkMonth)) continue;
 
-                // Skip if already in monthsToCheck (this prevents duplicates if currentMonthActual - i falls into monthsToCheck)
-                const isDuplicate = monthsToCheck.some(m => {
-                    // Calculate the year/month for the month in monthsToCheck relative to displayYear
-                    // This logic needs to be consistent with how monthsToCheck are processed above
-                    let monthToCheckYear = displayYear;
-                    let monthToCheckActual = m;
-                    if (m > 11) { // If month is 12 (Dec) or more, it means it's next year
-                        monthToCheckYear = displayYear + Math.floor(m / 12);
-                        monthToCheckActual = m % 12;
-                    }
-                    return monthToCheckActual === checkMonth && monthToCheckYear === checkYear;
-                });
-                if (isDuplicate) continue;
+                // Skip if this is the selected month (already handled above)
+                if (checkMonth === actualMonth && checkYear === yearForMonth) continue;
 
-                // This is an overdue payment!
+                // This is an overdue payment from a past month
                 const dueDay = term.due_day_of_month || 1;
                 const commitmentPayments = payments.get(commitment.id) || [];
                 const periodStr = periodToString({ year: checkYear, month: checkMonth + 1 });
@@ -312,6 +324,8 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
                 const amount = paymentRecord && paymentRecord.amount_in_base
                     ? paymentRecord.amount_in_base
                     : getPerPeriodAmount(term, true);
+
+                const { daysUntilDue } = calculateUrgency(checkYear, checkMonth, dueDay);
 
                 const monthDate = new Date(checkYear, checkMonth, 1);
                 const cuotaNumber = getCuotaNumber(term, monthDate);
@@ -326,24 +340,49 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
                     dueDay,
                     dueMonth: checkMonth,
                     dueYear: checkYear,
-                    isOverdue: true, // All past unpaid are overdue
+                    isOverdue: true,
                     isPaid: false,
                     cuotaNumber,
                     totalCuotas,
                     flowType: commitment.flow_type as FlowType,
+                    urgencyGroup: 'overdue', // All past unpaid are overdue
+                    daysUntilDue,
                 });
             }
         });
 
-        // Sort by date (oldest overdue first, then upcoming)
+        // Sort: overdue first (most overdue), then by days until due ascending
         items.sort((a, b) => {
-            const dateA = new Date(a.dueYear, a.dueMonth, a.dueDay);
-            const dateB = new Date(b.dueYear, b.dueMonth, b.dueDay);
-            return dateA.getTime() - dateB.getTime();
+            // Group priority: overdue < next7days < restOfMonth
+            const groupOrder: Record<UrgencyGroup, number> = { overdue: 0, next7days: 1, restOfMonth: 2 };
+            const groupDiff = groupOrder[a.urgencyGroup] - groupOrder[b.urgencyGroup];
+            if (groupDiff !== 0) return groupDiff;
+
+            // Within same group, sort by days until due (ascending)
+            return a.daysUntilDue - b.daysUntilDue;
         });
 
         return items;
     }, [commitments, payments, displayYear, isTermActiveForMonth, isPaymentMade, getCuotaNumber, getPerPeriodAmount]);
+
+    // Helper: Get amount for a commitment in a specific period (from payment or projected)
+    const getAmountForPeriod = useCallback((
+        commitment: CommitmentWithTerm,
+        slotYear: number,
+        slotMonth: number
+    ): number => {
+        const term = commitment.active_term;
+        if (!term) return 0;
+
+        const commitmentPayments = payments.get(commitment.id) || [];
+        const periodStr = periodToString({ year: slotYear, month: slotMonth + 1 });
+        const paymentForPeriod = commitmentPayments.find(p => {
+            const pPeriod = p.period_date.substring(0, 7);
+            return pPeriod === periodStr;
+        });
+
+        return paymentForPeriod?.amount_in_base ?? getPerPeriodAmount(term, true);
+    }, [payments]);
 
     const getMonthlyData = useCallback((): MonthlyData[] => {
         const data: MonthlyData[] = Array.from({ length: 12 }, () => ({
@@ -357,9 +396,39 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
         // Calculate rolling window: 12 months (8 back + current + 3 forward)
         const centerDate = new Date(displayYear, displayMonth, 1);
 
+        // Build a map of commitment IDs for quick lookup
+        const commitmentMap = new Map(commitments.map(c => [c.id, c]));
+
+        // Build a set of linked pairs to track which commitments have been processed
+        // For bidirectional links: A.linked_commitment_id = B.id AND B.linked_commitment_id = A.id
+        // We only want to process each pair ONCE and show NET on the appropriate side
+        const processedPairs = new Set<string>();
+
+        // Helper to get the pair key (sorted IDs to ensure consistency)
+        const getPairKey = (id1: string, id2: string) => [id1, id2].sort().join('|');
+
         commitments.forEach(commitment => {
             const term = commitment.active_term;
             if (!term) return;
+
+            // Check if this commitment is part of a linked pair
+            const linkedId = commitment.linked_commitment_id;
+            const linkedCommitment = linkedId ? commitmentMap.get(linkedId) : null;
+
+            // Skip if linked commitment doesn't have a reciprocal link (unidirectional - legacy)
+            // OR if we already processed this pair
+            if (linkedCommitment) {
+                const pairKey = getPairKey(commitment.id, linkedId!);
+
+                // For bidirectional links, only process once
+                // Show NET on the side with the LARGER amount (the "dominant" flow)
+                if (processedPairs.has(pairKey)) {
+                    return; // Already processed this pair
+                }
+
+                // Mark pair as processed
+                processedPairs.add(pairKey);
+            }
 
             // For each of the 12 months in the rolling window
             for (let i = 0; i < 12; i++) {
@@ -372,17 +441,31 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
 
                 if (!isTermActiveForMonth(term, slotYear, slotMonth)) continue;
 
-                // Get payment or use expected amount
-                const commitmentPayments = payments.get(commitment.id) || [];
-                const periodStr = periodToString({ year: slotYear, month: slotMonth + 1 });
-                const paymentForPeriod = commitmentPayments.find(p => {
-                    const pPeriod = p.period_date.substring(0, 7);
-                    return pPeriod === periodStr;
-                });
+                // Get this commitment's amount for the period
+                let amount = getAmountForPeriod(commitment, slotYear, slotMonth);
+                let flowType = commitment.flow_type;
 
-                const amount = paymentForPeriod?.amount_in_base ?? getPerPeriodAmount(term, true);
+                // If linked, calculate NET and determine which side gets it
+                if (linkedCommitment) {
+                    const linkedTerm = linkedCommitment.active_term;
+                    if (linkedTerm && isTermActiveForMonth(linkedTerm, slotYear, slotMonth)) {
+                        const linkedAmount = getAmountForPeriod(linkedCommitment, slotYear, slotMonth);
+                        const netAmount = Math.abs(amount - linkedAmount);
 
-                if (commitment.flow_type === 'INCOME') {
+                        // Determine which side "wins" (larger amount determines flow type)
+                        if (amount >= linkedAmount) {
+                            // This commitment is larger - NET goes to this flow type
+                            amount = netAmount;
+                            // flowType stays as commitment.flow_type
+                        } else {
+                            // Linked commitment is larger - NET goes to linked's flow type
+                            amount = netAmount;
+                            flowType = linkedCommitment.flow_type;
+                        }
+                    }
+                }
+
+                if (flowType === 'INCOME') {
                     data[i].income += amount;
                     data[i].hasIncomeData = true;
                 } else {
@@ -397,7 +480,7 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
         });
 
         return data;
-    }, [commitments, payments, displayYear, displayMonth, isTermActiveForMonth]);
+    }, [commitments, payments, displayYear, displayMonth, isTermActiveForMonth, getAmountForPeriod]);
 
     // ==========================================================================
     // CONTEXT VALUE

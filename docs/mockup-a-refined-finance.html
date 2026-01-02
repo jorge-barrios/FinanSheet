@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinanSheet - Propuesta A: Refined Finance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg-primary: #FAFAF9;
+            --color-bg-secondary: #F5F5F4;
+            --color-bg-card: #FFFFFF;
+            --color-surface-elevated: #FFFFFF;
+            --color-text-primary: #0D0D0D;
+            --color-text-secondary: #525252;
+            --color-text-muted: #A3A3A3;
+            --color-accent-gold: #D4A853;
+            --color-accent-gold-light: #F5E6C8;
+            --color-success: #22C55E;
+            --color-success-light: #DCFCE7;
+            --color-danger: #EF4444;
+            --color-danger-light: #FEE2E2;
+            --color-border: #E5E5E5;
+            --color-border-subtle: #F0F0F0;
+            --font-display: 'DM Sans', sans-serif;
+            --font-mono: 'IBM Plex Mono', monospace;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.08);
+            --shadow-gold: 0 4px 20px rgba(212, 168, 83, 0.15);
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+        }
+
+        .dark {
+            --color-bg-primary: #0A0A0A;
+            --color-bg-secondary: #141414;
+            --color-bg-card: #1A1A1A;
+            --color-surface-elevated: #1F1F1F;
+            --color-text-primary: #FAFAFA;
+            --color-text-secondary: #A3A3A3;
+            --color-text-muted: #525252;
+            --color-border: #262626;
+            --color-border-subtle: #1F1F1F;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-display);
+            background: var(--color-bg-primary);
+            color: var(--color-text-primary);
+            min-height: 100vh;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        /* Subtle grid pattern */
+        .bg-pattern {
+            background-image:
+                radial-gradient(circle at 1px 1px, var(--color-border-subtle) 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+
+        /* Header */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--color-bg-card);
+            border-bottom: 1px solid var(--color-border);
+            padding: 0.875rem 1.5rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.625rem;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--color-accent-gold) 0%, #C4963F 100%);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-gold);
+        }
+
+        .logo-icon svg {
+            width: 18px;
+            height: 18px;
+            color: white;
+        }
+
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .view-tabs {
+            display: flex;
+            background: var(--color-bg-secondary);
+            border-radius: var(--radius-md);
+            padding: 4px;
+            gap: 2px;
+        }
+
+        .view-tab {
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .view-tab:hover {
+            color: var(--color-text-primary);
+        }
+
+        .view-tab.active {
+            background: var(--color-bg-card);
+            color: var(--color-text-primary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.8125rem;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--color-text-secondary);
+        }
+
+        .btn-ghost:hover {
+            background: var(--color-bg-secondary);
+            color: var(--color-text-primary);
+        }
+
+        .btn-primary {
+            background: var(--color-text-primary);
+            color: var(--color-bg-primary);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .theme-toggle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--color-accent-gold);
+        }
+
+        .theme-toggle svg {
+            width: 18px;
+            height: 18px;
+            color: var(--color-text-secondary);
+        }
+
+        /* Main Content */
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+
+        /* Stats Cards */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            transition: all 0.2s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--color-accent-gold);
+            box-shadow: var(--shadow-gold);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--color-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-family: var(--font-mono);
+            font-size: 1.5rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .stat-value.positive {
+            color: var(--color-success);
+        }
+
+        .stat-value.negative {
+            color: var(--color-danger);
+        }
+
+        .stat-trend {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+        }
+
+        .stat-trend.up {
+            color: var(--color-success);
+        }
+
+        .stat-trend.down {
+            color: var(--color-danger);
+        }
+
+        /* Grid Table */
+        .grid-container {
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .grid-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .grid-title {
+            font-size: 0.9375rem;
+            font-weight: 600;
+        }
+
+        .month-nav {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .month-nav button {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--color-border);
+            background: var(--color-bg-card);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+
+        .month-nav button:hover {
+            border-color: var(--color-accent-gold);
+            background: var(--color-accent-gold-light);
+        }
+
+        .dark .month-nav button:hover {
+            background: rgba(212, 168, 83, 0.1);
+        }
+
+        .month-nav span {
+            font-size: 0.875rem;
+            font-weight: 500;
+            min-width: 140px;
+            text-align: center;
+        }
+
+        /* Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            color: var(--color-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: var(--color-bg-secondary);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .data-table th.text-right {
+            text-align: right;
+        }
+
+        .data-table td {
+            padding: 0.875rem 1rem;
+            border-bottom: 1px solid var(--color-border-subtle);
+            font-size: 0.875rem;
+            vertical-align: middle;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .data-table tr {
+            transition: background 0.15s ease;
+        }
+
+        .data-table tbody tr:hover {
+            background: var(--color-bg-secondary);
+        }
+
+        .commitment-cell {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .commitment-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .commitment-icon.expense {
+            background: var(--color-danger-light);
+            color: var(--color-danger);
+        }
+
+        .commitment-icon.income {
+            background: var(--color-success-light);
+            color: var(--color-success);
+        }
+
+        .dark .commitment-icon.expense {
+            background: rgba(239, 68, 68, 0.15);
+        }
+
+        .dark .commitment-icon.income {
+            background: rgba(34, 197, 94, 0.15);
+        }
+
+        .commitment-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .commitment-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.125rem;
+        }
+
+        .commitment-name {
+            font-weight: 500;
+        }
+
+        .commitment-category {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+        }
+
+        .amount-cell {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            text-align: right;
+        }
+
+        .amount-cell.expense {
+            color: var(--color-danger);
+        }
+
+        .amount-cell.income {
+            color: var(--color-success);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.25rem 0.625rem;
+            border-radius: 100px;
+            font-size: 0.6875rem;
+            font-weight: 500;
+        }
+
+        .status-badge.paid {
+            background: var(--color-success-light);
+            color: var(--color-success);
+        }
+
+        .status-badge.pending {
+            background: var(--color-accent-gold-light);
+            color: #B8860B;
+        }
+
+        .dark .status-badge.paid {
+            background: rgba(34, 197, 94, 0.15);
+        }
+
+        .dark .status-badge.pending {
+            background: rgba(212, 168, 83, 0.15);
+        }
+
+        .status-badge svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .actions-cell {
+            display: flex;
+            gap: 0.25rem;
+            justify-content: flex-end;
+        }
+
+        .action-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--color-text-muted);
+            transition: all 0.15s ease;
+        }
+
+        .action-btn:hover {
+            background: var(--color-bg-secondary);
+            color: var(--color-text-primary);
+        }
+
+        .action-btn.danger:hover {
+            background: var(--color-danger-light);
+            color: var(--color-danger);
+        }
+
+        .action-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Footer totals */
+        .grid-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 2rem;
+            padding: 1rem 1.25rem;
+            background: var(--color-bg-secondary);
+            border-top: 1px solid var(--color-border);
+        }
+
+        .footer-stat {
+            text-align: right;
+        }
+
+        .footer-stat-label {
+            font-size: 0.6875rem;
+            color: var(--color-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .footer-stat-value {
+            font-family: var(--font-mono);
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .stat-card {
+            animation: fadeInUp 0.4s ease-out backwards;
+        }
+
+        .stat-card:nth-child(1) { animation-delay: 0.05s; }
+        .stat-card:nth-child(2) { animation-delay: 0.1s; }
+        .stat-card:nth-child(3) { animation-delay: 0.15s; }
+        .stat-card:nth-child(4) { animation-delay: 0.2s; }
+
+        .data-table tbody tr {
+            animation: fadeInUp 0.3s ease-out backwards;
+        }
+
+        .data-table tbody tr:nth-child(1) { animation-delay: 0.1s; }
+        .data-table tbody tr:nth-child(2) { animation-delay: 0.15s; }
+        .data-table tbody tr:nth-child(3) { animation-delay: 0.2s; }
+        .data-table tbody tr:nth-child(4) { animation-delay: 0.25s; }
+        .data-table tbody tr:nth-child(5) { animation-delay: 0.3s; }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+
+            .logo-text {
+                display: none;
+            }
+
+            .view-tabs {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-pattern">
+    <header>
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                    </div>
+                    <span class="logo-text">FinanSheet</span>
+                </div>
+                <div class="view-tabs">
+                    <button class="view-tab active">Grid</button>
+                    <button class="view-tab">Dashboard</button>
+                    <button class="view-tab">Calendario</button>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-ghost">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+                    </svg>
+                    Configuración
+                </button>
+                <button class="theme-toggle" onclick="document.body.classList.toggle('dark')">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                    </svg>
+                </button>
+                <button class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Nuevo
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Stats Row -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Ingresos del mes</div>
+                <div class="stat-value positive">$2.450.000</div>
+                <div class="stat-trend up">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M7 17l9.2-9.2M17 17V7H7"/>
+                    </svg>
+                    +12% vs mes anterior
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Gastos del mes</div>
+                <div class="stat-value negative">$1.823.500</div>
+                <div class="stat-trend down">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M7 7l9.2 9.2M7 7h10v10"/>
+                    </svg>
+                    +5% vs mes anterior
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Balance</div>
+                <div class="stat-value positive">$626.500</div>
+                <div class="stat-trend up">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M7 17l9.2-9.2M17 17V7H7"/>
+                    </svg>
+                    Ahorro saludable
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Por pagar</div>
+                <div class="stat-value" style="color: var(--color-accent-gold)">$485.000</div>
+                <div class="stat-trend">
+                    3 compromisos pendientes
+                </div>
+            </div>
+        </div>
+
+        <!-- Grid Table -->
+        <div class="grid-container">
+            <div class="grid-header">
+                <h2 class="grid-title">Compromisos de Diciembre 2025</h2>
+                <div class="month-nav">
+                    <button>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M15 18l-6-6 6-6"/>
+                        </svg>
+                    </button>
+                    <span>Diciembre 2025</span>
+                    <button>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18l6-6-6-6"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Compromiso</th>
+                        <th>Categoría</th>
+                        <th>Frecuencia</th>
+                        <th class="text-right">Monto</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <div class="commitment-cell">
+                                <div class="commitment-icon income">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+                                    </svg>
+                                </div>
+                                <div class="commitment-info">
+                                    <span class="commitment-name">Sueldo Empresa</span>
+                                    <span class="commitment-category">Ingreso principal</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="color: var(--color-text-secondary)">Salario</td>
+                        <td style="color: var(--color-text-secondary)">Mensual</td>
+                        <td class="amount-cell income">+$2.450.000</td>
+                        <td>
+                            <span class="status-badge paid">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+                                </svg>
+                                Recibido
+                            </span>
+                        </td>
+                        <td class="actions-cell">
+                            <button class="action-btn"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg></button>
+                            <button class="action-btn danger"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg></button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="commitment-cell">
+                                <div class="commitment-icon expense">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                                    </svg>
+                                </div>
+                                <div class="commitment-info">
+                                    <span class="commitment-name">Arriendo Departamento</span>
+                                    <span class="commitment-category">Vivienda</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="color: var(--color-text-secondary)">Hogar</td>
+                        <td style="color: var(--color-text-secondary)">Mensual</td>
+                        <td class="amount-cell expense">-$650.000</td>
+                        <td>
+                            <span class="status-badge paid">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+                                </svg>
+                                Pagado
+                            </span>
+                        </td>
+                        <td class="actions-cell">
+                            <button class="action-btn"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg></button>
+                            <button class="action-btn danger"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg></button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="commitment-cell">
+                                <div class="commitment-icon expense">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+                                    </svg>
+                                </div>
+                                <div class="commitment-info">
+                                    <span class="commitment-name">Cuota Auto</span>
+                                    <span class="commitment-category">Crédito 36 cuotas</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="color: var(--color-text-secondary)">Transporte</td>
+                        <td style="color: var(--color-text-secondary)">Mensual</td>
+                        <td class="amount-cell expense">-$285.000</td>
+                        <td>
+                            <span class="status-badge pending">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clip-rule="evenodd" />
+                                </svg>
+                                Pendiente
+                            </span>
+                        </td>
+                        <td class="actions-cell">
+                            <button class="action-btn"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg></button>
+                            <button class="action-btn danger"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg></button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="commitment-cell">
+                                <div class="commitment-icon expense">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z" />
+                                    </svg>
+                                </div>
+                                <div class="commitment-info">
+                                    <span class="commitment-name">Netflix + Spotify</span>
+                                    <span class="commitment-category">Suscripciones</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="color: var(--color-text-secondary)">Suscripciones</td>
+                        <td style="color: var(--color-text-secondary)">Mensual</td>
+                        <td class="amount-cell expense">-$18.500</td>
+                        <td>
+                            <span class="status-badge paid">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+                                </svg>
+                                Pagado
+                            </span>
+                        </td>
+                        <td class="actions-cell">
+                            <button class="action-btn"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg></button>
+                            <button class="action-btn danger"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg></button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="commitment-cell">
+                                <div class="commitment-icon expense">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+                                    </svg>
+                                </div>
+                                <div class="commitment-info">
+                                    <span class="commitment-name">Tarjeta de Crédito</span>
+                                    <span class="commitment-category">Deudas</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="color: var(--color-text-secondary)">Deudas</td>
+                        <td style="color: var(--color-text-secondary)">Mensual</td>
+                        <td class="amount-cell expense">-$200.000</td>
+                        <td>
+                            <span class="status-badge pending">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clip-rule="evenodd" />
+                                </svg>
+                                Pendiente
+                            </span>
+                        </td>
+                        <td class="actions-cell">
+                            <button class="action-btn"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg></button>
+                            <button class="action-btn danger"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg></button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="grid-footer">
+                <div class="footer-stat">
+                    <div class="footer-stat-label">Total Ingresos</div>
+                    <div class="footer-stat-value" style="color: var(--color-success)">+$2.450.000</div>
+                </div>
+                <div class="footer-stat">
+                    <div class="footer-stat-label">Total Gastos</div>
+                    <div class="footer-stat-value" style="color: var(--color-danger)">-$1.153.500</div>
+                </div>
+                <div class="footer-stat">
+                    <div class="footer-stat-label">Balance</div>
+                    <div class="footer-stat-value" style="color: var(--color-accent-gold)">+$1.296.500</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Check for system dark mode preference
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.body.classList.add('dark');
+        }
+    </script>
+</body>
+</html>

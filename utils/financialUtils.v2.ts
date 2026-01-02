@@ -54,9 +54,9 @@ export function isTermActiveForPeriod(term: Term, periodDate: string): boolean {
 
 /**
  * Get the per-period (per-cuota) amount for a term.
- * If the term has installments, divides total by installments count.
- * Otherwise returns the total amount.
- * 
+ * Only divides by installments if is_divided_amount is true (tipo "En cuotas").
+ * For "Definido" (is_divided_amount = false), returns full amount per period.
+ *
  * @param term - The term to calculate for
  * @param useBaseCurrency - If true, returns amount_in_base (CLP), otherwise amount_original
  * @returns The per-period amount
@@ -68,7 +68,9 @@ export function getPerPeriodAmount(term: Term, useBaseCurrency: boolean = true):
 
     const installmentsCount = term.installments_count;
 
-    if (installmentsCount && installmentsCount > 1) {
+    // Solo dividir si is_divided_amount es true (tipo "En cuotas")
+    // Para "Definido", el monto es fijo por período
+    if (term.is_divided_amount && installmentsCount && installmentsCount > 1) {
         return totalAmount / installmentsCount;
     }
 
@@ -76,15 +78,17 @@ export function getPerPeriodAmount(term: Term, useBaseCurrency: boolean = true):
 }
 
 /**
- * Get the cuota number for a specific month within a term.
- * Returns null if the month is outside the term's range.
- * 
+ * Get the pago/cuota number for a specific month within a term.
+ * Works for both "Definido" (installments_count > 0) and "En cuotas".
+ * Returns null if the month is outside the term's range or no installments.
+ *
  * @param term - The term to check
  * @param monthDate - The Date object for the month to check
- * @returns The cuota number (1-indexed) or null if not applicable
+ * @returns The pago/cuota number (1-indexed) or null if not applicable
  */
 export function getCuotaNumber(term: Term, monthDate: Date): number | null {
-    if (!term.installments_count || term.installments_count <= 1) {
+    // Funciona para installments_count > 0 (tanto "Definido" como "En cuotas")
+    if (!term.installments_count || term.installments_count <= 0) {
         return null;
     }
 

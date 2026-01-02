@@ -78,15 +78,13 @@ import CellEditModal from './components/CellEditModal';
 const TableView = React.lazy(() => import('./components/ExpenseGridVirtual'));
 const TableViewV2 = React.lazy(() => import('./components/ExpenseGridVirtual.v2'));
 const CalendarView = React.lazy(() => import('./components/CalendarView'));
-const DashboardLazy = React.lazy(() => import('./components/Dashboard'));
-const DashboardBody = React.lazy(() => import('./components/Dashboard').then(m => ({ default: m.DashboardBody })));
-const DashboardV2 = React.lazy(() => import('./components/Dashboard.v2'));
 const DashboardFullV2 = React.lazy(() => import('./components/DashboardFull.v2'));
 const PaymentRecorderV2 = React.lazy(() => import('./components/PaymentRecorder.v2'));
 import CategoryManager from './components/CategoryManager';
 import ConfirmationModal from './components/ConfirmationModal';
 import { Expense, PaymentStatus, ExpenseType, View, PaymentDetails, PaymentFrequency, PaymentUnit } from './types';
 import type { CommitmentWithTerm } from './types.v2';
+import type { Category } from './services/categoryService.v2';
 import { exportToExcel } from './services/exportService';
 import { useLocalization } from './hooks/useLocalization';
 import usePersistentState from './hooks/usePersistentState';
@@ -113,7 +111,7 @@ const App: React.FC = () => {
 
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>({});
-    const [categories, setCategories] = useState<string[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map()); // categoryName -> categoryId
     const [loading, setLoading] = useState(isSupabaseConfigured);
 
@@ -121,7 +119,6 @@ const App: React.FC = () => {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
     const [editingCommitment, setEditingCommitment] = useState<CommitmentWithTerm | null>(null);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     // V2 data (preloaded at app startup for instant tab switching)
     const [commitmentsV2, setCommitmentsV2] = useState<CommitmentWithTerm[]>([]);
     const [paymentsV2, setPaymentsV2] = useState<Map<string, Payment[]>>(new Map());
@@ -132,9 +129,6 @@ const App: React.FC = () => {
         year: number;
         month: number;
     }>({ isOpen: false, commitment: null, year: 0, month: 0 });
-
-    // Trigger for Dashboard.v2 to refetch after payment save
-    const [dashboardRefreshTrigger, setDashboardRefreshTrigger] = useState(0);
     const [editingCell, setEditingCell] = useState<{ expenseId: string; year: number; month: number; } | null>(null);
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -188,64 +182,30 @@ const App: React.FC = () => {
             const { data: paymentsData, error: paymentsError } = await supabase.from('payment_details').select('*');
             if (paymentsError) throw paymentsError;
 
-            let { data: categoriesData, error: categoriesError } = await supabase.from('categories').select('id, name');
-            if (categoriesError) throw categoriesError;
+            // Load categories using new v2 service (global + custom - hidden)
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                console.error('No user ID found');
+                setCategories([]);
+                setCategoryMap(new Map());
+            } else {
+                const { getUserCategories } = await import('./services/categoryService.v2');
+                const categoriesV2 = await getUserCategories(userId, t, language);
 
-            // If user has no categories, create default ones
-            if (!categoriesData || categoriesData.length === 0) {
-                console.log('No categories found for user, creating defaults...');
-                console.log('Current user_id:', user?.id);
+                // Build category map: name -> id
+                const nameToIdMap = new Map<string, string>();
+                categoriesV2.forEach(cat => {
+                    nameToIdMap.set(cat.name, cat.id);
+                });
 
-                const defaultCategories = Object.values(CATEGORY_LABELS_ES);
-                console.log('Default categories to create:', defaultCategories.length);
+                console.log('📁 Categories loaded from v2 service:', {
+                    total: categoriesV2.length,
+                    categories: categoriesV2.map(c => c.name)
+                });
 
-                const categoriesToInsert = defaultCategories.map(name => ({
-                    name,
-                    user_id: user?.id || null
-                }));
-
-                // Use insert and silently handle duplicates (can happen in React Strict Mode)
-                const { error: insertError, data: insertedData } = await supabase
-                    .from('categories')
-                    .insert(categoriesToInsert)
-                    .select();
-
-                console.log('Insert result:', { error: insertError, dataCount: insertedData?.length });
-
-                // Ignore duplicate key errors (23505) - means categories already exist
-                if (insertError && insertError.code !== '23505') {
-                    console.error('Error creating default categories:', insertError);
-                    console.error('Full error details:', JSON.stringify(insertError, null, 2));
-                } else if (!insertError) {
-                    console.log('Default categories created successfully');
-                }
-
-                // Always re-fetch to get the actual categories (whether just created or already existed)
-                const { data: newCategoriesData, error: refetchError } = await supabase.from('categories').select('id, name');
-                console.log('Re-fetch result:', { categoriesCount: newCategoriesData?.length, error: refetchError });
-                categoriesData = newCategoriesData;
+                setCategories(categoriesV2);
+                setCategoryMap(nameToIdMap);
             }
-
-            // Build category mapping: categoryName -> categoryId
-            const nameToIdMap = new Map<string, string>();
-            const spanishSet = new Map<string, string>(); // canonical id -> ES label
-
-            for (const row of categoriesData || []) {
-                const canonicalId = getCategoryId(row.name);
-                const labelEs = CATEGORY_LABELS_ES[canonicalId] || row.name;
-
-                // Store mapping from Spanish label to UUID
-                nameToIdMap.set(labelEs, row.id);
-
-                // Deduplicate to Spanish canonical labels
-                if (!spanishSet.has(canonicalId)) {
-                    spanishSet.set(canonicalId, labelEs);
-                }
-            }
-
-            const spanishCategories = Array.from(spanishSet.values()).sort((a, b) => a.localeCompare(b, 'es'));
-            setCategories(spanishCategories);
-            setCategoryMap(nameToIdMap);
 
             // ID ESTABLE: Con la nueva arquitectura, los pagos siempre están asociados al ID correcto
             const paymentsObject = (paymentsData || []).reduce((acc: any, payment: any) => {
@@ -364,6 +324,41 @@ const App: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // ============ RELOAD CATEGORIES ON LANGUAGE CHANGE ============
+    useEffect(() => {
+        const reloadCategories = async () => {
+            try {
+                const userId = await getCurrentUserId();
+                if (!userId) return;
+
+                const { getUserCategories } = await import('./services/categoryService.v2');
+                const categoriesV2 = await getUserCategories(userId, t, language);
+
+                // Build category map: name -> id
+                const nameToIdMap = new Map<string, string>();
+                categoriesV2.forEach(cat => {
+                    nameToIdMap.set(cat.name, cat.id);
+                });
+
+                console.log('📁 Categories reloaded for language change:', {
+                    language,
+                    total: categoriesV2.length,
+                    categories: categoriesV2.map(c => c.name)
+                });
+
+                setCategories(categoriesV2);
+                setCategoryMap(nameToIdMap);
+            } catch (err) {
+                console.error('Failed to reload categories on language change:', err);
+            }
+        };
+
+        // Only reload if we already have categories (initial load handled by fetchData)
+        if (categories.length > 0) {
+            reloadCategories();
+        }
+    }, [language, t]);
 
     // ============ V2 HOT RELOAD FUNCTION ============
     const refreshV2Data = useCallback(async () => {
@@ -922,8 +917,16 @@ const App: React.FC = () => {
     }, [isSupabaseConfigured, supabase, user, t, fetchData, showToast]);
 
     const handleAddCategory = useCallback(async (newCategory: string) => {
-        if (!newCategory || categories.includes(newCategory)) return;
-        setCategories(prev => [...prev, newCategory].sort());
+        if (!newCategory || categories.some(c => c.name === newCategory)) return;
+
+        // Optimistically update UI using a temp Category object
+        const tempCategory: Category = {
+            id: `temp-${Date.now()}`,
+            name: newCategory,
+            isBase: false,
+            base_category_key: null
+        };
+        setCategories(prev => [...prev, tempCategory].sort((a, b) => a.name.localeCompare(b.name)));
 
         if (!isSupabaseConfigured || !supabase) {
             showToast(t('category.addSuccess', 'Categoría agregada exitosamente'), 'success');
@@ -931,23 +934,22 @@ const App: React.FC = () => {
         }
 
         try {
-            const { data, error } = await supabase
-                .from('categories')
-                .insert({
-                    name: newCategory,
-                    user_id: user?.id || null
-                })
-                .select('id, name')
-                .single();
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('No user ID');
 
-            if (error) throw error;
+            const { addCustomCategory } = await import('./services/categoryService.v2');
+            const newCat = await addCustomCategory(userId, newCategory);
 
-            // Add to category map
-            if (data) {
-                setCategoryMap(prev => new Map(prev).set(data.name, data.id));
+            // Update category map and replace temp object with real one
+            if (newCat) {
+                setCategoryMap(prev => new Map(prev).set(newCat.name, newCat.id));
+                setCategories(prev => prev.map(c => c.id === tempCategory.id ? newCat : c).sort((a, b) => a.name.localeCompare(b.name)));
             }
 
             showToast(t('category.addSuccess', 'Categoría agregada exitosamente'), 'success');
+
+            // Refresh data to ensure consistency
+            fetchData();
         } catch (error) {
             console.error('Error adding category:', error);
             showToast(t('category.addError', 'Error agregando categoría'), 'error');
@@ -956,9 +958,9 @@ const App: React.FC = () => {
     }, [categories, isSupabaseConfigured, supabase, user, fetchData, t, showToast]);
 
     const handleEditCategory = useCallback(async (oldName: string, newName: string) => {
-        if (!newName || newName === oldName || categories.includes(newName)) return;
+        if (!newName || newName === oldName || categories.some(c => c.name === newName)) return;
 
-        setCategories(prev => prev.map(c => c === oldName ? newName : c).sort());
+        setCategories(prev => prev.map(c => c.name === oldName ? { ...c, name: newName } : c).sort((a, b) => a.name.localeCompare(b.name)));
         setExpenses(prev => prev.map(e => e.category === oldName ? { ...e, category: newName } : e));
 
         if (!isSupabaseConfigured || !supabase) {
@@ -970,6 +972,7 @@ const App: React.FC = () => {
             const { error } = await supabase.rpc('update_category_and_expenses', { old_name: oldName, new_name: newName });
             if (error) throw error;
             showToast(t('category.updateSuccess', 'Categoría actualizada exitosamente'), 'success');
+            fetchData(); // Refresh to sync category changes
         } catch (error) {
             console.error('Error updating category:', error);
             showToast(t('category.updateError', 'Error actualizando categoría'), 'error');
@@ -984,7 +987,7 @@ const App: React.FC = () => {
             return;
         }
         if (window.confirm(t('delete.categoryConfirm', { category: categoryToDelete }))) {
-            setCategories(prev => prev.filter(c => c !== categoryToDelete));
+            setCategories(prev => prev.filter(c => c.name !== categoryToDelete));
             setExpenses(prev => prev.map(e => e.category === categoryToDelete ? { ...e, category: uncategorized } : e));
 
             if (!isSupabaseConfigured || !supabase) {
@@ -996,6 +999,7 @@ const App: React.FC = () => {
                 const { error } = await supabase.rpc('delete_category_and_reassign_expenses', { category_name: categoryToDelete, new_category_name: uncategorized });
                 if (error) throw error;
                 showToast(t('delete.categorySuccess', 'Categoría eliminada exitosamente'), 'success');
+                fetchData(); // Refresh to sync category changes
             } catch (error) {
                 console.error('Error deleting category:', error);
                 showToast(t('delete.categoryError', 'Error eliminando categoría'), 'error');
@@ -1034,31 +1038,11 @@ const App: React.FC = () => {
 
     return (
         <div className={`flex h-screen font-sans antialiased theme-${theme}`}>
-            <React.Suspense fallback={<div className="p-4 text-slate-500 dark:text-slate-400">Cargando panel…</div>}>
-                {useV2Dashboard ? (
-                    <DashboardV2
-                        isOpen={isSidebarOpen}
-                        onClose={() => setIsSidebarOpen(false)}
-                        displayYear={focusedDate.getFullYear()}
-                        displayMonth={focusedDate.getMonth()}
-                        refreshTrigger={dashboardRefreshTrigger}
-                    />
-                ) : (
-                    <DashboardLazy
-                        expenses={expenses}
-                        paymentStatus={paymentStatus}
-                        displayYear={focusedDate.getFullYear()}
-                        isOpen={isSidebarOpen}
-                        onClose={() => setIsSidebarOpen(false)}
-                    />
-                )}
-            </React.Suspense>
             <div className="flex-1 flex flex-col min-w-0 bg-slate-100/50 dark:bg-slate-900">
                 {!isSupabaseConfigured && <OfflineBanner />}
                 <Header
                     onAddExpense={handleAddExpenseClick}
                     onExport={handleExport}
-                    onToggleSidebar={() => setIsSidebarOpen(s => !s)}
                     theme={theme}
                     onThemeChange={setTheme}
                     view={view}
@@ -1077,7 +1061,8 @@ const App: React.FC = () => {
                                     <TableViewV2
                                         focusedDate={focusedDate}
                                         visibleMonthsCount={visibleMonthsCount}
-                                        preloadedCommitments={commitmentsV2}
+                                        // Use context commitments (auto-updates) instead of stale local state
+                                        preloadedCommitments={contextCommitments}
                                         preloadedPayments={contextPayments}
                                         onEditCommitment={(c) => {
                                             setEditingCommitment(c);
@@ -1106,25 +1091,13 @@ const App: React.FC = () => {
                                 )
                             )}
                             {view === 'graph' && (
-                                useV2Dashboard ? (
-                                    <DashboardFullV2
-                                        displayYear={focusedDate.getFullYear()}
-                                        displayMonth={focusedDate.getMonth()}
-                                        onMonthChange={(m) => setFocusedDate(prev => new Date(prev.getFullYear(), m, 1))}
-                                        onYearChange={(y) => setFocusedDate(prev => new Date(y, prev.getMonth(), 1))}
-                                        onOpenPaymentRecorder={handleOpenPaymentRecorder}
-                                    />
-                                ) : (
-                                    <DashboardBody
-                                        expenses={expenses}
-                                        paymentStatus={paymentStatus}
-                                        displayYear={focusedDate.getFullYear()}
-                                        displayMonth={focusedDate.getMonth()}
-                                        onOpenCellEditor={handleOpenCellEditor}
-                                        onSelectMonth={(m) => setFocusedDate(new Date(focusedDate.getFullYear(), m, 1))}
-                                        onRequestGoToTable={(m) => { setFocusedDate(new Date(focusedDate.getFullYear(), m, 1)); setView('table'); }}
-                                    />
-                                )
+                                <DashboardFullV2
+                                    displayYear={focusedDate.getFullYear()}
+                                    displayMonth={focusedDate.getMonth()}
+                                    onMonthChange={(m) => setFocusedDate(prev => new Date(prev.getFullYear(), m, 1))}
+                                    onYearChange={(y) => setFocusedDate(prev => new Date(y, prev.getMonth(), 1))}
+                                    onOpenPaymentRecorder={handleOpenPaymentRecorder}
+                                />
                             )}
                             {view === 'calendar' && !useV2Dashboard && (
                                 <CalendarView
@@ -1152,7 +1125,7 @@ const App: React.FC = () => {
                 onRefresh={async () => {
                     showToast('Actualizando datos...', 'loading');
                     try {
-                        await refreshV2Data();
+                        await refreshCommitments();
                         showToast('Datos actualizados', 'success');
                     } catch {
                         showToast('Error al actualizar', 'error');
@@ -1229,7 +1202,8 @@ const App: React.FC = () => {
                         if (success) {
                             removeToast(toastId);
                             showToast('Compromiso eliminado', 'success');
-                            await refreshV2Data();
+                            // Refresh both local state and context
+                            await Promise.all([refreshV2Data(), refreshCommitments()]);
                         } else {
                             removeToast(toastId);
                             showToast('Error al eliminar. Revisa la consola.', 'error');
@@ -1264,8 +1238,6 @@ const App: React.FC = () => {
                             try {
                                 // Refresh context silently (Grid now uses context data)
                                 await refreshCommitments(true);
-                                // Trigger Dashboard.v2 to refetch its local data
-                                setDashboardRefreshTrigger(prev => prev + 1);
                                 removeToast(toastId);
                                 showToast(messages[operation], 'success');
                             } catch {

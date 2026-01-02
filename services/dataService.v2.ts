@@ -13,12 +13,14 @@ import type {
     Payment,
     Category,
     Profile,
+    Goal,
     CommitmentWithTerm,
     PaymentWithDetails,
     Period,
     CommitmentFormData,
     TermFormData,
     PaymentFormData,
+    PaymentAdjustment,
 } from '../types.v2';
 
 // ============================================================================
@@ -148,10 +150,8 @@ export const CommitmentService = {
     /**
      * Get commitments with their active terms (optimized: single query + JS filtering)
      */
-    async getCommitmentsWithTerms(userId: string, periodDate?: string): Promise<CommitmentWithTerm[]> {
+    async getCommitmentsWithTerms(userId: string): Promise<CommitmentWithTerm[]> {
         if (!supabase) throw new Error('Supabase not configured');
-
-        const targetDate = periodDate || new Date().toISOString().split('T')[0];
 
         // Fetch all commitments with ALL their terms in ONE query
         const { data: commitments, error: commitmentsError } = await supabase
@@ -168,38 +168,16 @@ export const CommitmentService = {
             return [];
         }
 
-        // Process each commitment to find its active term (filter in JavaScript)
+        // Process each commitment to find its active term
+        // FIX: Use highest version term as active (most recent), not date-based filtering
+        // This prevents showing old closed terms when a newer term exists
         const result: CommitmentWithTerm[] = (commitments || []).map((commitment: any) => {
             const terms = commitment.terms || [];
 
-            // First: try to find active term for targetDate
-            // active term: effective_from <= targetDate AND (effective_until is null OR >= targetDate)
-            let activeTerm = terms
-                .filter((t: any) =>
-                    t.effective_from <= targetDate &&
-                    (t.effective_until === null || t.effective_until >= targetDate)
-                )
-                .sort((a: any, b: any) => b.version - a.version)[0] || null;
-
-            // Fallback: if no active term for today, prefer:
-            // 1. Future terms (e.g., reactivated commitment starting tomorrow) - order by version desc
-            // 2. If no future terms, use the most recent term (by version)
-            if (!activeTerm && terms.length > 0) {
-                // Try future terms first (effective_from > today, no effective_until or future effective_until)
-                const futureTerm = terms
-                    .filter((t: any) =>
-                        t.effective_from > targetDate &&
-                        (t.effective_until === null || t.effective_until > targetDate)
-                    )
-                    .sort((a: any, b: any) => b.version - a.version)[0];
-
-                if (futureTerm) {
-                    activeTerm = futureTerm;
-                } else {
-                    // Fall back to most recent term by version
-                    activeTerm = terms.sort((a: any, b: any) => b.version - a.version)[0];
-                }
-            }
+            // Simply use the term with the highest version (most recent)
+            const activeTerm = terms.length > 0
+                ? terms.sort((a: any, b: any) => b.version - a.version)[0]
+                : null;
 
             return {
                 ...commitment,
@@ -352,6 +330,26 @@ export const TermService = {
     },
 
     /**
+     * Get a single term by ID
+     */
+    async getTerm(termId: string): Promise<Term | null> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data, error } = await supabase
+            .from('terms')
+            .select('*')
+            .eq('id', termId)
+            .single();
+
+        if (error) {
+            console.error('Error fetching term:', error);
+            return null;
+        }
+
+        return data;
+    },
+
+    /**
      * Get active term for a commitment at a specific date
      */
     async getActiveTerm(commitmentId: string, date: string): Promise<Term | null> {
@@ -417,6 +415,8 @@ export const TermService = {
     async updateTerm(id: string, updates: Partial<TermFormData>): Promise<Term | null> {
         if (!supabase) throw new Error('Supabase not configured');
 
+        console.log('[TermService.updateTerm] Updating term:', id, 'with:', updates);
+
         const { data, error } = await supabase
             .from('terms')
             .update(updates)
@@ -429,6 +429,7 @@ export const TermService = {
             throw error;
         }
 
+        console.log('[TermService.updateTerm] Result:', data);
         return data;
     },
 
@@ -600,6 +601,44 @@ export const PaymentService = {
     },
 
     /**
+     * Check if a term has any payments
+     */
+    async hasPaymentsForTerm(termId: string): Promise<boolean> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { count, error } = await supabase
+            .from('payments')
+            .select('*', { count: 'exact', head: true })
+            .eq('term_id', termId);
+
+        if (error) {
+            console.error('Error checking payments for term:', error);
+            return false;
+        }
+
+        return (count ?? 0) > 0;
+    },
+
+    /**
+     * Check if a commitment has any payments (across all terms)
+     */
+    async hasPaymentsForCommitment(commitmentId: string): Promise<boolean> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { count, error } = await supabase
+            .from('payments')
+            .select('*', { count: 'exact', head: true })
+            .eq('commitment_id', commitmentId);
+
+        if (error) {
+            console.error('Error checking payments for commitment:', error);
+            return false;
+        }
+
+        return (count ?? 0) > 0;
+    },
+
+    /**
      * Get all payments for a user within a date range (optimized for grid loading)
      */
     async getPaymentsByDateRange(userId: string, startDate: string, endDate: string): Promise<Payment[]> {
@@ -672,10 +711,11 @@ export const PaymentService = {
             .select('*')
             .eq('commitment_id', commitmentId)
             .eq('period_date', periodDate)
-            .single();
+            .maybeSingle();
 
         if (error) {
-            return null; // Not found is OK
+            console.error('Error fetching payment:', error);
+            return null;
         }
 
         return data;
@@ -747,6 +787,359 @@ export const PaymentService = {
         }
 
         return true;
+    },
+
+    /**
+     * Get all payments for a term
+     */
+    async getPaymentsForTerm(termId: string): Promise<Payment[]> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data, error } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('term_id', termId)
+            .order('period_date');
+
+        if (error) {
+            console.error('Error fetching payments for term:', error);
+            return [];
+        }
+
+        return data || [];
+    },
+
+    /**
+     * Reassign payments from old term to new term with shifted period dates
+     * Used when user changes effective_from date on a commitment
+     * Records audit trail in payment_adjustments table
+     *
+     * @param paymentsToReassign - Array of payments to reassign (pass all commitment payments)
+     * @param newTermId - The new term's ID
+     * @param oldEffectiveFrom - Original term's effective_from (YYYY-MM-DD)
+     * @param newEffectiveFrom - New term's effective_from (YYYY-MM-DD)
+     * @param userId - Optional user ID for audit trail
+     * @returns Number of payments reassigned
+     */
+    async reassignPaymentsToNewTerm(
+        paymentsToReassign: Payment[],
+        newTermId: string,
+        oldEffectiveFrom: string,
+        newEffectiveFrom: string,
+        userId?: string
+    ): Promise<number> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        // Use provided payments array directly (all commitment payments, not just from one term)
+        const payments = paymentsToReassign;
+        if (payments.length === 0) return 0;
+
+        // Calculate the shift in months
+        const [oldYear, oldMonth] = oldEffectiveFrom.split('-').map(Number);
+        const [newYear, newMonth] = newEffectiveFrom.split('-').map(Number);
+        const monthShift = (newYear - oldYear) * 12 + (newMonth - oldMonth);
+
+        console.log('[PaymentService.reassignPaymentsToNewTerm]', {
+            newTermId,
+            oldEffectiveFrom,
+            newEffectiveFrom,
+            monthShift,
+            paymentsToReassign: payments.length,
+            paymentTerms: [...new Set(payments.map(p => p.term_id))] // Unique term IDs
+        });
+
+        // Sort payments by period_date to avoid unique constraint violations
+        // When shifting forward (+monthShift), process from latest to earliest
+        // When shifting backward (-monthShift), process from earliest to latest
+        const sortedPayments = [...payments].sort((a, b) => {
+            const dateA = new Date(a.period_date).getTime();
+            const dateB = new Date(b.period_date).getTime();
+            return monthShift > 0 ? dateB - dateA : dateA - dateB;
+        });
+
+        console.log('Processing payments in order:', sortedPayments.map(p => p.period_date));
+
+        // Update each payment with new term_id and shifted period_date
+        let reassignedCount = 0;
+        for (const payment of sortedPayments) {
+            // Parse old period_date and shift it
+            const [pYear, pMonth, pDay] = payment.period_date.split('-').map(Number);
+            const newPeriodDate = new Date(pYear, pMonth - 1 + monthShift, pDay);
+            const newPeriodDateStr = `${newPeriodDate.getFullYear()}-${String(newPeriodDate.getMonth() + 1).padStart(2, '0')}-${String(newPeriodDate.getDate()).padStart(2, '0')}`;
+
+            // Record audit trail BEFORE updating the payment
+            // Use the payment's actual current term_id as original_term_id
+            const { error: auditError } = await supabase
+                .from('payment_adjustments')
+                .insert({
+                    payment_id: payment.id,
+                    original_period_date: payment.period_date,
+                    new_period_date: newPeriodDateStr,
+                    original_term_id: payment.term_id, // Use the payment's actual term
+                    new_term_id: newTermId,
+                    reason: 'term_effective_from_change',
+                    adjusted_by: userId || null
+                });
+
+            if (auditError) {
+                console.warn('Failed to record payment adjustment audit:', payment.id, auditError);
+                // Continue anyway - audit failure shouldn't block the operation
+            }
+
+            // Update the payment
+            const { error } = await supabase
+                .from('payments')
+                .update({
+                    term_id: newTermId,
+                    period_date: newPeriodDateStr
+                })
+                .eq('id', payment.id);
+
+            if (error) {
+                console.error('Error reassigning payment:', payment.id, error);
+            } else {
+                reassignedCount++;
+                console.log(`  Reassigned payment ${payment.id}: ${payment.period_date} -> ${newPeriodDateStr}`);
+            }
+        }
+
+        return reassignedCount;
+    },
+
+    /**
+     * Get adjustment history for a payment
+     */
+    async getPaymentAdjustments(paymentId: string): Promise<PaymentAdjustment[]> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data, error } = await supabase
+            .from('payment_adjustments')
+            .select('*')
+            .eq('payment_id', paymentId)
+            .order('adjusted_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching payment adjustments:', error);
+            return [];
+        }
+
+        return data || [];
+    },
+};
+
+// ============================================================================
+// GOAL SERVICE
+// ============================================================================
+
+/**
+ * Form data for creating/editing a goal
+ */
+export interface GoalFormData {
+    name: string;
+    target_amount: number | null;
+    current_amount?: number;
+    target_date: string | null;
+    priority: number;
+    icon: string | null;
+    color: string | null;
+}
+
+export const GoalService = {
+    /**
+     * Get all goals for a user
+     */
+    async getGoals(userId: string, includeArchived: boolean = false): Promise<Goal[]> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        let query = supabase
+            .from('goals')
+            .select('*')
+            .eq('user_id', userId)
+            .order('priority', { ascending: false });
+
+        if (!includeArchived) {
+            query = query.eq('is_archived', false);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            console.error('Error fetching goals:', error);
+            return [];
+        }
+
+        return data || [];
+    },
+
+    /**
+     * Get a single goal by ID
+     */
+    async getGoal(id: string): Promise<Goal | null> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data, error } = await supabase
+            .from('goals')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error) {
+            console.error('Error fetching goal:', error);
+            return null;
+        }
+
+        return data;
+    },
+
+    /**
+     * Create a new goal
+     */
+    async createGoal(userId: string, goalData: GoalFormData): Promise<Goal | null> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data, error } = await supabase
+            .from('goals')
+            .insert({
+                user_id: userId,
+                ...goalData,
+                current_amount: goalData.current_amount ?? 0,
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error creating goal:', error);
+            throw error;
+        }
+
+        return data;
+    },
+
+    /**
+     * Update a goal
+     */
+    async updateGoal(id: string, updates: Partial<GoalFormData>): Promise<Goal | null> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data, error } = await supabase
+            .from('goals')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error updating goal:', error);
+            throw error;
+        }
+
+        return data;
+    },
+
+    /**
+     * Add funds to a goal
+     */
+    async addFunds(id: string, amount: number): Promise<Goal | null> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        // First get current amount
+        const goal = await this.getGoal(id);
+        if (!goal) throw new Error('Goal not found');
+
+        const newAmount = goal.current_amount + amount;
+
+        return this.updateGoal(id, { current_amount: newAmount } as Partial<GoalFormData>);
+    },
+
+    /**
+     * Withdraw funds from a goal
+     */
+    async withdrawFunds(id: string, amount: number): Promise<Goal | null> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const goal = await this.getGoal(id);
+        if (!goal) throw new Error('Goal not found');
+
+        const newAmount = Math.max(0, goal.current_amount - amount);
+
+        return this.updateGoal(id, { current_amount: newAmount } as Partial<GoalFormData>);
+    },
+
+    /**
+     * Archive a goal
+     */
+    async archiveGoal(id: string): Promise<boolean> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { error } = await supabase
+            .from('goals')
+            .update({ is_archived: true })
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error archiving goal:', error);
+            return false;
+        }
+
+        return true;
+    },
+
+    /**
+     * Unarchive a goal
+     */
+    async unarchiveGoal(id: string): Promise<boolean> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { error } = await supabase
+            .from('goals')
+            .update({ is_archived: false })
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error unarchiving goal:', error);
+            return false;
+        }
+
+        return true;
+    },
+
+    /**
+     * Delete a goal
+     */
+    async deleteGoal(id: string): Promise<boolean> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { error } = await supabase
+            .from('goals')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error deleting goal:', error);
+            return false;
+        }
+
+        return true;
+    },
+
+    /**
+     * Get total savings across all active goals
+     */
+    async getTotalSavings(userId: string): Promise<number> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        const { data, error } = await supabase
+            .from('goals')
+            .select('current_amount')
+            .eq('user_id', userId)
+            .eq('is_archived', false);
+
+        if (error) {
+            console.error('Error fetching total savings:', error);
+            return 0;
+        }
+
+        return (data || []).reduce((sum, g) => sum + (g.current_amount || 0), 0);
     },
 };
 

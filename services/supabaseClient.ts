@@ -6,10 +6,10 @@ import { createClient } from '@supabase/supabase-js';
 export type StartDate = { month: number; year: number };
 
 export type PaymentDetailsDb = {
-    paid: boolean;
-    paymentDate?: number; // timestamp
-    overriddenAmount?: number;
-    overriddenDueDate?: number; // Day of month, 1-31
+  paid: boolean;
+  paymentDate?: number; // timestamp
+  overriddenAmount?: number;
+  overriddenDueDate?: number; // Day of month, 1-31
 };
 
 export type Database = {
@@ -160,26 +160,43 @@ export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 
 // Only create a client if the configuration is provided. This prevents the app from
 // crashing at startup if environment variables are missing.
-export const supabase = isSupabaseConfigured ? createClient<Database>(supabaseUrl!, supabaseAnonKey!) : null;
+export const supabase = isSupabaseConfigured ? createClient<Database>(supabaseUrl!, supabaseAnonKey!, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    // Fix for HMR/Reload: Only detect session if hash contains token
+    // This prevents false "SIGNED_OUT" events when reloading clean URLs
+    detectSessionInUrl: typeof window !== 'undefined' && window.location.hash.includes('access_token'),
+    storage: window.localStorage
+  }
+}) : null;
+
+// Debug log for client creation (helps trace HMR issues)
+if (isSupabaseConfigured) {
+  console.log('[Supabase] 🚀 Client initialized', {
+    hasUrl: !!supabaseUrl,
+    detectSessionInUrl: typeof window !== 'undefined' && window.location.hash.includes('access_token')
+  });
+}
 
 // Test function to verify Supabase connection
 export async function testSupabaseConnection() {
-    if (!supabase) {
-        throw new Error('Supabase client is not configured');
-    }
-    
-    try {
-        const { data, error } = await supabase
-            .from('expenses')
-            .select('*')
-            .limit(1);
+  if (!supabase) {
+    throw new Error('Supabase client is not configured');
+  }
 
-        if (error) throw error;
-        
-        console.log('Supabase connection verified successfully!');
-        return data;
-    } catch (error) {
-        console.error('Error testing Supabase connection:', error);
-        throw error;
-    }
+  try {
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .limit(1);
+
+    if (error) throw error;
+
+    console.log('Supabase connection verified successfully!');
+    return data;
+  } catch (error) {
+    console.error('Error testing Supabase connection:', error);
+    throw error;
+  }
 }

@@ -12,7 +12,6 @@ import { FeatureFlagsSettings } from './FeatureFlagsSettings';
 interface HeaderProps {
     onAddExpense: () => void;
     onExport: () => void;
-    onToggleSidebar: () => void;
     theme: 'light' | 'dark';
     onThemeChange: (theme: 'light' | 'dark') => void;
     view: View;
@@ -20,7 +19,7 @@ interface HeaderProps {
     onOpenCategoryManager: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar, theme, onThemeChange, view, onViewChange, onOpenCategoryManager }) => {
+const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeChange, view, onViewChange, onOpenCategoryManager }) => {
     const { language, setLanguage, t } = useLocalization();
     const { lastUpdated, refresh, loading: currencyLoading } = useCurrency();
     const { signOut, user } = useAuth();
@@ -28,6 +27,12 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar
     const { flags } = useFeatureFlags();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFeatureFlagsOpen, setIsFeatureFlagsOpen] = useState(false);
+    const [colorTheme, setColorTheme] = useState<'ocean-teal' | 'identidad'>(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('finansheet-color-theme') === 'identidad' ? 'identidad' : 'ocean-teal';
+        }
+        return 'ocean-teal';
+    });
     const menuRef = useRef<HTMLDivElement | null>(null);
 
     const handleLogout = async () => {
@@ -67,9 +72,6 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar
         <header className="px-3 py-2 bg-white/80 dark:bg-slate-900/75 backdrop-blur-xl sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700/60 shadow-sm" data-app-header>
             <div className="w-full mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-3 sm:gap-4">
-                    <button onClick={onToggleSidebar} className="lg:hidden p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" aria-label="Open menu">
-                        <MenuIcon />
-                    </button>
                     <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight hidden md:block">FinanSheet</h1>
                     <div className="block">
                         <ViewSwitcher currentView={view} onViewChange={onViewChange} />
@@ -118,7 +120,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar
                                     <ChevronDownIcon className="w-4 h-4 absolute right-3 pointer-events-none text-slate-400 dark:text-slate-400 top-1/2 -translate-y-1/2" />
                                 </div>
 
-                                {/* Tema */}
+                                {/* Tema claro/oscuro */}
                                 <button
                                     role="menuitem"
                                     onClick={() => { handleThemeToggle(); setIsMenuOpen(false); }}
@@ -126,6 +128,37 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, onToggleSidebar
                                 >
                                     {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
                                     <span>{t(theme === 'dark' ? 'header.lightMode' : 'header.darkMode')}</span>
+                                </button>
+
+                                {/* Color Palette Toggle */}
+                                <button
+                                    role="menuitem"
+                                    onClick={() => {
+                                        const html = document.documentElement;
+                                        if (colorTheme === 'identidad') {
+                                            html.classList.remove('theme-identidad');
+                                            localStorage.setItem('finansheet-color-theme', 'ocean-teal');
+                                            setColorTheme('ocean-teal');
+                                        } else {
+                                            html.classList.add('theme-identidad');
+                                            localStorage.setItem('finansheet-color-theme', 'identidad');
+                                            setColorTheme('identidad');
+                                        }
+                                        setIsMenuOpen(false);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 transition-colors"
+                                >
+                                    <span className={`w-5 h-5 rounded-full flex-shrink-0 transition-all ${
+                                        colorTheme === 'identidad'
+                                            ? 'bg-gradient-to-br from-[#00555A] to-[#FF6F61]'
+                                            : 'bg-gradient-to-br from-teal-500 to-cyan-500'
+                                    }`} />
+                                    <div className="flex flex-col items-start flex-1">
+                                        <span>Color Palette</span>
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                            {colorTheme === 'identidad' ? 'Claridad Estructurada' : 'Ocean Teal'}
+                                        </span>
+                                    </div>
                                 </button>
 
                                 {/* Actualizar tasas */}

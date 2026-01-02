@@ -1,43 +1,64 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/logo-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FinanSheet - Personal Finance Tracker</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-            },
-            colors: {
-              slate: {
-                ...tailwind.colors.slate,
-                850: '#172033',
-                950: '#060a13'
-              },
-              teal: tailwind.colors.teal,
-            }
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinanSheet - Personal Finance Tracker</title>
+
+  <!-- Finansheet Branding -->
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0b0d1a">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Instrument+Serif:ital@0;1&display=swap"
+    rel="stylesheet">
+  <!-- Geist Font (Vercel) -->
+  <link href="https://fonts.cdnfonts.com/css/geist" rel="stylesheet">
+  <!-- Space Grotesk (Recommended for Finansheet branding per Identidad.md) -->
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Geist', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['Geist Mono', 'ui-monospace', 'monospace'],
           },
+          colors: {
+            slate: {
+              ...tailwind.colors.slate,
+              850: '#172033',
+              950: '#060a13'
+            },
+            teal: tailwind.colors.teal,
+          }
         },
-      }
-    </script>
-    <script>
-      // On page load, check for the theme in localStorage and apply it to prevent FOUC
-      if (localStorage.getItem('finansheet-theme') === '"dark"' || (!('finansheet-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    </script>
+      },
+    }
+  </script>
+  <script>
+    // On page load, check for the theme in localStorage and apply it to prevent FOUC
+    if (localStorage.getItem('finansheet-theme') === '"dark"' || (!('finansheet-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    // Check for color palette preference (Ocean Teal vs Identidad.md)
+    if (localStorage.getItem('finansheet-color-theme') === 'identidad') {
+      document.documentElement.classList.add('theme-identidad');
+    }
+  </script>
   <script type="importmap">
 {
   "imports": {
@@ -49,60 +70,75 @@
   }
 }
 </script>
-<style>
-  /* Custom Scrollbar */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  /* Light mode scrollbar */
-  ::-webkit-scrollbar-thumb {
-    background: #94a3b8; /* slate-400 */
-    border-radius: 4px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #64748b; /* slate-500 */
-  }
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
 
-  /* Dark mode scrollbar */
-  .dark ::-webkit-scrollbar-thumb {
-    background: #2dd4bf; /* teal-400 */
-  }
-  .dark ::-webkit-scrollbar-thumb:hover {
-    background: #14b8a6; /* teal-500 */
-  }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
 
-  /* Hide scrollbar for specific elements */
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-  }
-  
-  /* Light mode grid */
-  .bg-grid {
-    background-image:
-      linear-gradient(to right, rgb(226 232 240 / 0.7) 1px, transparent 1px),
-      linear-gradient(to bottom, rgb(226 232 240 / 0.7) 1px, transparent 1px);
-    background-size: 36px 36px;
-  }
+    /* Light mode scrollbar */
+    ::-webkit-scrollbar-thumb {
+      background: #94a3b8;
+      /* slate-400 */
+      border-radius: 4px;
+    }
 
-  /* Dark mode grid */
-  .dark .bg-grid {
-    background-image:
-      linear-gradient(to right, rgb(30 41 59 / 0.5) 1px, transparent 1px),
-      linear-gradient(to bottom, rgb(30 41 59 / 0.5) 1px, transparent 1px);
-  }
-</style>
-<link rel="stylesheet" href="/index.css">
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+      /* slate-500 */
+    }
+
+    /* Dark mode scrollbar */
+    .dark ::-webkit-scrollbar-thumb {
+      background: #2dd4bf;
+      /* teal-400 */
+    }
+
+    .dark ::-webkit-scrollbar-thumb:hover {
+      background: #14b8a6;
+      /* teal-500 */
+    }
+
+    /* Hide scrollbar for specific elements */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      /* IE and Edge */
+      scrollbar-width: none;
+      /* Firefox */
+    }
+
+    /* Light mode grid */
+    .bg-grid {
+      background-image:
+        linear-gradient(to right, rgb(226 232 240 / 0.7) 1px, transparent 1px),
+        linear-gradient(to bottom, rgb(226 232 240 / 0.7) 1px, transparent 1px);
+      background-size: 36px 36px;
+    }
+
+    /* Dark mode grid */
+    .dark .bg-grid {
+      background-image:
+        linear-gradient(to right, rgb(30 41 59 / 0.5) 1px, transparent 1px),
+        linear-gradient(to bottom, rgb(30 41 59 / 0.5) 1px, transparent 1px);
+    }
+  </style>
+  <link rel="stylesheet" href="/index.css">
+  <link rel="stylesheet" href="/styles/dashboard-theme.css">
+  <link rel="stylesheet" href="/styles/design-enhancements.css">
 </head>
-  <body class="bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-200 bg-grid">
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-200 bg-grid">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
 </html>

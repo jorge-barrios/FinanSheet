@@ -1,0 +1,692 @@
+/**
+ * Design Enhancements CSS
+ *
+ * Premium fintech aesthetic upgrades based on design analysis.
+ * Extends dashboard-theme.css with:
+ * - Typography: tabular-nums, Geist Mono for KPIs
+ * - Enhanced animations and micro-interactions
+ * - Gradient mesh backgrounds
+ * - Refined shadows and glows
+ */
+
+/* =============================================================================
+   TYPOGRAPHY ENHANCEMENTS
+   ============================================================================= */
+
+/* Tabular numerals for all financial values */
+.tabular-nums,
+[class*="kpi-value"],
+[class*="amount"],
+[class*="price"],
+[class*="total"],
+[class*="balance"],
+.font-mono-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" on, "lnum" on;
+}
+
+/* Mono font for large KPI numbers */
+.kpi-value-mono {
+  font-family: 'Geist Mono', ui-monospace, 'SF Mono', 'Roboto Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Serif accent for headlines - uses Instrument Serif (already loaded) */
+.headline-serif-accent {
+  font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  font-style: italic;
+}
+
+/* Gradient text utility */
+.text-gradient-teal {
+  background: linear-gradient(135deg, #0d9488, #06b6d4, #10b981);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dark .text-gradient-teal {
+  background: linear-gradient(135deg, #2dd4bf, #22d3ee, #34d399);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* =============================================================================
+   ENHANCED BACKGROUND TEXTURES
+   ============================================================================= */
+
+/* Subtle gradient mesh for dashboard background */
+.bg-gradient-mesh {
+  background-color: #f8fafc;
+  background-image:
+    radial-gradient(at 0% 0%, rgba(13, 148, 136, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(6, 182, 212, 0.06) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(99, 102, 241, 0.04) 0px, transparent 50%);
+}
+
+.dark .bg-gradient-mesh {
+  background-color: #020617;
+  background-image:
+    radial-gradient(at 0% 0%, rgba(45, 212, 191, 0.12) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(34, 211, 238, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(52, 211, 153, 0.06) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(129, 140, 248, 0.05) 0px, transparent 50%);
+}
+
+/* Noise texture overlay */
+.noise-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+.dark .noise-overlay::before {
+  opacity: 0.05;
+}
+
+/* =============================================================================
+   ENHANCED KPI CARD STYLES
+   ============================================================================= */
+
+/* KPI Card with glass morphism */
+.kpi-card-glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dark .kpi-card-glass {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Hero KPI card with enhanced glow */
+.kpi-card-hero-glow {
+  position: relative;
+}
+
+.kpi-card-hero-glow::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(13, 148, 136, 0.5),
+    rgba(6, 182, 212, 0.3),
+    rgba(16, 185, 129, 0.4)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+.kpi-card-hero-glow:hover::after {
+  opacity: 1;
+}
+
+/* Income card accent */
+.kpi-card-income {
+  --accent-color: #10b981;
+  --accent-light: rgba(16, 185, 129, 0.1);
+  --accent-glow: rgba(16, 185, 129, 0.25);
+}
+
+/* Expense card accent */
+.kpi-card-expense {
+  --accent-color: #ef4444;
+  --accent-light: rgba(239, 68, 68, 0.1);
+  --accent-glow: rgba(239, 68, 68, 0.25);
+}
+
+/* Warning card accent */
+.kpi-card-warning {
+  --accent-color: #f59e0b;
+  --accent-light: rgba(245, 158, 11, 0.1);
+  --accent-glow: rgba(245, 158, 11, 0.25);
+}
+
+/* Neutral card accent */
+.kpi-card-neutral {
+  --accent-color: #64748b;
+  --accent-light: rgba(100, 116, 139, 0.1);
+  --accent-glow: rgba(100, 116, 139, 0.15);
+}
+
+/* =============================================================================
+   NUMBER ANIMATIONS
+   ============================================================================= */
+
+/* Count-up animation for numbers */
+@keyframes countUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.animate-count-up {
+  animation: countUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Number pulse on change */
+@keyframes numberPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.number-changed {
+  animation: numberPulse 0.3s ease-out;
+}
+
+/* Shimmer effect for loading numbers */
+@keyframes shimmerNumber {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.number-loading {
+  background: linear-gradient(
+    90deg,
+    var(--dashboard-surface) 0%,
+    var(--dashboard-surface-hover) 25%,
+    var(--dashboard-surface) 50%,
+    var(--dashboard-surface-hover) 75%,
+    var(--dashboard-surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmerNumber 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  color: transparent !important;
+}
+
+/* =============================================================================
+   TAB ANIMATIONS
+   ============================================================================= */
+
+/* Animated underline indicator */
+.tab-indicator {
+  position: absolute;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--dashboard-accent), #06b6d4);
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Tab hover effect */
+.tab-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.tab-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    var(--dashboard-accent-light) 50%,
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
+.tab-item:hover::before {
+  opacity: 0.5;
+}
+
+/* Tab counter badge */
+.tab-counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 9px;
+  transition: all 0.2s ease-out;
+}
+
+.tab-counter--active {
+  background: var(--dashboard-accent-light);
+  color: var(--dashboard-accent);
+}
+
+.tab-counter--inactive {
+  background: var(--dashboard-neutral-light);
+  color: var(--dashboard-text-muted);
+}
+
+/* =============================================================================
+   TIMELINE / PAYMENTS WIDGET ENHANCEMENTS
+   ============================================================================= */
+
+/* Urgency group separator */
+.urgency-group {
+  position: relative;
+}
+
+.urgency-group + .urgency-group::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 1rem;
+  right: 1rem;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--dashboard-border-strong),
+    transparent
+  );
+}
+
+/* Payment item hover glow */
+.payment-item {
+  position: relative;
+  transition: all 0.2s ease-out;
+}
+
+.payment-item::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
+.payment-item--overdue::after {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+}
+
+.payment-item--urgent::after {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+}
+
+.payment-item:hover::after {
+  opacity: 1;
+}
+
+/* Animated timeline dot */
+.timeline-dot {
+  position: relative;
+}
+
+.timeline-dot--pulse::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.3;
+  animation: pulseRing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulseRing {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* =============================================================================
+   DONUT CHART ENHANCEMENTS
+   ============================================================================= */
+
+/* Chart container with subtle glow */
+.donut-chart-container {
+  position: relative;
+}
+
+.donut-chart-container::before {
+  content: '';
+  position: absolute;
+  inset: 10%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--dashboard-accent-glow) 0%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+.donut-chart-container:hover::before {
+  opacity: 0.5;
+}
+
+/* Legend item hover */
+.legend-item {
+  position: relative;
+  padding: 0.5rem 0.75rem;
+  margin: -0.5rem -0.75rem;
+  border-radius: 8px;
+  transition: all 0.2s ease-out;
+  cursor: pointer;
+}
+
+.legend-item:hover {
+  background: var(--dashboard-surface-hover);
+}
+
+.legend-item--active {
+  background: var(--dashboard-accent-light);
+}
+
+/* Legend color dot */
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: transform 0.2s ease-out;
+}
+
+.legend-item:hover .legend-dot {
+  transform: scale(1.2);
+}
+
+/* =============================================================================
+   HEADLINE STYLES
+   ============================================================================= */
+
+/* Dashboard headline with gradient accent */
+.headline-primary {
+  font-family: var(--font-body);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.headline-accent {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  background: linear-gradient(
+    135deg,
+    var(--dashboard-accent) 0%,
+    #06b6d4 50%,
+    #10b981 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Headline underline decoration */
+.headline-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.headline-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--dashboard-accent),
+    #06b6d4,
+    transparent
+  );
+  border-radius: 2px;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.headline-underline:hover::after {
+  transform: scaleX(1);
+}
+
+/* =============================================================================
+   MICRO-INTERACTIONS
+   ============================================================================= */
+
+/* Button press effect */
+.btn-press {
+  transition: transform 0.1s ease-out;
+}
+
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* Card lift on hover */
+.card-lift {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 12px 24px -8px rgba(0, 0, 0, 0.15),
+    0 4px 8px -4px rgba(0, 0, 0, 0.1);
+}
+
+.dark .card-lift:hover {
+  box-shadow:
+    0 12px 24px -8px rgba(0, 0, 0, 0.4),
+    0 4px 8px -4px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* Icon bounce on hover */
+.icon-bounce {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.icon-bounce:hover {
+  transform: scale(1.15);
+}
+
+/* Ripple effect */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at var(--ripple-x, 50%) var(--ripple-y, 50%),
+    rgba(255, 255, 255, 0.3) 0%,
+    transparent 60%
+  );
+  opacity: 0;
+  transform: scale(0);
+  transition: transform 0.5s ease-out, opacity 0.3s ease-out;
+}
+
+.ripple:active::after {
+  opacity: 1;
+  transform: scale(2.5);
+  transition: transform 0s, opacity 0s;
+}
+
+/* =============================================================================
+   ENTRANCE ANIMATIONS
+   ============================================================================= */
+
+/* Fade in from bottom */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+}
+
+/* Scale in */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+}
+
+/* Slide in from left */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+}
+
+/* Slide in from right */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+}
+
+/* Stagger animation delays */
+.stagger-delay-1 { animation-delay: 50ms; }
+.stagger-delay-2 { animation-delay: 100ms; }
+.stagger-delay-3 { animation-delay: 150ms; }
+.stagger-delay-4 { animation-delay: 200ms; }
+.stagger-delay-5 { animation-delay: 250ms; }
+.stagger-delay-6 { animation-delay: 300ms; }
+.stagger-delay-7 { animation-delay: 350ms; }
+.stagger-delay-8 { animation-delay: 400ms; }
+
+/* =============================================================================
+   RESPONSIVE REFINEMENTS
+   ============================================================================= */
+
+/* Touch-friendly tap targets on mobile */
+@media (max-width: 768px) {
+  .tab-item {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .payment-item {
+    min-height: 56px;
+  }
+
+  /* Reduce animation complexity on mobile */
+  .card-lift:hover {
+    transform: translateY(-2px);
+  }
+
+  /* Disable some hover effects on touch devices */
+  @media (hover: none) {
+    .card-lift:hover {
+      transform: none;
+      box-shadow: none;
+    }
+
+    .icon-bounce:hover {
+      transform: none;
+    }
+  }
+}
+
+/* High contrast mode improvements */
+@media (prefers-contrast: high) {
+  .tab-indicator {
+    height: 3px;
+    background: var(--dashboard-accent);
+  }
+
+  .legend-dot {
+    border: 2px solid currentColor;
+  }
+
+  .kpi-card-glass {
+    backdrop-filter: none;
+    background: var(--dashboard-surface);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .tab-indicator {
+    transition: none;
+  }
+}

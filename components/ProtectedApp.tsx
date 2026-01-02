@@ -1,10 +1,11 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { AuthPage } from './Auth/AuthPage';
+import { UpdatePasswordForm } from './Auth/UpdatePasswordForm';
 import App from '../App';
 
 export const ProtectedApp: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, isPasswordRecovery } = useAuth();
 
   if (loading) {
     return (
@@ -23,6 +24,10 @@ export const ProtectedApp: React.FC = () => {
 
   if (!user) {
     return <AuthPage />;
+  }
+
+  if (isPasswordRecovery) {
+    return <UpdatePasswordForm />;
   }
 
   return <App />;

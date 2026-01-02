@@ -13,17 +13,44 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { useLocalization } from '../hooks/useLocalization';
 import usePersistentState from '../hooks/usePersistentState';
+import { useCommitments } from '../context/CommitmentsContext';
 import { CommitmentService, PaymentService, getCurrentUserId } from '../services/dataService.v2';
 import {
-    EditIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon,
-    PlusIcon, MinusIcon, CheckCircleIcon, ExclamationTriangleIcon, ClockIcon,
+    EditIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon,
+    CheckCircleIcon, ExclamationTriangleIcon, ClockIcon,
     CalendarIcon, InfinityIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon,
     SubscriptionIcon, MiscIcon, CategoryIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
     StarIcon, IconProps, PauseIcon
 } from './icons';
-import type { CommitmentWithTerm, Payment, FlowType, Frequency, Period } from '../types.v2';
+import type { CommitmentWithTerm, Payment, FlowType, Term } from '../types.v2';
 import { periodToString } from '../types.v2';
 import { parseDateString, extractYearMonth, getPerPeriodAmount } from '../utils/financialUtils.v2';
+import { Sparkles, Link2, MoreVertical } from 'lucide-react';
+import * as Tooltip from '@radix-ui/react-tooltip';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+
+// =============================================================================
+// TOOLTIP COMPONENT
+// =============================================================================
+const CompactTooltip = ({ children, content }: { children: React.ReactNode, content: React.ReactNode }) => (
+    <Tooltip.Provider delayDuration={100}>
+        <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+                {/* Wrap in span to ensure ref passing if child is composite */}
+                <span className="h-full w-full block outline-none">{children}</span>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+                <Tooltip.Content
+                    className="z-50 rounded-lg bg-white dark:bg-slate-800 px-3 py-2 text-sm shadow-xl border border-slate-200 dark:border-slate-700 animate-in fade-in-0 zoom-in-95 duration-200"
+                    sideOffset={5}
+                >
+                    {content}
+                    <Tooltip.Arrow className="fill-white dark:fill-slate-800 border-t border-l border-slate-200" />
+                </Tooltip.Content>
+            </Tooltip.Portal>
+        </Tooltip.Root>
+    </Tooltip.Provider>
+);
 
 // =============================================================================
 // TYPES
@@ -31,15 +58,15 @@ import { parseDateString, extractYearMonth, getPerPeriodAmount } from '../utils/
 
 interface ExpenseGridV2Props {
     focusedDate: Date;
-    visibleMonthsCount: number;
     onEditCommitment: (commitment: CommitmentWithTerm) => void;
     onDeleteCommitment: (commitmentId: string) => void;
     onRecordPayment: (commitmentId: string, year: number, month: number) => void;
     onFocusedDateChange?: (date: Date) => void;
-    onVisibleMonthsCountChange?: React.Dispatch<React.SetStateAction<number>>;
     // Optional preloaded data from App.tsx for instant rendering
     preloadedCommitments?: CommitmentWithTerm[];
     preloadedPayments?: Map<string, Payment[]>;
+    // Optional pre-calculated totals from dashboard (avoids duplicate logic)
+    monthlyTotals?: { expenses: number; income: number };
 }
 
 // =============================================================================
@@ -96,16 +123,16 @@ const getTermForPeriod = (commitment: CommitmentWithTerm, monthDate: Date): Term
 
 const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     focusedDate,
-    visibleMonthsCount,
     onEditCommitment,
     onDeleteCommitment,
     onRecordPayment,
     onFocusedDateChange,
-    onVisibleMonthsCountChange,
     preloadedCommitments,
     preloadedPayments,
+    monthlyTotals: propTotals,
 }) => {
-    const { t } = useLocalization();
+    const { t, language } = useLocalization();
+    const { getMonthlyData } = useCommitments();
 
     // State - use preloaded data if available for instant rendering
     const [commitments, setCommitments] = useState<CommitmentWithTerm[]>(preloadedCommitments || []);
@@ -113,9 +140,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     const [loading, setLoading] = useState(!preloadedCommitments); // Not loading if preloaded
     const [error, setError] = useState<string | null>(null);
 
-    const [density, setDensity] = usePersistentState<'compact' | 'medium' | 'comfortable'>(
+    const [density, setDensity] = usePersistentState<'compact' | 'medium'>(
         'gridDensity',
-        'medium'
+        'medium' // Default to detailed/standard view
     );
 
     // Show/hide terminated commitments (default: hidden)
@@ -124,8 +151,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         false
     );
 
+    // Category filter state
+    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
     const pad = useMemo(() =>
-        density === 'compact' ? 'p-2' : density === 'comfortable' ? 'p-4' : 'p-3',
+        density === 'compact' ? 'p-1' : 'p-3',
         [density]
     );
 
@@ -231,6 +261,23 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     }, [focusedDate.getFullYear(), preloadedCommitments, preloadedPayments]);
 
     // ==========================================================================
+    // CATEGORY TRANSLATION - uses local i18n files directly (no DB calls)
+    // ==========================================================================
+
+    // Helper to get translated category name using base_category_key
+    const getTranslatedCategoryName = (commitment: CommitmentWithTerm): string => {
+        const category = commitment.category as any; // Cast to access base_category_key
+
+        // If it's a base category with a key, translate it
+        if (category?.base_category_key) {
+            return t(`category.${category.base_category_key}`, category.name);
+        }
+
+        // Otherwise use the raw name (custom category) or fallback
+        return category?.name || t('grid.uncategorized', 'Sin categoría');
+    };
+
+    // ==========================================================================
     // HEIGHT CALCULATION
     // ==========================================================================
 
@@ -257,24 +304,62 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     // COMPUTED DATA
     // ==========================================================================
 
-    // Visible months centered on focused date (limited to 3-12 for optimal UX)
+    // Visible months centered on focused date - now controlled by density
+    // compact=12 (Año), medium=6 (Semestre), comfortable=3 (Trimestre)
+    // Compact: 12 months, Detailed: 6 months
+    const densityMonthCount = density === 'compact' ? 12 : 6;
+    const effectiveMonthCount = densityMonthCount; // Density overrides visibleMonthsCount
+
     const visibleMonths = useMemo(() => {
-        const count = Math.max(3, Math.min(visibleMonthsCount ?? 6, 12));
+        const count = effectiveMonthCount;
         const months: Date[] = [];
-        const center = new Date(focusedDate);
-        center.setDate(1);
-        const before = Math.floor((count - 1) / 2);
-        const start = new Date(center);
-        start.setMonth(center.getMonth() - before);
+        // Forward-Looking View: Start 1 month before focused date
+        // This gives 1 month of context (past) and maximizes planning view (future)
+        const start = new Date(focusedDate);
+        start.setDate(1); // Normalize to first of month
+        start.setMonth(start.getMonth() - 1); // Start 1 month back
+
         for (let i = 0; i < count; i++) {
             const d = new Date(start);
             d.setMonth(start.getMonth() + i);
             months.push(d);
         }
         return months;
-    }, [focusedDate, visibleMonthsCount]);
+    }, [focusedDate, effectiveMonthCount]);
 
-    // Group commitments by category (filtered by terminated status)
+    // Auto-scroll to current month on load/density change
+    useEffect(() => {
+        if (!scrollAreaRef.current) return;
+
+        // Find index of current month
+        const today = new Date();
+        const currentMonthIndex = visibleMonths.findIndex(m => m.getMonth() === today.getMonth() && m.getFullYear() === today.getFullYear());
+
+        if (currentMonthIndex !== -1) {
+            // Wait for render
+            setTimeout(() => {
+                const headerEl = document.getElementById(`month-header-${currentMonthIndex}`);
+                if (headerEl && scrollAreaRef.current) {
+                    // Center the element
+                    const containerWidth = scrollAreaRef.current.clientWidth;
+                    const headerLeft = headerEl.offsetLeft;
+                    const headerWidth = headerEl.clientWidth;
+
+                    // Specific logic for compact view to ensure context (center it)
+                    // For wider views, standard scrolling to view is sufficient, but centering is nice.
+                    const offset = headerLeft - (containerWidth / 2) + (headerWidth / 2);
+
+                    scrollAreaRef.current.scrollTo({
+                        left: Math.max(0, offset),
+                        behavior: 'smooth'
+                    });
+                }
+            }, 100);
+        }
+    }, [density, visibleMonths]);
+
+
+    // Group commitments by category (filtered by terminated status AND category filter)
     const groupedCommitments = useMemo(() => {
         const groups: { [key: string]: { flowType: FlowType; items: CommitmentWithTerm[] } } = {};
 
@@ -289,12 +374,21 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         };
 
         // Filter commitments based on showTerminated toggle
-        const filteredCommitments = showTerminated
+        let filteredCommitments = showTerminated
             ? commitments
             : commitments.filter(c => !checkTerminated(c));
 
+        // Apply category filter
+        if (selectedCategory !== 'all') {
+            filteredCommitments = filteredCommitments.filter(c => {
+                const categoryName = getTranslatedCategoryName(c);
+                return categoryName === selectedCategory;
+            });
+        }
+
         filteredCommitments.forEach(c => {
-            const categoryName = c.category?.name || 'Sin categoría';
+            // Use translated category name directly from i18n
+            const categoryName = getTranslatedCategoryName(c);
             if (!groups[categoryName]) {
                 groups[categoryName] = { flowType: c.flow_type as FlowType, items: [] };
             }
@@ -302,13 +396,30 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         });
 
         return Object.entries(groups)
-            .sort((a, b) => a[0].localeCompare(b[0], 'es'))
+            .sort((a, b) => a[0].localeCompare(b[0], language === 'es' ? 'es' : 'en'))
             .map(([category, data]) => ({
                 category,
                 flowType: data.flowType,
-                commitments: data.items.sort((a, b) => a.name.localeCompare(b.name, 'es'))
+                commitments: data.items.sort((a, b) => a.name.localeCompare(b.name, language === 'es' ? 'es' : 'en'))
             }));
-    }, [commitments, showTerminated]);
+    }, [commitments, showTerminated, selectedCategory, t, language]);
+
+    // Available categories for filter tabs (derived from all non-terminated commitments)
+    const availableCategories = useMemo(() => {
+        const categorySet = new Set<string>();
+        const nonTerminated = commitments.filter(c => {
+            const term = c.active_term;
+            if (!term?.effective_until) return true;
+            const endDate = new Date(term.effective_until);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return endDate >= today;
+        });
+        nonTerminated.forEach(c => {
+            categorySet.add(getTranslatedCategoryName(c));
+        });
+        return ['all', ...Array.from(categorySet).sort((a, b) => a.localeCompare(b, language === 'es' ? 'es' : 'en'))];
+    }, [commitments, language]);
 
     // Count of terminated commitments (for toggle label)
     const terminatedCount = useMemo(() => {
@@ -346,6 +457,25 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         return endDate < today;
+    };
+
+    // Calculate total paid for a specific month (across all commitments)
+    const calculateMonthPaidTotal = (monthDate: Date): number => {
+        let total = 0;
+        const targetYear = monthDate.getFullYear();
+        const targetMonth = monthDate.getMonth() + 1; // 1-based
+
+        for (const [, commitmentPayments] of payments.entries()) {
+            const payment = commitmentPayments.find(p =>
+                p.period_year === targetYear &&
+                p.period_month === targetMonth &&
+                p.status === 'PAID'
+            );
+            if (payment) {
+                total += payment.amount_paid || 0;
+            }
+        }
+        return total;
     };
 
     // Check if commitment is active in a given month based on frequency
@@ -422,49 +552,33 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     };
 
     // Calculate monthly totals for footer - matches dashboard logic
-    // Priority: payment.amount_in_base > term per-period amount
+    // Uses getMonthlyData from context (same source as Dashboard)
+    // Calculates correct index based on focusedDate, not fixed to current month
     const monthlyTotals = useMemo(() => {
-        let expenses = 0;
-        let income = 0;
+        const data = getMonthlyData();
+        // Calculate the index based on focusedDate relative to today
+        // Dashboard uses: index 8 = displayMonth (current context month)
+        // Rolling window: 8 months back, current, 3 months forward
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth();
 
-        const year = focusedDate.getFullYear();
-        const month = focusedDate.getMonth();
-        const periodStr = periodToString({ year, month: month + 1 });
+        const focusedYear = focusedDate.getFullYear();
+        const focusedMonth = focusedDate.getMonth();
 
-        groupedCommitments.forEach(group => {
-            group.commitments.forEach(c => {
-                const term = c.active_term;
-                if (!term) return;
+        // Calculate offset from today: focused - today
+        const monthsDiff = (focusedYear - currentYear) * 12 + (focusedMonth - currentMonth);
 
-                // Check if there's a payment for this period
-                const commitmentPayments = payments.get(c.id) || [];
-                const paymentForPeriod = commitmentPayments.find(p =>
-                    p.period_date.substring(0, 7) === periodStr
-                );
+        // Index 8 is today, so focused month index = 8 + monthsDiff
+        // Clamp to valid range [0, 11]
+        const targetIdx = Math.max(0, Math.min(11, 8 + monthsDiff));
 
-                let amount: number;
-                if (paymentForPeriod && paymentForPeriod.amount_in_base) {
-                    // Use actual payment amount if recorded
-                    amount = paymentForPeriod.amount_in_base;
-                } else {
-                    // Otherwise calculate from term (divide by installments if needed)
-                    const totalAmount = term.amount_in_base ?? term.amount_original;
-                    const installmentsCount = term.installments_count ?? null;
-                    amount = installmentsCount && installmentsCount > 1
-                        ? totalAmount / installmentsCount
-                        : totalAmount;
-                }
-
-                if (c.flow_type === 'EXPENSE') {
-                    expenses += amount;
-                } else if (c.flow_type === 'INCOME') {
-                    income += amount;
-                }
-            });
-        });
-
-        return { expenses, income };
-    }, [groupedCommitments, payments, focusedDate]);
+        const target = data[targetIdx];
+        return {
+            expenses: target?.expenses ?? 0,
+            income: target?.income ?? 0
+        };
+    }, [getMonthlyData, focusedDate]);
 
     // ==========================================================================
     // RENDER
@@ -504,11 +618,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     {c.is_important && <StarIcon className="w-4 h-4 text-amber-500" />}
                                 </div>
                                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    {c.category?.name || 'Sin categoría'}
+                                    {getTranslatedCategoryName(c)}
                                 </p>
                             </div>
                             <div className="text-right">
-                                <p className={`font-bold ${c.flow_type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
+                                <p className={`font-bold font-mono tabular-nums ${c.flow_type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
                                     {c.active_term ? formatClp(c.active_term.amount_in_base ?? c.active_term.amount_original) : '-'}
                                 </p>
                             </div>
@@ -537,9 +651,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
             {/* Desktop View */}
             <div className="hidden lg:block">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg overflow-hidden">
-                    {/* Header - Simplified (only navigation) */}
-                    <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-xl shadow-slate-200/50 dark:shadow-black/30 overflow-hidden">
+                    {/* Header - Finance Noir Style with Gradient Accent */}
+                    <div className="relative p-4 border-b border-slate-200 dark:border-slate-700/50 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-slate-800 dark:via-slate-850 dark:to-slate-800">
+                        {/* Top gradient bar accent */}
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-500 via-cyan-500 to-teal-500" />
                         <div className="flex items-center justify-between">
                             {/* Left: Navigation */}
                             <div className="flex items-center gap-3">
@@ -586,82 +702,115 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                         <ChevronRightIcon className="w-5 h-5" />
                                     </button>
                                 </div>
+
+                                {/* Monthly Totals Badges */}
+                                <div className="flex items-center gap-2">
+                                    {/* Egresos */}
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200/50 dark:border-red-800/30">
+                                        <div className="w-2 h-2 rounded-full bg-red-500" />
+                                        <span className="text-xs font-medium font-mono tabular-nums text-red-600 dark:text-red-400">
+                                            {formatClp((propTotals || monthlyTotals).expenses)}
+                                        </span>
+                                    </div>
+                                    {/* Ingresos */}
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/30">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                        <span className="text-xs font-medium font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                                            {formatClp((propTotals || monthlyTotals).income)}
+                                        </span>
+                                    </div>
+                                    {/* Neto */}
+                                    {(() => {
+                                        const neto = (propTotals || monthlyTotals).income - (propTotals || monthlyTotals).expenses;
+                                        const isPositive = neto >= 0;
+                                        return (
+                                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${isPositive
+                                                ? 'bg-sky-50 dark:bg-sky-950/30 border-sky-200/50 dark:border-sky-800/30'
+                                                : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200/50 dark:border-amber-800/30'
+                                                }`}>
+                                                <span className={`text-xs font-bold font-mono tabular-nums ${isPositive ? 'text-sky-600 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                                                    {isPositive ? '+' : ''}{formatClp(neto)}
+                                                </span>
+                                                <span className={`text-[10px] uppercase ${isPositive ? 'text-sky-500 dark:text-sky-500' : 'text-amber-500 dark:text-amber-500'}`}>
+                                                    neto
+                                                </span>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
                             </div>
 
                             {/* Right: Display Options */}
                             <div className="flex items-center gap-2">
-                                {/* Density Selector */}
-                                <div className="flex items-stretch bg-white dark:bg-slate-700 rounded-lg ring-1 ring-slate-200 dark:ring-slate-600 text-sm">
-                                    {(['compact', 'medium', 'comfortable'] as const).map((d, i) => (
+                                {/* Density Selector - Improved Active State */}
+                                {/* Density Selector - Segmented Control Style */}
+                                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg ring-1 ring-slate-200 dark:ring-slate-700">
+                                    {(['compact', 'medium'] as const).map((d) => (
                                         <button
                                             key={d}
                                             onClick={() => setDensity(d)}
-                                            className={`px-3 py-1.5 ${i > 0 ? 'border-l border-slate-200 dark:border-slate-600' : ''
-                                                } ${density === d
-                                                    ? 'bg-slate-200 dark:bg-slate-600 text-slate-900 dark:text-white font-medium'
-                                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600'
-                                                } transition-colors`}
+                                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${density === d
+                                                ? 'bg-sky-500 text-white shadow-sm'
+                                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                                                }`}
                                         >
-                                            {d === 'compact' ? 'Compacta' : d === 'medium' ? 'Media' : 'Cómoda'}
+                                            {d === 'compact' ? 'Compacta' : 'Detallada'}
                                         </button>
                                     ))}
                                 </div>
 
                                 {/* Show Terminated Toggle */}
                                 {terminatedCount > 0 && (
-                                    <label className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-700 rounded-lg ring-1 ring-slate-200 dark:ring-slate-600 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors text-sm">
-                                        <input
-                                            type="checkbox"
-                                            checked={showTerminated}
-                                            onChange={(e) => setShowTerminated(e.target.checked)}
-                                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-500 text-slate-600 focus:ring-slate-500"
-                                        />
-                                        <span className="text-slate-700 dark:text-slate-300">
-                                            Terminados ({terminatedCount})
-                                        </span>
-                                    </label>
+                                    <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-700 ml-1">
+                                        <button
+                                            onClick={() => setShowTerminated(!showTerminated)}
+                                            className="flex items-center gap-2 group cursor-pointer focus:outline-none"
+                                            title={showTerminated ? 'Ocultar compromisos terminados' : 'Mostrar compromisos terminados'}
+                                        >
+                                            <div className={`
+                                                relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2  focus-visible:ring-white/75
+                                                ${showTerminated ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-700'}
+                                            `}>
+                                                <span
+                                                    aria-hidden="true"
+                                                    className={`
+                                                        pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out
+                                                        ${showTerminated ? 'translate-x-4' : 'translate-x-0'}
+                                                    `}
+                                                />
+                                            </div>
+                                            <span className="text-sm font-medium text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
+                                                Terminados ({terminatedCount})
+                                            </span>
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Sticky Toolbar - Right above grid */}
-                    <div className="sticky top-0 z-30 bg-slate-50 dark:bg-slate-800/50 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 px-4 py-2.5">
-                        <div className="flex items-center justify-between">
-                            {/* Left: View Mode Selector */}
-                            <div className="flex items-center bg-white dark:bg-slate-700 rounded-lg ring-1 ring-slate-200 dark:ring-slate-600 text-sm shadow-sm">
-                                <span className="px-3 py-1.5 text-slate-500 dark:text-slate-400 text-xs font-medium">
-                                    Vista:
-                                </span>
-                                {[
-                                    { value: 3, label: 'Trimestre' },
-                                    { value: 6, label: 'Semestre' },
-                                    { value: 12, label: 'Año' }
-                                ].map((preset, i) => (
-                                    <button
-                                        key={preset.value}
-                                        onClick={() => onVisibleMonthsCountChange && onVisibleMonthsCountChange(preset.value)}
-                                        className={`px-3 py-1.5 ${i > 0 ? 'border-l border-slate-200 dark:border-slate-600' : ''
-                                            } ${visibleMonthsCount === preset.value
-                                                ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold'
-                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600'
-                                            } transition-colors`}
-                                    >
-                                        {preset.label}
-                                    </button>
-                                ))}
-                                {/* Custom value indicator */}
-                                {![3, 6, 12].includes(visibleMonthsCount) && (
-                                    <div className="px-3 py-1.5 border-l border-slate-200 dark:border-slate-600 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold">
-                                        {visibleMonthsCount} meses
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Right: Summary Info */}
-                            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                {groupedCommitments.reduce((sum, g) => sum + g.commitments.length, 0)} compromisos
-                            </div>
+                    {/* Category Filter Tabs */}
+                    <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30">
+                        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                            <span className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide mr-2">
+                                Filtrar:
+                            </span>
+                            {availableCategories.map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setSelectedCategory(cat)}
+                                    className={`
+                                        px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap
+                                        transition-all duration-200
+                                        ${selectedCategory === cat
+                                            ? 'bg-sky-500 text-white shadow-sm'
+                                            : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'
+                                        }
+                                    `}
+                                >
+                                    {cat === 'all' ? 'Todos' : cat}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -673,113 +822,336 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             style={{ height: `${availableHeight}px` }}
                         >
                             <table className="w-full border-collapse">
-                                <thead className="sticky top-0 z-40 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                                <thead className="sticky top-0 z-40 bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-200 dark:border-slate-700">
                                     <tr>
-                                        <th className="sticky left-0 z-50 bg-slate-50 dark:bg-slate-800 text-left p-3 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 min-w-[220px]">
+                                        <th className={`sticky left-0 z-50 bg-slate-50 dark:bg-slate-800 text-left font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 ${density === 'compact' ? 'px-3 py-2 min-w-[140px] max-w-[300px] w-auto text-sm' : 'p-3 min-w-[220px]'}`}>
                                             Compromiso
                                         </th>
                                         {visibleMonths.map((month, i) => (
                                             <th
                                                 key={i}
-                                                className={`text-center p-2.5 font-semibold border-r border-slate-200 dark:border-slate-700 last:border-r-0 min-w-[120px] ${isCurrentMonth(month)
-                                                    ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border-l-4 border-l-sky-500'
+                                                id={`month-header-${i}`}
+                                                className={`text-center font-semibold border-r border-slate-200 dark:border-slate-700 last:border-r-0 ${density === 'compact' ? 'px-2 py-2 min-w-[55px] text-sm' : 'p-2.5 min-w-[120px]'} ${isCurrentMonth(month)
+                                                    ? 'bg-blue-50/90 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-1 ring-inset ring-blue-500/20 z-20'
                                                     : 'text-slate-700 dark:text-slate-300'
                                                     }`}
                                             >
-                                                <div className="text-sm capitalize">{month.toLocaleDateString('es-ES', { month: 'short' })}</div>
-                                                <div className="text-xs opacity-75">{month.getFullYear()}</div>
+                                                <div className="capitalize leading-tight">
+                                                    {density === 'compact'
+                                                        ? month.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }) // e.g. "ago. 26"
+                                                        : month.toLocaleDateString('es-ES', { month: 'short' })
+                                                    }
+                                                </div>
+                                                {density !== 'compact' && <div className="text-xs opacity-75">{month.getFullYear()}</div>}
                                             </th>
                                         ))}
                                     </tr>
+                                    {/* Total Pagado Row */}
+                                    <tr className="bg-slate-100/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
+                                        <th className={`sticky left-0 z-50 bg-slate-100 dark:bg-slate-800 text-left text-xs font-medium text-slate-500 dark:text-slate-400 border-r border-slate-200 dark:border-slate-700 ${density === 'compact' ? 'px-3 py-1.5' : 'px-3 py-2'}`}>
+                                            Total pagado
+                                        </th>
+                                        {visibleMonths.map((month, i) => {
+                                            const monthTotal = calculateMonthPaidTotal(month);
+                                            return (
+                                                <th
+                                                    key={i}
+                                                    className={`text-center text-xs font-mono tabular-nums border-r border-slate-200 dark:border-slate-700 last:border-r-0 ${density === 'compact' ? 'px-2 py-1.5' : 'px-2 py-2'} ${monthTotal > 0
+                                                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                                                        : 'text-slate-400 dark:text-slate-500'
+                                                        }`}
+                                                >
+                                                    {monthTotal > 0 ? formatClp(monthTotal) : '—'}
+                                                </th>
+                                            );
+                                        })}
+                                    </tr>
                                 </thead>
                                 <tbody>
-                                    {groupedCommitments.map(({ category, flowType, commitments: catCommitments }) => (
+                                    {groupedCommitments.map(({ category, commitments: catCommitments }) => (
                                         <React.Fragment key={category}>
-                                            {/* Category row */}
-                                            <tr className="bg-slate-100 dark:bg-slate-800/50">
-                                                <td className="sticky left-0 z-25 bg-slate-100 dark:bg-slate-800/50 p-3 font-semibold text-slate-800 dark:text-slate-200 border-b border-r border-slate-200 dark:border-slate-700 min-w-[220px]">
-                                                    <div className="flex items-center gap-2">
-                                                        {getCategoryIcon(category)}
-                                                        <span>{category}</span>
-                                                    </div>
-                                                </td>
-                                                {visibleMonths.map((_, mi) => (
-                                                    <td key={mi} className="bg-slate-100 dark:bg-slate-800/50 border-b border-r border-slate-200 dark:border-slate-700 last:border-r-0" />
-                                                ))}
-                                            </tr>
+                                            {/* Category row - only show in non-compact modes */}
+                                            {density !== 'compact' && (
+                                                <tr className="bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 dark:from-slate-800/80 dark:via-slate-800/50 dark:to-slate-800/80">
+                                                    <td className="sticky left-0 z-25 bg-slate-100 dark:bg-slate-800/80 p-3 font-semibold text-slate-700 dark:text-slate-200 border-b border-r border-slate-200 dark:border-slate-700/50 min-w-[220px]">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-slate-200/80 dark:bg-slate-700/50 flex items-center justify-center text-slate-500 dark:text-slate-400">
+                                                                {getCategoryIcon(category)}
+                                                            </div>
+                                                            <span className="text-sm font-bold uppercase tracking-wide">{category}</span>
+                                                        </div>
+                                                    </td>
+                                                    {visibleMonths.map((_, mi) => (
+                                                        <td key={mi} className="bg-slate-100/50 dark:bg-slate-800/30 border-b border-r border-slate-200 dark:border-slate-700/50 last:border-r-0" />
+                                                    ))}
+                                                </tr>
+                                            )}
 
                                             {/* Commitment rows */}
                                             {catCommitments.map(commitment => {
                                                 const terminated = isCommitmentTerminated(commitment);
+                                                const flowColor = commitment.flow_type === 'INCOME' ? 'border-l-emerald-500' : 'border-l-red-500';
                                                 return (
-                                                    <tr key={commitment.id} className={`border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 ${terminated ? 'bg-slate-100 dark:bg-slate-800/50 opacity-60' : ''}`}>
-                                                        {/* Name cell */}
-                                                        <td className={`sticky left-0 z-20 ${terminated ? 'bg-slate-100 dark:bg-slate-800/50' : 'bg-white dark:bg-slate-900'} ${pad} border-r border-slate-200 dark:border-slate-700`}>
-                                                            <div className="flex items-start justify-between gap-2">
-                                                                <div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        {commitment.flow_type === 'INCOME' ? (
-                                                                            <ArrowTrendingUpIcon className="w-4 h-4 text-green-600" />
-                                                                        ) : (
-                                                                            <ArrowTrendingDownIcon className="w-4 h-4 text-red-600" />
-                                                                        )}
-                                                                        <span className={`font-medium ${terminated ? 'line-through text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white'}`}>{commitment.name}</span>
-                                                                        {commitment.is_important && <StarIcon className="w-4 h-4 text-amber-500" />}
-                                                                        {terminated && (
-                                                                            <span className="text-xs px-1.5 py-0.5 bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded">
-                                                                                Terminado
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                                                        {commitment.active_term?.frequency === 'MONTHLY' && <InfinityIcon className="w-4 h-4" />}
-                                                                        {(commitment.active_term?.frequency === 'ONCE' || (commitment.active_term?.installments_count && commitment.active_term?.installments_count > 1)) && <CalendarIcon className="w-4 h-4" />}
-                                                                        {!commitment.active_term && (
-                                                                            <span className="text-amber-600 dark:text-amber-400">Expirado</span>
-                                                                        )}
-                                                                        {commitment.active_term && (
-                                                                            <span>
-                                                                                {commitment.active_term.installments_count && commitment.active_term.installments_count > 1
-                                                                                    ? 'Cuotas'
-                                                                                    : commitment.active_term.frequency === 'MONTHLY'
-                                                                                        ? 'Recurrente'
-                                                                                        : commitment.active_term.frequency === 'ONCE'
-                                                                                            ? 'Único'
-                                                                                            : commitment.active_term.frequency}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="shrink-0 flex items-center gap-1 opacity-80 hover:opacity-100">
-                                                                    <button
-                                                                        onClick={() => onEditCommitment(commitment)}
-                                                                        className="text-slate-500 hover:text-sky-500 p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700/50"
-                                                                        title="Editar"
-                                                                    >
-                                                                        <EditIcon />
-                                                                    </button>
-                                                                    {/* Pause button - Coming soon */}
-                                                                    {!terminated && (
-                                                                        <button
-                                                                            onClick={() => alert('Función en creación')}
-                                                                            className="text-slate-500 hover:text-amber-500 p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700/50 relative group"
-                                                                            title="Pausar (En creación)"
+                                                    <tr
+                                                        key={commitment.id}
+                                                        className={`
+                                                            group
+                                                            border-b border-slate-200/80 dark:border-slate-700/50 
+                                                            transition-all duration-200 ease-out
+                                                            hover:bg-blue-50/50 dark:hover:bg-slate-800/80 hover:shadow-sm
+                                                            ${terminated ? 'bg-slate-50/50 dark:bg-slate-800/30 opacity-60' : ''}
+                                                        `}
+                                                    >
+                                                        {/* Name cell with flow-type accent - Merged with Category for Compact */}
+                                                        <td className={`
+                                                            sticky left-0 z-20 border-l-3 ${flowColor}
+                                                            ${terminated ? 'bg-slate-50 dark:bg-slate-800/50' : 'bg-white dark:bg-slate-900'} 
+                                                            group-hover:bg-blue-50/50 dark:group-hover:bg-slate-800/80
+                                                            border-r border-slate-200 dark:border-slate-700/50
+                                                            ${density === 'compact' ? 'px-3 py-2 min-w-[140px] max-w-[300px] w-auto' : pad}
+                                                        `}>
+                                                            {density === 'compact' ? (
+                                                                /* Compact: Single Line Layout -> Name (Left) ... Details (Right) + ACTIONS */
+                                                                <div
+                                                                    className="flex items-center justify-between gap-3 relative pr-8 cursor-pointer group/compact h-full min-h-[32px]"
+                                                                    onClick={() => onEditCommitment(commitment)}
+                                                                >
+                                                                    {/* Left: Name */}
+                                                                    <div className="min-w-0 flex-1 flex items-center">
+                                                                        <span
+                                                                            className={`font-medium text-sm truncate block hover:text-sky-600 ${terminated ? 'line-through text-slate-500' : 'text-slate-900 dark:text-white'}`}
+                                                                            title={`${commitment.name} - Click para editar`}
                                                                         >
-                                                                            <PauseIcon className="w-4 h-4" />
-                                                                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                                                                En creación
+                                                                            {commitment.name}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {/* Right: Category + Amount + Icon */}
+                                                                    <div className="flex items-center gap-2 shrink-0">
+                                                                        <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 uppercase tracking-wider border border-indigo-100 dark:border-indigo-800/50">
+                                                                            {category}
+                                                                        </span>
+                                                                        <div className="flex items-center gap-1.5 text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700/50">
+                                                                            <span>
+                                                                                {formatClp(
+                                                                                    commitment.active_term
+                                                                                        ? Math.round(getPerPeriodAmount(commitment.active_term, true))
+                                                                                        : 0
+                                                                                )}
                                                                             </span>
-                                                                        </button>
-                                                                    )}
-                                                                    <button
-                                                                        onClick={() => onDeleteCommitment(commitment.id)}
-                                                                        className="text-slate-500 hover:text-rose-600 p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700/50"
-                                                                        title="Eliminar"
-                                                                    >
-                                                                        <TrashIcon />
-                                                                    </button>
+                                                                            {/* Icon Logic */}
+                                                                            {(commitment.active_term?.frequency === 'ONCE' || (commitment.active_term?.installments_count && commitment.active_term.installments_count > 1))
+                                                                                ? <CalendarIcon className="w-3 h-3 text-slate-400" />
+                                                                                : commitment.active_term?.frequency === 'MONTHLY'
+                                                                                    ? <InfinityIcon className="w-3 h-3 text-slate-400" />
+                                                                                    : null
+                                                                            }
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Actions (Absolute positioned, visible on hover) using DropdownMenu */}
+                                                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-l pl-1" onClick={e => e.stopPropagation()}>
+                                                                        <DropdownMenu.Root>
+                                                                            <DropdownMenu.Trigger asChild>
+                                                                                <button
+                                                                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
+                                                                                >
+                                                                                    <MoreVertical className="w-3.5 h-3.5" />
+                                                                                </button>
+                                                                            </DropdownMenu.Trigger>
+                                                                            <DropdownMenu.Portal>
+                                                                                <DropdownMenu.Content
+                                                                                    className="min-w-[160px] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-1 z-50 animate-in fade-in zoom-in-95 duration-100"
+                                                                                    sideOffset={5}
+                                                                                    align="end"
+                                                                                    onCloseAutoFocus={(e) => e.preventDefault()}
+                                                                                >
+                                                                                    <DropdownMenu.Item
+                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer outline-none"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            onEditCommitment(commitment);
+                                                                                        }}
+                                                                                    >
+                                                                                        <EditIcon className="w-4 h-4 text-slate-400 group-hover:text-blue-500" />
+                                                                                        Editar
+                                                                                    </DropdownMenu.Item>
+
+                                                                                    <DropdownMenu.Item
+                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none"
+                                                                                        disabled={terminated}
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            alert('Pausar: Próximamente');
+                                                                                        }}
+                                                                                    >
+                                                                                        <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
+                                                                                        {terminated ? 'Terminado' : 'Pausar'}
+                                                                                    </DropdownMenu.Item>
+
+                                                                                    <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
+
+                                                                                    <DropdownMenu.Item
+                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer outline-none"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            onDeleteCommitment(commitment.id);
+                                                                                        }}
+                                                                                    >
+                                                                                        <TrashIcon className="w-4 h-4 group-hover:text-red-600" />
+                                                                                        Eliminar
+                                                                                    </DropdownMenu.Item>
+                                                                                </DropdownMenu.Content>
+                                                                            </DropdownMenu.Portal>
+                                                                        </DropdownMenu.Root>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
+                                                            ) : (
+                                                                /* Full: All details */
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div
+                                                                        className="flex-grow cursor-pointer"
+                                                                        onClick={() => onEditCommitment(commitment)}
+                                                                    >
+                                                                        <div className="flex items-center gap-2">
+                                                                            {commitment.flow_type === 'INCOME' ? (
+                                                                                <ArrowTrendingUpIcon className="w-4 h-4 text-green-600" />
+                                                                            ) : (
+                                                                                <ArrowTrendingDownIcon className="w-4 h-4 text-red-600" />
+                                                                            )}
+                                                                            <span className={`font-medium ${terminated ? 'line-through text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white'}`}>{commitment.name}</span>
+                                                                            {commitment.is_important && <StarIcon className="w-4 h-4 text-amber-500" />}
+                                                                            {commitment.linked_commitment_id && (() => {
+                                                                                const linkedCommitment = commitments.find(c => c.id === commitment.linked_commitment_id);
+                                                                                if (!linkedCommitment) return null;
+
+                                                                                // Get current month for calculating actual NET
+                                                                                const now = new Date();
+                                                                                const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+                                                                                // Get actual amount for this commitment (payment or projected)
+                                                                                const myPayments = payments.get(commitment.id) || [];
+                                                                                const myPayment = myPayments.find(p => p.period_date.substring(0, 7) === currentPeriod);
+                                                                                const myAmount = myPayment?.amount_in_base ?? (commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0);
+
+                                                                                // Get actual amount for linked commitment
+                                                                                const linkedPayments = payments.get(linkedCommitment.id) || [];
+                                                                                const linkedPayment = linkedPayments.find(p => p.period_date.substring(0, 7) === currentPeriod);
+                                                                                const linkedAmount = linkedPayment?.amount_in_base ?? (linkedCommitment.active_term ? getPerPeriodAmount(linkedCommitment.active_term, true) : 0);
+
+                                                                                const netAmount = Math.abs(myAmount - linkedAmount);
+                                                                                const netType = myAmount >= linkedAmount ? commitment.flow_type : linkedCommitment.flow_type;
+                                                                                return (
+                                                                                    <span
+                                                                                        className="relative group"
+                                                                                        title={`Vinculado con ${linkedCommitment.name}`}
+                                                                                    >
+                                                                                        <Link2 className="w-3.5 h-3.5 text-sky-500" />
+                                                                                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1.5 text-xs bg-slate-800 dark:bg-slate-700 text-white rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg">
+                                                                                            <span className="block font-medium">Compensado con {linkedCommitment.name}</span>
+                                                                                            <span className="block text-slate-300">
+                                                                                                Neto este mes: <span className={`tabular-nums ${netType === 'EXPENSE' ? 'text-red-400' : 'text-green-400'}`}>
+                                                                                                    {netType === 'EXPENSE' ? '-' : '+'}${netAmount.toLocaleString('es-CL')}
+                                                                                                </span>
+                                                                                            </span>
+                                                                                        </span>
+                                                                                    </span>
+                                                                                );
+                                                                            })()}
+                                                                            {terminated && (
+                                                                                <span className="text-xs px-1.5 py-0.5 bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded">
+                                                                                    Terminado
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                                            {/* Icon Logic: Mutually Exclusive */}
+                                                                            {(commitment.active_term?.frequency === 'ONCE' || (commitment.active_term?.installments_count && commitment.active_term?.installments_count > 1))
+                                                                                ? <CalendarIcon className="w-4 h-4" />
+                                                                                : commitment.active_term?.frequency === 'MONTHLY'
+                                                                                    ? <InfinityIcon className="w-4 h-4" />
+                                                                                    : null
+                                                                            }
+
+                                                                            {!commitment.active_term && (
+                                                                                <span className="text-amber-600 dark:text-amber-400">Expirado</span>
+                                                                            )}
+                                                                            {commitment.active_term && (
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <span>
+                                                                                        {commitment.active_term.installments_count && commitment.active_term.installments_count > 1
+                                                                                            ? (commitment.active_term.is_divided_amount ? 'En cuotas' : 'Definido')
+                                                                                            : commitment.active_term.frequency === 'MONTHLY'
+                                                                                                ? 'Indefinido'
+                                                                                                : commitment.active_term.frequency}
+                                                                                    </span>
+                                                                                    <span className="text-slate-300 dark:text-slate-600">•</span>
+                                                                                    <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                                                                                        {formatClp(Math.round(getPerPeriodAmount(commitment.active_term, true)))}
+                                                                                    </span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    {/* Actions using DropdownMenu */}
+                                                                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                                                                        <DropdownMenu.Root>
+                                                                            <DropdownMenu.Trigger asChild>
+                                                                                <button
+                                                                                    className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700/50 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                                                                    onClick={(e) => e.stopPropagation()} // Prevent triggering edit modal
+                                                                                >
+                                                                                    <MoreVertical className="w-4 h-4" />
+                                                                                </button>
+                                                                            </DropdownMenu.Trigger>
+                                                                            <DropdownMenu.Portal>
+                                                                                <DropdownMenu.Content
+                                                                                    className="min-w-[160px] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-1 z-50 animate-in fade-in zoom-in-95 duration-100"
+                                                                                    sideOffset={5}
+                                                                                    align="end"
+                                                                                >
+                                                                                    <DropdownMenu.Item
+                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer outline-none"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            onEditCommitment(commitment);
+                                                                                        }}
+                                                                                    >
+                                                                                        <EditIcon className="w-4 h-4 text-slate-400 group-hover:text-blue-500" />
+                                                                                        Editar
+                                                                                    </DropdownMenu.Item>
+
+                                                                                    <DropdownMenu.Item
+                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none"
+                                                                                        disabled={terminated}
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            // onPauseCommitment(commitment); // TODO: Implement
+                                                                                            alert('Pausar: Próximamente');
+                                                                                        }}
+                                                                                    >
+                                                                                        <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
+                                                                                        {terminated ? 'Terminado' : 'Pausar'}
+                                                                                    </DropdownMenu.Item>
+
+                                                                                    <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
+
+                                                                                    <DropdownMenu.Item
+                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer outline-none"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            onDeleteCommitment(commitment.id);
+                                                                                        }}
+                                                                                    >
+                                                                                        <TrashIcon className="w-4 h-4 group-hover:text-red-600" />
+                                                                                        Eliminar {commitment.flow_type === 'INCOME' ? 'Ingreso' : 'Gasto'}
+                                                                                    </DropdownMenu.Item>
+                                                                                </DropdownMenu.Content>
+                                                                            </DropdownMenu.Portal>
+                                                                        </DropdownMenu.Root>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </td>
 
                                                         {/* Month cells */}
@@ -801,7 +1173,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             // Calculate expected per-period amount from term (only used when no payment)
                                                             const totalAmount = term?.amount_in_base ?? term?.amount_original ?? 0;
                                                             const installmentsCount = term?.installments_count ?? null;
-                                                            const perPeriodAmount = installmentsCount && installmentsCount > 1
+
+                                                            // Solo dividir si is_divided_amount = true (tipo "En cuotas")
+                                                            const perPeriodAmount = term?.is_divided_amount && installmentsCount && installmentsCount > 1
                                                                 ? totalAmount / installmentsCount
                                                                 : totalAmount;
 
@@ -825,7 +1199,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             // Original currency display
                                                             const originalCurrency = term?.currency_original;
                                                             const originalAmount = term?.amount_original ?? 0;
-                                                            const perPeriodOriginal = installmentsCount && installmentsCount > 1
+                                                            // Solo dividir si is_divided_amount = true (tipo "En cuotas")
+                                                            const perPeriodOriginal = term?.is_divided_amount && installmentsCount && installmentsCount > 1
                                                                 ? originalAmount / installmentsCount
                                                                 : originalAmount;
                                                             const showOriginalCurrency = originalCurrency && originalCurrency !== 'CLP';
@@ -849,12 +1224,23 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             return (
                                                                 <td
                                                                     key={mi}
-                                                                    className={`${pad} text-right border-r border-slate-200 dark:border-slate-700 last:border-r-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 ${isFutureMonth ? 'opacity-50' : ''}`}
+                                                                    className={`
+                                                                        ${pad} text-right border-r border-slate-200/80 dark:border-slate-700/50 last:border-r-0 
+                                                                        cursor-pointer transition-all duration-150 ease-out
+                                                                        hover:bg-slate-100/80 dark:hover:bg-slate-800/80
+                                                                        ${isCurrentMonth(monthDate) ? 'bg-blue-50/50 dark:bg-blue-900/10 ring-1 ring-inset ring-blue-500/10' : ''}
+                                                                        ${isFutureMonth
+                                                                            ? (hasPaymentRecord || (installmentsCount && installmentsCount > 1) ? '' : 'opacity-25 grayscale')
+                                                                            : ''}
+                                                                        ${isOverdue ? 'bg-red-50/50 dark:bg-red-950/20' : ''}
+                                                                        ${isPending ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}
+                                                                        ${isPaid ? 'bg-emerald-50/30 dark:bg-emerald-950/10' : ''}
+                                                                    `}
                                                                     onClick={() => onRecordPayment(commitment.id, monthDate.getFullYear(), monthDate.getMonth())}
                                                                 >
                                                                     {/* GAP: No term for this period */}
                                                                     {!term && !isPaid ? (
-                                                                        <div className="text-slate-400 dark:text-slate-600 font-mono text-base" title="Sin término activo en este período">
+                                                                        <div className="text-slate-400 dark:text-slate-600 font-mono tabular-nums text-base" title="Sin término activo en este período">
                                                                             —
                                                                         </div>
                                                                     ) : !term && isPaid ? (
@@ -868,56 +1254,157 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                             </div>
                                                                         </div>
                                                                     ) : (isActive || isPaid) ? (
-                                                                        <div className="space-y-1">
-                                                                            {/* Main amount - neutral colors */}
-                                                                            <div className="font-bold font-mono tabular-nums text-base text-slate-800 dark:text-slate-100">
-                                                                                {formatClp(displayAmount)}
+                                                                        /* === COMPACT VIEW: Rectangular pill badges === */
+                                                                        density === 'compact' ? (
+                                                                            <CompactTooltip
+                                                                                content={
+                                                                                    <div className="space-y-1.5 min-w-[140px] text-slate-800 dark:text-slate-100">
+                                                                                        {/* Header: Date + Status */}
+                                                                                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5">
+                                                                                            <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
+                                                                                                {monthDate.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
+                                                                                            </span>
+                                                                                            {isPaid ? (
+                                                                                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">PAGADO</span>
+                                                                                            ) : isOverdue ? (
+                                                                                                <span className="text-[10px] font-bold text-red-600 bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded">VENCIDO</span>
+                                                                                            ) : (
+                                                                                                <span className="text-[10px] font-bold text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">PENDIENTE</span>
+                                                                                            )}
+                                                                                        </div>
+
+                                                                                        {/* Amount: Main + Original if differs */}
+                                                                                        <div className="text-right">
+                                                                                            <div className={`text-base font-bold font-mono tabular-nums ${isPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                                                                                                isOverdue ? 'text-red-600 dark:text-red-400' :
+                                                                                                    'text-slate-700 dark:text-slate-200'
+                                                                                                }`}>
+                                                                                                {formatClp(displayAmount!)}
+                                                                                            </div>
+                                                                                            {showOriginalCurrency && (
+                                                                                                <div className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                                                                                                    ({originalCurrency} {perPeriodOriginal?.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+
+                                                                                        {/* Payment/Cuota Progress */}
+                                                                                        {cuotaNumber && installmentsCount && installmentsCount > 1 ? (
+                                                                                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                                                                {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
+                                                                                            </div>
+                                                                                        ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
+                                                                                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                                                                Pago {(() => {
+                                                                                                    const [startYear, startMonth] = term.effective_from.split('-').map(Number);
+                                                                                                    const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
+                                                                                                        (monthDate.getMonth() + 1 - startMonth) + 1;
+                                                                                                    return paymentNumber > 0 ? paymentNumber : 1;
+                                                                                                })()}/∞
+                                                                                            </div>
+                                                                                        ) : null}
+
+                                                                                        {/* Footer: Due Status */}
+                                                                                        {!isPaid && (
+                                                                                            <div className="text-[10px] text-right text-slate-400">
+                                                                                                {isOverdue
+                                                                                                    ? `Venció hace ${daysOverdue} días`
+                                                                                                    : `Vence en ${daysRemaining} días`
+                                                                                                }
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                }
+                                                                            >
+                                                                                <div className="flex justify-center items-center h-full">
+                                                                                    {isPaid ? (
+                                                                                        <div className={`
+                                                                                        flex items-center justify-center 
+                                                                                        ${paidOnTime ? 'text-emerald-400' : 'text-emerald-500'}
+                                                                                    `}>
+                                                                                            <CheckCircleIcon className="w-5 h-5" />
+                                                                                        </div>
+                                                                                    ) : isOverdue ? (
+                                                                                        <div className="text-red-500 animate-pulse">
+                                                                                            <ExclamationTriangleIcon className="w-5 h-5" />
+                                                                                        </div>
+                                                                                    ) : isPending ? (
+                                                                                        <div className="text-amber-500">
+                                                                                            <ClockIcon className="w-5 h-5" />
+                                                                                        </div>
+                                                                                    ) : (installmentsCount && installmentsCount > 1) ? (
+                                                                                        /* Future Defined (Installment) -> Distinct Icon */
+                                                                                        <div className="text-slate-500 dark:text-slate-400">
+                                                                                            <CalendarIcon className="w-4 h-4" />
+                                                                                        </div>
+                                                                                    ) : (hasPaymentRecord) ? (
+                                                                                        /* Future Saved Amount (Bill Received) -> Solid Clock */
+                                                                                        <div className="text-slate-500 dark:text-slate-400">
+                                                                                            <ClockIcon className="w-5 h-5" />
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        /* Future Indefinite -> Faint Clock */
+                                                                                        <div className="text-slate-700 dark:text-slate-600">
+                                                                                            <ClockIcon className="w-5 h-5 opacity-40" />
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </CompactTooltip>
+                                                                        ) : (
+                                                                            /* === FULL VIEW: All details === */
+                                                                            <div className="space-y-1">
+                                                                                {/* Main amount - neutral colors */}
+                                                                                <div className="font-bold font-mono tabular-nums text-base text-slate-800 dark:text-slate-100">
+                                                                                    {formatClp(displayAmount)}
+                                                                                </div>
+                                                                                {/* Original currency */}
+                                                                                {showOriginalCurrency && (
+                                                                                    <div className="text-xs text-slate-500 tabular-nums">
+                                                                                        {originalCurrency} {perPeriodOriginal.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                                    </div>
+                                                                                )}
+                                                                                {/* Due date */}
+                                                                                <div className="text-xs text-slate-500">
+                                                                                    Vence: {dueDay}/{monthDate.getMonth() + 1}
+                                                                                </div>
+                                                                                {/* Cuota / Payment number info */}
+                                                                                {cuotaNumber && installmentsCount && installmentsCount > 1 ? (
+                                                                                    <div className="text-xs text-slate-500">
+                                                                                        {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
+                                                                                    </div>
+                                                                                ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
+                                                                                    <div className="text-xs text-slate-500">
+                                                                                        Pago {(() => {
+                                                                                            // Parse date parts directly to avoid timezone issues
+                                                                                            const [startYear, startMonth] = term.effective_from.split('-').map(Number);
+                                                                                            const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
+                                                                                                (monthDate.getMonth() + 1 - startMonth) + 1; // +1 for 0-indexed month
+                                                                                            return paymentNumber > 0 ? paymentNumber : 1;
+                                                                                        })()}/∞
+                                                                                    </div>
+                                                                                ) : null}
+                                                                                {/* Status badge - enhanced styling */}
+                                                                                {isPaid && (
+                                                                                    <div className="flex items-center justify-end gap-1 px-2 py-0.5 rounded-full bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                                                                                        {paidOnTime && <Sparkles className="w-3 h-3" />}
+                                                                                        <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                                                        <span className="text-xs font-medium">Pagado</span>
+                                                                                    </div>
+                                                                                )}
+                                                                                {isOverdue && (
+                                                                                    <div className="flex items-center justify-end gap-1 px-2 py-0.5 rounded-full bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse">
+                                                                                        <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                                                                                        <span className="text-xs font-semibold">Atrasado ({daysOverdue}d)</span>
+                                                                                    </div>
+                                                                                )}
+                                                                                {isPending && (
+                                                                                    <div className="flex items-center justify-end gap-1 px-2 py-0.5 rounded-full bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                                                                                        <ClockIcon className="w-3.5 h-3.5" />
+                                                                                        <span className="text-xs font-medium">{daysRemaining}d restantes</span>
+                                                                                    </div>
+                                                                                )}
                                                                             </div>
-                                                                            {/* Original currency */}
-                                                                            {showOriginalCurrency && (
-                                                                                <div className="text-xs text-slate-500">
-                                                                                    {originalCurrency} {perPeriodOriginal.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                                                </div>
-                                                                            )}
-                                                                            {/* Due date */}
-                                                                            <div className="text-xs text-slate-500">
-                                                                                Vence: {dueDay}/{monthDate.getMonth() + 1}
-                                                                            </div>
-                                                                            {/* Cuota / Payment number info */}
-                                                                            {cuotaNumber && installmentsCount && installmentsCount > 1 ? (
-                                                                                <div className="text-xs text-slate-500">
-                                                                                    Cuota {cuotaNumber}/{installmentsCount}
-                                                                                </div>
-                                                                            ) : term && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
-                                                                                <div className="text-xs text-slate-500">
-                                                                                    Pago {(() => {
-                                                                                        // Parse date parts directly to avoid timezone issues
-                                                                                        const [startYear, startMonth] = term.effective_from.split('-').map(Number);
-                                                                                        const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
-                                                                                            (monthDate.getMonth() + 1 - startMonth) + 1; // +1 for 0-indexed month
-                                                                                        return paymentNumber > 0 ? paymentNumber : 1;
-                                                                                    })()}/∞
-                                                                                </div>
-                                                                            ) : null}
-                                                                            {/* Status badge - icon only for paid, with different colors for on-time vs late */}
-                                                                            {isPaid && (
-                                                                                <div className={`flex items-center justify-end ${paidOnTime ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                                                                                    <CheckCircleIcon className="w-4 h-4" />
-                                                                                </div>
-                                                                            )}
-                                                                            {isOverdue && (
-                                                                                <div className="flex items-center justify-end gap-1 text-xs text-rose-600 dark:text-rose-400">
-                                                                                    <ExclamationTriangleIcon className="w-4 h-4" />
-                                                                                    <span>Atrasado ({daysOverdue}d)</span>
-                                                                                </div>
-                                                                            )}
-                                                                            {isPending && (
-                                                                                <div className="flex items-center justify-end gap-1 text-xs text-amber-600 dark:text-amber-400">
-                                                                                    <ClockIcon className="w-4 h-4" />
-                                                                                    <span>Pendiente ({daysRemaining}d)</span>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
+                                                                        )
                                                                     ) : (
                                                                         <div className="text-slate-300 dark:text-slate-600">—</div>
                                                                     )}
@@ -932,40 +1419,44 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </div >
 
-                    {/* Footer */}
-                    <div ref={footerRef} className="px-4 py-2.5 flex items-center justify-between text-xs border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
-                        <div className="text-slate-600 dark:text-slate-400">
-                            <span className="font-semibold text-slate-900 dark:text-white">
-                                {commitments.length}
-                            </span> compromisos
-                        </div>
-
-                        <div className="flex items-center gap-4 text-slate-600 dark:text-slate-400">
-                            <div className="flex items-center gap-2">
-                                <span className="text-slate-500 dark:text-slate-500">
-                                    {focusedDate.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}:
-                                </span>
-                                <span className="font-semibold text-red-600 dark:text-red-400">
-                                    {formatClp(monthlyTotals.expenses)}
-                                </span>
-                                <span className="text-slate-400">egresos</span>
+                    {/* Grid Footer: Legend + Stats */}
+                    <div className="flex items-center justify-between px-4 py-2 border-t border-slate-200 dark:border-slate-700/50 bg-slate-50/80 dark:bg-slate-900/80">
+                        {/* Left: Legend */}
+                        <div className="hidden md:flex items-center gap-3 text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg px-3 py-1.5">
+                            <div className="flex items-center gap-1.5" title="Pagado">
+                                <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500" />
+                                <span>Pagado</span>
                             </div>
-
-                            <div className="w-px h-4 bg-slate-300 dark:bg-slate-600"></div>
-
-                            <div className="flex items-center gap-2">
-                                <span className="font-semibold text-green-600 dark:text-green-400">
-                                    {formatClp(monthlyTotals.income)}
-                                </span>
-                                <span className="text-slate-400">ingresos</span>
+                            <div className="flex items-center gap-1.5" title="Pendiente">
+                                <ClockIcon className="w-3.5 h-3.5 text-amber-500" />
+                                <span>Pendiente</span>
+                            </div>
+                            <div className="flex items-center gap-1.5" title="Vencido">
+                                <ExclamationTriangleIcon className="w-3.5 h-3.5 text-red-500" />
+                                <span>Vencido</span>
+                            </div>
+                            <div className="w-px h-3 bg-slate-300 dark:bg-slate-600" />
+                            <div className="flex items-center gap-1.5" title="Recurrente indefinido">
+                                <InfinityIcon className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                                <span>Indefinido</span>
+                            </div>
+                            <div className="flex items-center gap-1.5" title="Plazo definido/Cuotas">
+                                <CalendarIcon className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                                <span>Definido</span>
                             </div>
                         </div>
+
+                        {/* Right: Stats */}
+                        <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                            {groupedCommitments.reduce((sum, g) => sum + g.commitments.length, 0)} compromisos · {effectiveMonthCount} meses
+                        </div>
                     </div>
-                </div>
-            </div>
-        </div>
+
+                </div >
+            </div >
+        </div >
     );
 };
 

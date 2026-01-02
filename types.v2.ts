@@ -36,6 +36,12 @@ export enum LinkRole {
     SECONDARY = 'SECONDARY',  // Secondary commitment (excluded from totals)
 }
 
+/**
+ * Budget Type for categorizing expenses
+ * Used for 50/30/20 rule analysis
+ */
+export type BudgetType = 'NEED' | 'WANT' | 'SAVING';
+
 // ============================================================================
 // DATABASE ENTITIES
 // ============================================================================
@@ -48,6 +54,9 @@ export interface Profile {
     user_id: string; // UUID, references auth.users
     base_currency: string;
     locale: string;
+    budget_needs_pct: number;   // Default 50
+    budget_wants_pct: number;   // Default 30
+    budget_savings_pct: number; // Default 20
     created_at: string; // ISO 8601 timestamp
     updated_at: string;
 }
@@ -62,6 +71,7 @@ export interface Category {
     name: string;
     normalized_name: string; // Lowercase, trimmed
     is_global: boolean;
+    budget_type: BudgetType | null; // NEED, WANT, SAVING for 50/30/20 analysis
     created_at: string;
     updated_at: string;
 }
@@ -104,6 +114,7 @@ export interface Term {
     fx_rate_to_base: number; // NUMERIC(15,6)
     amount_in_base: number | null; // NUMERIC(15,2)
     estimation_mode: EstimationMode | null;
+    is_divided_amount: boolean | null; // true = "En cuotas" (divide monto), false/null = "Definido" (monto por período)
     created_at: string;
     updated_at: string;
 }
@@ -139,6 +150,89 @@ export interface ExchangeRate {
     effective_date: string; // ISO date
     source: string | null; // Source of the rate (e.g., 'manual', 'api')
     created_at: string;
+}
+
+/**
+ * Payment Adjustment (Audit Trail)
+ * Tracks changes to payment period_date when terms are modified
+ * Preserves original period assignments for audit purposes
+ */
+export interface PaymentAdjustment {
+    id: string; // UUID
+    payment_id: string;
+    original_period_date: string; // ISO date (YYYY-MM-DD)
+    new_period_date: string; // ISO date (YYYY-MM-DD)
+    original_term_id: string;
+    new_term_id: string;
+    reason: string; // 'term_effective_from_change', 'manual_correction', etc.
+    adjusted_at: string; // ISO 8601 timestamp
+    adjusted_by: string | null; // User ID who made the adjustment
+}
+
+/**
+ * Goal (Savings Bucket)
+ * Represents a specific savings target (e.g. "Emergency Fund", "Trip")
+ */
+export interface Goal {
+    id: string; // UUID
+    user_id: string;
+    name: string;
+    target_amount: number | null; // NUMERIC(15,2) - NULL = sin límite
+    current_amount: number;       // NUMERIC(15,2)
+    target_date: string | null;   // ISO date (YYYY-MM-DD)
+    priority: number;             // Para ordenar distribución de ahorros
+    icon: string | null;          // Emoji or icon name
+    color: string | null;         // Hex code
+    is_archived: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+/**
+ * Budget distribution (actual or target)
+ */
+export interface BudgetDistribution {
+    needs: number;
+    wants: number;
+    savings: number;
+    unclassified?: number; // Solo para distribución actual
+}
+
+/**
+ * Financial Health Analysis result
+ * Compares actual spending vs target (50/30/20 rule)
+ */
+export interface FinancialHealthAnalysis {
+    period: Period;
+    income: number;
+    totalExpenses: number;
+
+    // Distribución real del mes
+    actual: BudgetDistribution & { unclassified: number };
+
+    // Distribución objetivo según regla del usuario
+    target: BudgetDistribution;
+
+    // Diferencias (positivo = gastaste más de lo debido)
+    diff: {
+        needs: number;
+        wants: number;
+        savings: number; // Negativo = ahorraste menos
+    };
+
+    // Porcentajes reales
+    percentages: {
+        needs: number;
+        wants: number;
+        savings: number;
+        unclassified: number;
+    };
+
+    // Sugerencia textual
+    suggestion: string | null;
+
+    // Estado general: 'good', 'warning', 'critical'
+    status: 'good' | 'warning' | 'critical';
 }
 
 // ============================================================================
@@ -256,6 +350,7 @@ export interface TermFormData {
     amount_original: number;
     fx_rate_to_base: number;
     estimation_mode: EstimationMode | null;
+    is_divided_amount: boolean | null; // true = "En cuotas", false/null = "Definido"
 }
 
 /**

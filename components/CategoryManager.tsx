@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useLocalization } from '../hooks/useLocalization';
 import { PlusIcon, EditIcon, TrashIcon, CheckIcon, XMarkIcon } from './icons';
 
+import type { Category } from '../services/categoryService.v2';
+
 interface CategoryManagerProps {
     isOpen: boolean;
     onClose: () => void;
-    categories: string[];
+    categories: Category[];
     onAdd: (newCategory: string) => void;
     onEdit: (oldName: string, newName: string) => void;
     onDelete: (category: string) => void;
@@ -30,7 +32,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClose, cate
         setEditingCategory(category);
         setEditingValue(category);
     };
-    
+
     const handleCancelEdit = () => {
         setEditingCategory(null);
         setEditingValue('');
@@ -45,20 +47,20 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClose, cate
 
 
     if (!isOpen) return null;
-    
+
     const uncategorizedLabel = t('grid.uncategorized');
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="category-manager-title">
             <div className="bg-slate-50 dark:bg-slate-850 rounded-xl shadow-2xl p-6 w-full max-w-md ring-1 ring-slate-200 dark:ring-slate-700/50" onClick={e => e.stopPropagation()}>
                 <h2 id="category-manager-title" className="text-xl font-bold mb-4 text-slate-900 dark:text-white">{t('category.managerTitle')}</h2>
-                
+
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-2 mb-4">
                     {categories.map(cat => (
-                        <div key={cat} className="flex items-center justify-between bg-slate-100 dark:bg-slate-700/50 p-2 rounded-md transition-colors hover:bg-slate-200 dark:hover:bg-slate-700">
-                            {editingCategory === cat ? (
+                        <div key={cat.id} className="flex items-center justify-between bg-slate-100 dark:bg-slate-700/50 p-2 rounded-md transition-colors hover:bg-slate-200 dark:hover:bg-slate-700">
+                            {editingCategory === cat.name ? (
                                 <>
-                                    <input 
+                                    <input
                                         type="text"
                                         value={editingValue}
                                         onChange={e => setEditingValue(e.target.value)}
@@ -76,11 +78,18 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClose, cate
                                 </>
                             ) : (
                                 <>
-                                    <span className="text-slate-800 dark:text-slate-200">{cat}</span>
+                                    <span className="text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                        {cat.name}
+                                        {cat.isBase && <span className="text-xs bg-sky-100 dark:bg-sky-900 text-sky-600 dark:text-sky-300 px-1 rounded">Global</span>}
+                                    </span>
                                     <div className="flex items-center">
-                                        <button onClick={() => handleStartEdit(cat)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400" aria-label={`${t('form.editTitle')} ${cat}`}><EditIcon className="w-4 h-4" /></button>
-                                        {cat !== uncategorizedLabel && (
-                                           <button onClick={() => onDelete(cat)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400" aria-label={`Delete ${cat}`}><TrashIcon className="w-4 h-4" /></button>
+                                        {!cat.isBase && (
+                                            <>
+                                                <button onClick={() => handleStartEdit(cat.name)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400" aria-label={`${t('form.editTitle')} ${cat.name}`}><EditIcon className="w-4 h-4" /></button>
+                                                {cat.name !== uncategorizedLabel && (
+                                                    <button onClick={() => onDelete(cat.name)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400" aria-label={`Delete ${cat.name}`}><TrashIcon className="w-4 h-4" /></button>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </>
@@ -110,7 +119,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({ isOpen, onClose, cate
                     </div>
                 </div>
 
-                 <div className="flex justify-end pt-6 mt-2">
+                <div className="flex justify-end pt-6 mt-2">
                     <button type="button" onClick={onClose} className="px-6 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors font-medium">{t('form.cancel')}</button>
                 </div>
             </div>

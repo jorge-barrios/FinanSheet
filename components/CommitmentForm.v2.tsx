@@ -14,12 +14,13 @@ import {
     FlowType,
     Frequency,
 } from '../types.v2';
+import { getPerPeriodAmount } from '../utils/financialUtils.v2';
 import type {
     CommitmentFormData,
     TermFormData,
-    Category,
     CommitmentWithTerm
 } from '../types.v2';
+import type { Category } from '../services/categoryService.v2';
 
 interface CommitmentFormV2Props {
     isOpen: boolean;
@@ -55,6 +56,16 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     // Linking
     const [linkedCommitmentId, setLinkedCommitmentId] = useState<string | null>(null);
     const [notes, setNotes] = useState('');
+
+    // Find if another commitment links TO this one (for bidirectional display)
+    const linkedFromCommitment = existingCommitments.find(
+        c => c.linked_commitment_id === commitmentToEdit?.id
+    );
+    // The effective linked commitment (either we link to them, or they link to us)
+    const effectiveLinkedId = linkedCommitmentId || linkedFromCommitment?.id || null;
+    const effectiveLinkedCommitment = effectiveLinkedId
+        ? existingCommitments.find(c => c.id === effectiveLinkedId)
+        : null;
 
     // Track which field was last manually edited to prevent auto-calc interference
     const [lastEditedField, setLastEditedField] = useState<'installments' | 'endDate' | null>(null);
@@ -170,11 +181,18 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                 setDueDay(term.due_day_of_month?.toString() || '1');
                 setStartDate(term.effective_from || today);
                 // Set duration type based on term data
-                if (!term.effective_until) {
-                    setDurationType('recurring');
-                } else if (term.installments_count && term.installments_count > 1) {
+                // Usar is_divided_amount para distinguir "En cuotas" vs "Definido"
+                if (term.is_divided_amount && term.installments_count && term.installments_count > 0) {
+                    // "En cuotas" - divide el monto total
                     setDurationType('installments');
+                } else if (term.installments_count && term.installments_count > 0) {
+                    // "Definido" - monto fijo por período con N ocurrencias
+                    setDurationType('endsOn');
+                } else if (!term.effective_until) {
+                    // "Indefinido" - sin fecha de término
+                    setDurationType('recurring');
                 } else {
+                    // Tiene effective_until pero sin installments_count - es "Definido" antiguo
                     setDurationType('endsOn');
                 }
                 setEndDate(term.effective_until || '');
@@ -384,14 +402,30 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
         setSaving(true);
 
         try {
+            // Determine the actual linked commitment ID
+            // '__UNLINK__' is a special value that means "remove existing link"
+            const actualLinkedId = linkedCommitmentId === '__UNLINK__' ? null : linkedCommitmentId;
+
+            // For bidirectional linking:
+            // - If we're setting a new link, both commitments get linked_commitment_id pointing to each other
+            // - If we're unlinking, both need to be cleared
+            // - link_role is no longer used (NET is calculated automatically based on amounts)
             const commitmentData: CommitmentFormData = {
                 name: name.trim(),
                 category_id: categoryId,
                 flow_type: flowType,
                 is_important: isImportant,
                 notes: notes.trim(),
-                linked_commitment_id: null,
-                link_role: null,
+                linked_commitment_id: actualLinkedId,
+                link_role: null, // No longer used - NET calculation is automatic
+            };
+
+            // Pass additional info for bidirectional update via a custom property
+            // The wrapper will handle updating the other commitment
+            (commitmentData as any).__linkingInfo = {
+                newLinkedId: actualLinkedId,
+                previousLinkedFromId: linkedFromCommitment?.id || null,
+                isUnlinking: linkedCommitmentId === '__UNLINK__',
             };
 
             // due_day_of_month from dueDay state
@@ -401,16 +435,19 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
 
             console.log('Saving term with startDate:', startDate, 'dueDay:', dueDay);
 
+            // Determinar si hay installments_count (para "Definido" y "En cuotas")
+            const hasInstallments = (durationType === 'installments' || durationType === 'endsOn') && installments;
+            const installmentsCount = hasInstallments ? parseInt(installments) : null;
+
             const termData: TermFormData = {
                 effective_from: startDate, // Use startDate directly - NO adjustment
-                // Use endDate if set (from "End Commitment" modal or duration picker)
-                effective_until: endDate || null,
+                // Si hay installments_count, el trigger de Supabase calcula effective_until
+                // Solo enviar effective_until para 'recurring' sin límite definido
+                effective_until: hasInstallments ? null : (endDate || null),
                 frequency,
-                // installments_count is ONLY set for 'installments' type (divides amount)
-                // For 'endsOn' (Defined) or ending via modal, only effective_until is set
-                installments_count: durationType === 'installments' && installments
-                    ? parseInt(installments)
-                    : null,
+                // installments_count se guarda para AMBOS: "En cuotas" y "Definido"
+                // Esto permite que el trigger calcule effective_until correctamente
+                installments_count: installmentsCount,
                 due_day_of_month: dueDayNum,
                 currency_original: currency,
                 amount_original: parseFloat(amount),
@@ -425,6 +462,9 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                     return fromUnit(1, currency as any);
                 })(),
                 estimation_mode: null,
+                // is_divided_amount: true SOLO para "En cuotas" (divide el monto total)
+                // false para "Definido" (monto fijo por período)
+                is_divided_amount: durationType === 'installments',
             };
 
             await onSave(commitmentData, termData);
@@ -559,7 +599,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                             >
                                 {categories.map((cat) => (
                                     <option key={cat.id} value={cat.id}>
-                                        {cat.name} {cat.is_global ? '🌍' : ''}
+                                        {cat.name}
                                     </option>
                                 ))}
                             </select>
@@ -637,8 +677,9 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                     const newDate = e.target.value;
                                     setStartDate(newDate);
                                     if (newDate) {
-                                        const day = new Date(newDate).getDate();
-                                        setDueDay(day.toString());
+                                        // Extract day directly from YYYY-MM-DD string to avoid timezone issues
+                                        const dayPart = parseInt(newDate.split('-')[2], 10);
+                                        setDueDay(dayPart.toString());
                                     }
                                 }}
                                 className={formInputClasses}
@@ -647,28 +688,73 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                         </div>
                     </div>
 
-                    {/* Link commitment (if applicable) */}
+                    {/* Link commitment (for offsetting income/expense pairs like rent vs mortgage) */}
                     {existingCommitments && existingCommitments.length > 0 && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-2">
                             <div>
                                 <label className={formLabelClasses}>
-                                    {t('form.linkCommitment', 'Vincular')} ({t('form.optional', 'opcional')})
+                                    {t('form.linkCommitment', 'Compensar con')} ({t('form.optional', 'opcional')})
                                 </label>
-                                <select
-                                    value={linkedCommitmentId || ''}
-                                    onChange={(e) => setLinkedCommitmentId(e.target.value || null)}
-                                    className={formSelectClasses}
-                                >
-                                    <option value="">{t('form.noLink', 'Sin vínculo')}</option>
-                                    {existingCommitments
-                                        .filter(c => c.id !== commitmentToEdit?.id)
-                                        .map(commitment => (
-                                            <option key={commitment.id} value={commitment.id}>
-                                                {commitment.name}
-                                            </option>
-                                        ))}
-                                </select>
+                                {/* If linked FROM another commitment, show read-only info */}
+                                {linkedFromCommitment && !linkedCommitmentId ? (
+                                    <div className="flex items-center gap-2 p-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg">
+                                        <span className="text-sky-700 dark:text-sky-300">
+                                            {linkedFromCommitment.flow_type === FlowType.INCOME ? '↑' : '↓'}
+                                        </span>
+                                        <span className="flex-1 text-sm text-sky-800 dark:text-sky-200">
+                                            {linkedFromCommitment.name}
+                                            {linkedFromCommitment.active_term && (
+                                                <span className="ml-1 text-sky-600 dark:text-sky-400">
+                                                    ({formatClp(getPerPeriodAmount(linkedFromCommitment.active_term, true))})
+                                                </span>
+                                            )}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                // To unlink, we need to set our linkedCommitmentId to null AND
+                                                // the wrapper will need to update the other commitment too
+                                                setLinkedCommitmentId('__UNLINK__');
+                                            }}
+                                            className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                                        >
+                                            Desvincular
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <select
+                                        value={linkedCommitmentId === '__UNLINK__' ? '' : (linkedCommitmentId || '')}
+                                        onChange={(e) => setLinkedCommitmentId(e.target.value || null)}
+                                        className={formSelectClasses}
+                                    >
+                                        <option value="">{t('form.noLink', 'Sin compensación')}</option>
+                                        {existingCommitments
+                                            .filter(c => c.id !== commitmentToEdit?.id)
+                                            // Only show opposite flow_type for linking (expense links to income, vice versa)
+                                            .filter(c => c.flow_type !== flowType)
+                                            // Don't show commitments that are already linked to something else
+                                            .filter(c => !c.linked_commitment_id || c.linked_commitment_id === commitmentToEdit?.id)
+                                            .map(commitment => {
+                                                const term = commitment.active_term;
+                                                // Use getPerPeriodAmount to show monthly cuota for "En cuotas" commitments
+                                                const perPeriodAmount = term ? getPerPeriodAmount(term, true) : 0;
+                                                const amount = term ? formatClp(perPeriodAmount) : '';
+                                                const typeIcon = commitment.flow_type === FlowType.INCOME ? '↑' : '↓';
+                                                return (
+                                                    <option key={commitment.id} value={commitment.id}>
+                                                        {typeIcon} {commitment.name} ({amount})
+                                                    </option>
+                                                );
+                                            })}
+                                    </select>
+                                )}
                             </div>
+                            {effectiveLinkedCommitment && (
+                                <p className="text-xs text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 px-2 py-1.5 rounded">
+                                    El Dashboard mostrará solo el neto entre este compromiso y "{effectiveLinkedCommitment.name}".
+                                    El monto mayor determina si aparece como gasto o ingreso.
+                                </p>
+                            )}
                         </div>
                     )}
 

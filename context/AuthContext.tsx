@@ -6,9 +6,14 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isPasswordRecovery: boolean;
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
+  resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
+  signInWithGoogle: () => Promise<{ error: AuthError | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: AuthError | null }>;
+  clearPasswordRecovery: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +34,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   useEffect(() => {
     // Check if supabase is configured
@@ -38,23 +44,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    console.log('[AuthContext] 🔄 Initializing auth listener...');
 
     // Listen for auth changes
+    // onAuthStateChange fires immediately with the current session (INITIAL_SESSION)
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log(`[AuthContext] 🔐 Auth event: ${event}`, {
+        hasSession: !!session,
+        userId: session?.user?.id
+      });
+
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log('[AuthContext] 🧹 Cleaning up auth listener');
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string) => {
@@ -92,13 +106,56 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return { error };
   };
 
+  const resetPassword = async (email: string) => {
+    if (!supabase) {
+      return { error: new Error('Supabase not configured') as AuthError };
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/reset-password',
+    });
+    return { error };
+  };
+
+  const signInWithGoogle = async () => {
+    if (!supabase) {
+      return { error: new Error('Supabase not configured') as AuthError };
+    }
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+    });
+    return { error };
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    if (!supabase) {
+      return { error: new Error('Supabase not configured') as AuthError };
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (!error) {
+      setIsPasswordRecovery(false);
+    }
+    return { error };
+  };
+
+  const clearPasswordRecovery = () => {
+    setIsPasswordRecovery(false);
+  };
+
   const value = {
     user,
     session,
     loading,
+    isPasswordRecovery,
     signUp,
     signIn,
     signOut,
+    resetPassword,
+    signInWithGoogle,
+    updatePassword,
+    clearPasswordRecovery,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
