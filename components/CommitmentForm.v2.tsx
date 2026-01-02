@@ -31,8 +31,8 @@ interface CommitmentFormV2Props {
     existingCommitments?: CommitmentWithTerm[]; // For linking
 }
 
-const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-md p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all [color-scheme:light] dark:[color-scheme:dark]";
-const formLabelClasses = "block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1.5";
+const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl p-3 sm:p-2.5 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all [color-scheme:light] dark:[color-scheme:dark]";
+const formLabelClasses = "block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 ml-1";
 const formSelectClasses = `${formInputClasses} appearance-none`;
 
 export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
@@ -503,72 +503,88 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                {/* Header with Title and Type Toggle */}
-                <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-3 z-10">
-                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 order-2 sm:order-1">
-                        <h2 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white">
-                            {commitmentToEdit ? t('form.editCommitment', 'Edit Commitment') : t('form.newCommitment', 'New Commitment')}
-                        </h2>
+        <div className="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-50 p-0 sm:p-4 animate-in fade-in duration-300">
+            <div className={`
+                bg-white dark:bg-slate-800 
+                w-full max-w-2xl 
+                flex flex-col
+                transition-all duration-300 ease-out
+                ${isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 sm:translate-y-0'}
+                sm:relative
+                sm:rounded-xl sm:max-h-[90vh] sm:shadow-2xl
+                fixed bottom-0 top-auto
+                rounded-t-[2rem] rounded-b-none
+                max-h-[92vh]
+            `}>
+                {/* Mobile Grab Handle */}
+                <div className="sm:hidden flex justify-center py-3 flex-shrink-0">
+                    <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full" />
+                </div>
+                <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-5 sm:px-6 py-4 flex items-center justify-between gap-3 z-10 flex-shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-1">
+                        <div className="flex items-center justify-between sm:justify-start gap-4">
+                            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-tight">
+                                {commitmentToEdit ? t('form.editCommitment', 'Edit Commitment') : t('form.newCommitment', 'New Commitment')}
+                            </h2>
 
-                        {/* Active/Paused Toggle - TEMPORARILY DISABLED
-                            Will implement proper pause/resume flow in a separate modal
-                        {commitmentToEdit && (
-                            <label className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer transition-all ${isActive
-                                ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700'
-                                : 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                            <button
+                                type="button"
+                                onClick={handleClose}
+                                className="sm:hidden -mr-1 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                            >
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            {/* Important Toggle - Always visible */}
+                            <label className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer transition-all ${isImportant
+                                ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700'
+                                : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 hover:bg-slate-100'
                                 }`}>
-                                ... checkbox implementation ...
+                                <input
+                                    type="checkbox"
+                                    checked={isImportant}
+                                    onChange={(e) => setIsImportant(e.target.checked)}
+                                    className="sr-only"
+                                />
+                                <StarIcon className={`w-4 h-4 transition-colors ${isImportant ? 'text-amber-500' : 'text-slate-400'}`} />
                             </label>
-                        )}
-                        */}
 
-                        {/* Important Toggle - Always visible */}
-                        <label className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer transition-all ${isImportant
-                            ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700'
-                            : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 hover:bg-slate-100'
-                            }`}>
-                            <input
-                                type="checkbox"
-                                checked={isImportant}
-                                onChange={(e) => setIsImportant(e.target.checked)}
-                                className="sr-only"
-                            />
-                            <StarIcon className={`w-4 h-4 transition-colors ${isImportant ? 'text-amber-500' : 'text-slate-400'}`} />
-                        </label>
-
-                        {/* Type Toggle */}
-                        <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden flex-shrink-0">
-                            <button
-                                type="button"
-                                onClick={() => setFlowType(FlowType.EXPENSE)}
-                                className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all flex items-center gap-1 sm:gap-1.5 ${flowType === FlowType.EXPENSE
-                                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/30'
-                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                    } border-r border-slate-300 dark:border-slate-700`}
-                            >
-                                <ArrowTrendingDownIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                {t('form.expense', 'Expense')}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setFlowType(FlowType.INCOME)}
-                                className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all flex items-center gap-1 sm:gap-1.5 ${flowType === FlowType.INCOME
-                                    ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                    }`}
-                            >
-                                <ArrowTrendingUpIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                {t('form.income', 'Income')}
-                            </button>
+                            {/* Type Toggle */}
+                            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden flex-shrink-0 bg-slate-50 dark:bg-slate-900">
+                                <button
+                                    type="button"
+                                    onClick={() => setFlowType(FlowType.EXPENSE)}
+                                    className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 ${flowType === FlowType.EXPENSE
+                                        ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                        } border-r border-slate-300 dark:border-slate-700`}
+                                >
+                                    <ArrowTrendingDownIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                    {t('form.expense', 'Gasto')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFlowType(FlowType.INCOME)}
+                                    className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 ${flowType === FlowType.INCOME
+                                        ? 'bg-green-500 text-white shadow-lg shadow-green-500/20'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                        }`}
+                                >
+                                    <ArrowTrendingUpIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                    {t('form.income', 'Ingreso')}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <button
                         type="button"
                         onClick={handleClose}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                        className="hidden sm:block text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                     >
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -576,356 +592,361 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-3">
-                    {/* Row 1: Nombre (2/3) + Categoría (1/3) */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                        <div className="md:col-span-8">
-                            <label className={formLabelClasses}>{t('form.name', 'Nombre')} *</label>
-                            <input
-                                type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                className={formInputClasses}
-                                placeholder={t('form.namePlaceholder', 'Ej: Arriendo, Sueldo, Netflix')}
-                                required
-                            />
-                        </div>
-                        <div className="md:col-span-4">
-                            <label className={formLabelClasses}>{t('form.category', 'Categoría')}</label>
-                            <select
-                                value={categoryId || ''}
-                                onChange={(e) => setCategoryId(e.target.value || null)}
-                                className={formSelectClasses}
-                            >
-                                {categories.map((cat) => (
-                                    <option key={cat.id} value={cat.id}>
-                                        {cat.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Row 2: [Moneda|Monto] + Frecuencia + Primer Vencimiento */}
-                    <div className="grid grid-cols-2 md:grid-cols-12 gap-3">
-                        {/* Monto con Moneda integrada */}
-                        <div className="col-span-2 md:col-span-5">
-                            <label className={formLabelClasses}>{t('form.amount', 'Monto')} *</label>
-                            <div className="flex">
-                                <select
-                                    value={currency}
-                                    onChange={(e) => handleCurrencyChange(e.target.value as 'CLP' | 'USD' | 'EUR' | 'UF' | 'UTM')}
-                                    className="px-2 py-2 text-sm bg-slate-100 dark:bg-slate-700 border border-r-0 border-slate-300 dark:border-slate-600 rounded-l-md text-slate-700 dark:text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500"
-                                >
-                                    <option value="CLP">CLP</option>
-                                    <option value="USD">USD</option>
-                                    <option value="EUR">EUR</option>
-                                    <option value="UF">UF</option>
-                                    <option value="UTM">UTM</option>
-                                </select>
+                <div className="flex-1 overflow-y-auto">
+                    <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 pb-24 sm:pb-6">
+                        {/* Row 1: Nombre (2/3) + Categoría (1/3) */}
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                            <div className="md:col-span-8">
+                                <label className={formLabelClasses}>{t('form.name', 'Nombre')} *</label>
                                 <input
                                     type="text"
-                                    inputMode="numeric"
-                                    value={displayAmount}
-                                    onChange={(e) => {
-                                        const rawValue = e.target.value;
-                                        if (currency === 'CLP') {
-                                            const cleaned = rawValue.replace(/\./g, '');
-                                            if (cleaned === '' || /^\d+$/.test(cleaned)) {
-                                                setAmount(cleaned);
-                                                setDisplayAmount(cleaned ? formatCLPInput(cleaned) : '');
-                                            }
-                                        } else {
-                                            if (rawValue === '' || /^\d*\.?\d*$/.test(rawValue)) {
-                                                setAmount(rawValue);
-                                                setDisplayAmount(rawValue);
-                                            }
-                                        }
-                                        if (baseCLP !== null) setBaseCLP(null);
-                                    }}
-                                    className="flex-1 px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-r-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 dark:text-white placeholder-slate-400"
-                                    placeholder="0"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    className={formInputClasses}
+                                    placeholder={t('form.namePlaceholder', 'Ej: Arriendo, Sueldo, Netflix')}
                                     required
                                 />
                             </div>
-                        </div>
-
-                        {/* Frecuencia */}
-                        <div className="col-span-1 md:col-span-3">
-                            <label className={formLabelClasses}>{t('form.frequency', 'Frecuencia')}</label>
-                            <select
-                                value={frequency}
-                                onChange={(e) => setFrequency(e.target.value as Frequency)}
-                                className={formSelectClasses}
-                            >
-                                <option value="ONCE">{t('frequency.once', 'Una vez')}</option>
-                                <option value="MONTHLY">{t('frequency.monthly', 'Mensual')}</option>
-                                <option value="BIMONTHLY">{t('frequency.bimonthly', 'Bimestral')}</option>
-                                <option value="QUARTERLY">{t('frequency.quarterly', 'Trimestral')}</option>
-                                <option value="SEMIANNUALLY">{t('frequency.semiannually', 'Semestral')}</option>
-                                <option value="ANNUALLY">{t('frequency.annually', 'Anual')}</option>
-                            </select>
-                        </div>
-
-                        {/* 1er Vencimiento */}
-                        <div className="col-span-1 md:col-span-4">
-                            <label className={formLabelClasses}>{t('form.firstDueDate', '1er Vencimiento')} *</label>
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => {
-                                    const newDate = e.target.value;
-                                    setStartDate(newDate);
-                                    if (newDate) {
-                                        // Extract day directly from YYYY-MM-DD string to avoid timezone issues
-                                        const dayPart = parseInt(newDate.split('-')[2], 10);
-                                        setDueDay(dayPart.toString());
-                                    }
-                                }}
-                                className={formInputClasses}
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    {/* Link commitment (for offsetting income/expense pairs like rent vs mortgage) */}
-                    {existingCommitments && existingCommitments.length > 0 && (
-                        <div className="space-y-2">
-                            <div>
-                                <label className={formLabelClasses}>
-                                    {t('form.linkCommitment', 'Compensar con')} ({t('form.optional', 'opcional')})
-                                </label>
-                                {/* If linked FROM another commitment, show read-only info */}
-                                {linkedFromCommitment && !linkedCommitmentId ? (
-                                    <div className="flex items-center gap-2 p-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg">
-                                        <span className="text-sky-700 dark:text-sky-300">
-                                            {linkedFromCommitment.flow_type === FlowType.INCOME ? '↑' : '↓'}
-                                        </span>
-                                        <span className="flex-1 text-sm text-sky-800 dark:text-sky-200">
-                                            {linkedFromCommitment.name}
-                                            {linkedFromCommitment.active_term && (
-                                                <span className="ml-1 text-sky-600 dark:text-sky-400">
-                                                    ({formatClp(getPerPeriodAmount(linkedFromCommitment.active_term, true))})
-                                                </span>
-                                            )}
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                // To unlink, we need to set our linkedCommitmentId to null AND
-                                                // the wrapper will need to update the other commitment too
-                                                setLinkedCommitmentId('__UNLINK__');
-                                            }}
-                                            className="text-xs text-red-600 dark:text-red-400 hover:underline"
-                                        >
-                                            Desvincular
-                                        </button>
-                                    </div>
-                                ) : (
+                            <div className="md:col-span-4">
+                                <label className={formLabelClasses}>{t('form.category', 'Categoría')}</label>
+                                <div className="relative">
                                     <select
-                                        value={linkedCommitmentId === '__UNLINK__' ? '' : (linkedCommitmentId || '')}
-                                        onChange={(e) => setLinkedCommitmentId(e.target.value || null)}
+                                        value={categoryId || ''}
+                                        onChange={(e) => setCategoryId(e.target.value || null)}
                                         className={formSelectClasses}
                                     >
-                                        <option value="">{t('form.noLink', 'Sin compensación')}</option>
-                                        {existingCommitments
-                                            .filter(c => c.id !== commitmentToEdit?.id)
-                                            // Only show opposite flow_type for linking (expense links to income, vice versa)
-                                            .filter(c => c.flow_type !== flowType)
-                                            // Don't show commitments that are already linked to something else
-                                            .filter(c => !c.linked_commitment_id || c.linked_commitment_id === commitmentToEdit?.id)
-                                            .map(commitment => {
-                                                const term = commitment.active_term;
-                                                // Use getPerPeriodAmount to show monthly cuota for "En cuotas" commitments
-                                                const perPeriodAmount = term ? getPerPeriodAmount(term, true) : 0;
-                                                const amount = term ? formatClp(perPeriodAmount) : '';
-                                                const typeIcon = commitment.flow_type === FlowType.INCOME ? '↑' : '↓';
-                                                return (
-                                                    <option key={commitment.id} value={commitment.id}>
-                                                        {typeIcon} {commitment.name} ({amount})
-                                                    </option>
-                                                );
-                                            })}
+                                        {categories.map((cat) => (
+                                            <option key={cat.id} value={cat.id}>
+                                                {cat.name}
+                                            </option>
+                                        ))}
                                     </select>
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Row 2: [Moneda|Monto] + Frecuencia + Primer Vencimiento */}
+                        <div className="grid grid-cols-2 md:grid-cols-12 gap-3">
+                            {/* Monto con Moneda integrada */}
+                            <div className="col-span-2 md:col-span-5">
+                                <label className={formLabelClasses}>{t('form.amount', 'Monto')} *</label>
+                                <div className="flex">
+                                    <select
+                                        value={currency}
+                                        onChange={(e) => handleCurrencyChange(e.target.value as 'CLP' | 'USD' | 'EUR' | 'UF' | 'UTM')}
+                                        className="px-2 py-2 text-sm bg-slate-100 dark:bg-slate-700 border border-r-0 border-slate-300 dark:border-slate-600 rounded-l-md text-slate-700 dark:text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                    >
+                                        <option value="CLP">CLP</option>
+                                        <option value="USD">USD</option>
+                                        <option value="EUR">EUR</option>
+                                        <option value="UF">UF</option>
+                                        <option value="UTM">UTM</option>
+                                    </select>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={displayAmount}
+                                        onChange={(e) => {
+                                            const rawValue = e.target.value;
+                                            if (currency === 'CLP') {
+                                                const cleaned = rawValue.replace(/\./g, '');
+                                                if (cleaned === '' || /^\d+$/.test(cleaned)) {
+                                                    setAmount(cleaned);
+                                                    setDisplayAmount(cleaned ? formatCLPInput(cleaned) : '');
+                                                }
+                                            } else {
+                                                if (rawValue === '' || /^\d*\.?\d*$/.test(rawValue)) {
+                                                    setAmount(rawValue);
+                                                    setDisplayAmount(rawValue);
+                                                }
+                                            }
+                                            if (baseCLP !== null) setBaseCLP(null);
+                                        }}
+                                        className="flex-1 px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-r-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 dark:text-white placeholder-slate-400"
+                                        placeholder="0"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Frecuencia */}
+                            <div className="col-span-1 md:col-span-3">
+                                <label className={formLabelClasses}>{t('form.frequency', 'Frecuencia')}</label>
+                                <select
+                                    value={frequency}
+                                    onChange={(e) => setFrequency(e.target.value as Frequency)}
+                                    className={formSelectClasses}
+                                >
+                                    <option value="ONCE">{t('frequency.once', 'Una vez')}</option>
+                                    <option value="MONTHLY">{t('frequency.monthly', 'Mensual')}</option>
+                                    <option value="BIMONTHLY">{t('frequency.bimonthly', 'Bimestral')}</option>
+                                    <option value="QUARTERLY">{t('frequency.quarterly', 'Trimestral')}</option>
+                                    <option value="SEMIANNUALLY">{t('frequency.semiannually', 'Semestral')}</option>
+                                    <option value="ANNUALLY">{t('frequency.annually', 'Anual')}</option>
+                                </select>
+                            </div>
+
+                            {/* 1er Vencimiento */}
+                            <div className="col-span-1 md:col-span-4">
+                                <label className={formLabelClasses}>{t('form.firstDueDate', '1er Vencimiento')} *</label>
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => {
+                                        const newDate = e.target.value;
+                                        setStartDate(newDate);
+                                        if (newDate) {
+                                            // Extract day directly from YYYY-MM-DD string to avoid timezone issues
+                                            const dayPart = parseInt(newDate.split('-')[2], 10);
+                                            setDueDay(dayPart.toString());
+                                        }
+                                    }}
+                                    className={formInputClasses}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        {/* Link commitment (for offsetting income/expense pairs like rent vs mortgage) */}
+                        {existingCommitments && existingCommitments.length > 0 && (
+                            <div className="space-y-2">
+                                <div>
+                                    <label className={formLabelClasses}>
+                                        {t('form.linkCommitment', 'Compensar con')} ({t('form.optional', 'opcional')})
+                                    </label>
+                                    {/* If linked FROM another commitment, show read-only info */}
+                                    {linkedFromCommitment && !linkedCommitmentId ? (
+                                        <div className="flex items-center gap-2 p-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg">
+                                            <span className="text-sky-700 dark:text-sky-300">
+                                                {linkedFromCommitment.flow_type === FlowType.INCOME ? '↑' : '↓'}
+                                            </span>
+                                            <span className="flex-1 text-sm text-sky-800 dark:text-sky-200">
+                                                {linkedFromCommitment.name}
+                                                {linkedFromCommitment.active_term && (
+                                                    <span className="ml-1 text-sky-600 dark:text-sky-400">
+                                                        ({formatClp(getPerPeriodAmount(linkedFromCommitment.active_term, true))})
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    // To unlink, we need to set our linkedCommitmentId to null AND
+                                                    // the wrapper will need to update the other commitment too
+                                                    setLinkedCommitmentId('__UNLINK__');
+                                                }}
+                                                className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                                            >
+                                                Desvincular
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <select
+                                            value={linkedCommitmentId === '__UNLINK__' ? '' : (linkedCommitmentId || '')}
+                                            onChange={(e) => setLinkedCommitmentId(e.target.value || null)}
+                                            className={formSelectClasses}
+                                        >
+                                            <option value="">{t('form.noLink', 'Sin compensación')}</option>
+                                            {existingCommitments
+                                                .filter(c => c.id !== commitmentToEdit?.id)
+                                                // Only show opposite flow_type for linking (expense links to income, vice versa)
+                                                .filter(c => c.flow_type !== flowType)
+                                                // Don't show commitments that are already linked to something else
+                                                .filter(c => !c.linked_commitment_id || c.linked_commitment_id === commitmentToEdit?.id)
+                                                .map(commitment => {
+                                                    const term = commitment.active_term;
+                                                    // Use getPerPeriodAmount to show monthly cuota for "En cuotas" commitments
+                                                    const perPeriodAmount = term ? getPerPeriodAmount(term, true) : 0;
+                                                    const amount = term ? formatClp(perPeriodAmount) : '';
+                                                    const typeIcon = commitment.flow_type === FlowType.INCOME ? '↑' : '↓';
+                                                    return (
+                                                        <option key={commitment.id} value={commitment.id}>
+                                                            {typeIcon} {commitment.name} ({amount})
+                                                        </option>
+                                                    );
+                                                })}
+                                        </select>
+                                    )}
+                                </div>
+                                {effectiveLinkedCommitment && (
+                                    <p className="text-xs text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 px-2 py-1.5 rounded">
+                                        El Dashboard mostrará solo el neto entre este compromiso y "{effectiveLinkedCommitment.name}".
+                                        El monto mayor determina si aparece como gasto o ingreso.
+                                    </p>
                                 )}
                             </div>
-                            {effectiveLinkedCommitment && (
-                                <p className="text-xs text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 px-2 py-1.5 rounded">
-                                    El Dashboard mostrará solo el neto entre este compromiso y "{effectiveLinkedCommitment.name}".
-                                    El monto mayor determina si aparece como gasto o ingreso.
-                                </p>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Duration Type Selector - Hidden when terminated or frequency is ONCE */}
-                    {!isTerminated && frequency !== 'ONCE' && (
-                        <div className="space-y-3">
-                            <label className={formLabelClasses}>{t('form.durationType', 'Duration')}</label>
-                            <div className="flex gap-2">
-                                {/* Indefinido option */}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setDurationType('recurring');
-                                        setEndDate('');
-                                        setInstallments('');
-                                    }}
-                                    className={`flex-1 px-3 py-2.5 text-sm rounded-lg border transition-all ${durationType === 'recurring'
-                                        ? 'bg-sky-100 dark:bg-sky-900/30 border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 font-medium'
-                                        : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-center gap-1.5">
-                                        <Infinity className="w-4 h-4" />
-                                        <span>{t('form.durationType.indefinite', 'Indefinido')}</span>
-                                    </div>
-                                </button>
-
-                                {/* Definido option */}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setDurationType('endsOn');
-                                        setInstallments('');
-                                    }}
-                                    className={`flex-1 px-3 py-2.5 text-sm rounded-lg border transition-all ${durationType === 'endsOn'
-                                        ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-medium'
-                                        : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-center gap-1.5">
-                                        <CalendarCheck className="w-4 h-4" />
-                                        <span>{t('form.durationType.defined', 'Definido')}</span>
-                                    </div>
-                                </button>
-
-                                {/* En cuotas option */}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setDurationType('installments');
-                                    }}
-                                    className={`flex-1 px-3 py-2.5 text-sm rounded-lg border transition-all ${durationType === 'installments'
-                                        ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 font-medium'
-                                        : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-center gap-1.5">
-                                        <Hash className="w-4 h-4" />
-                                        <span>{t('form.durationType.installments', 'En cuotas')}</span>
-                                    </div>
-                                </button>
-                            </div>
-
-                            {/* Description text */}
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                {durationType === 'recurring' && t('form.durationType.indefiniteDesc', 'Se repite sin fecha de término')}
-                                {durationType === 'endsOn' && t('form.durationType.definedDesc', 'Termina en fecha específica')}
-                                {durationType === 'installments' && t('form.durationType.installmentsDesc', 'Monto total dividido en cuotas')}
-                            </p>
-
-                        </div>
-                    )}
-
-                    {/* Nº Cuotas/Ocurrencias + Notas (en una fila) */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                        {/* Occurrences field - for 'endsOn' type (Defined - NOT divided) */}
-                        {!isTerminated && durationType === 'endsOn' && (
-                            <div className="md:col-span-3">
-                                <label className={formLabelClasses}>N° de ocurrencias *</label>
-                                <input
-                                    type="number"
-                                    value={installments}
-                                    placeholder="12"
-                                    onChange={(e) => {
-                                        setInstallments(e.target.value);
-                                        setLastEditedField('installments');
-                                    }}
-                                    className={formInputClasses}
-                                    min="1"
-                                    required
-                                />
-
-                            </div>
                         )}
 
-                        {/* Installments field - for 'installments' type (divides amount) */}
-                        {!isTerminated && durationType === 'installments' && (
-                            <div className="md:col-span-3">
-                                <label className={formLabelClasses}>{t('form.numberOfInstallments', 'Nº Cuotas')} *</label>
-                                <input
-                                    type="number"
-                                    value={installments}
-                                    placeholder="12"
-                                    onChange={(e) => {
-                                        setInstallments(e.target.value);
-                                        setLastEditedField('installments');
-                                    }}
-                                    className={formInputClasses}
-                                    min="1"
-                                    required
-                                />
+                        {/* Duration Type Selector - Hidden when terminated or frequency is ONCE */}
+                        {!isTerminated && frequency !== 'ONCE' && (
+                            <div className="space-y-3">
+                                <label className={formLabelClasses}>{t('form.durationType', 'Duration')}</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {/* Indefinido option */}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setDurationType('recurring');
+                                            setEndDate('');
+                                            setInstallments('');
+                                        }}
+                                        className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${durationType === 'recurring'
+                                            ? 'bg-sky-50 dark:bg-sky-900/30 border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 ring-2 ring-sky-500/20'
+                                            : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                            }`}
+                                    >
+                                        <Infinity className="w-5 h-5" />
+                                        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-tight">{t('form.durationType.indefinite', 'Indefinido')}</span>
+                                    </button>
 
-                            </div>
-                        )}
+                                    {/* Definido option */}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setDurationType('endsOn');
+                                            setInstallments('');
+                                        }}
+                                        className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${durationType === 'endsOn'
+                                            ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 ring-2 ring-amber-500/20'
+                                            : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                            }`}
+                                    >
+                                        <CalendarCheck className="w-5 h-5" />
+                                        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-tight">{t('form.durationType.defined', 'Vencimiento')}</span>
+                                    </button>
 
-                        {/* Notas - se adapta al espacio disponible */}
-                        <div className={`${(durationType === 'endsOn' || durationType === 'installments') && !isTerminated ? 'md:col-span-9' : 'md:col-span-12'}`}>
-                            <label className={formLabelClasses}>{t('form.notes', 'Notas')}</label>
-                            <input
-                                type="text"
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                className={formInputClasses}
-                                placeholder={t('form.addNotes', 'Agregar notas...')}
-                            />
-                        </div>
-                    </div>
-
-
-
-                    {/* Actions */}
-                    <div className="flex flex-col gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
-                        {/* Terminated Commitment Banner - No reactivation, just info */}
-                        {isTerminated && (
-                            <div className="p-3 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <span className="text-lg">⏹️</span>
-                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                        {t('form.commitmentEnded', 'This commitment has ended')}
-                                    </span>
+                                    {/* En cuotas option */}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setDurationType('installments');
+                                        }}
+                                        className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${durationType === 'installments'
+                                            ? 'bg-purple-50 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/20'
+                                            : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                            }`}
+                                    >
+                                        <Hash className="w-5 h-5" />
+                                        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-tight">{t('form.durationType.installments', 'Cuotas')}</span>
+                                    </button>
                                 </div>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    {t('form.commitmentEndedDesc', 'Ended on')} {commitmentToEdit?.active_term?.effective_until}.
-                                    {' '}{t('form.commitmentEndedInfo', 'If you need this commitment again, please create a new one.')}
+
+                                {/* Description text */}
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    {durationType === 'recurring' && t('form.durationType.indefiniteDesc', 'Se repite sin fecha de término')}
+                                    {durationType === 'endsOn' && t('form.durationType.definedDesc', 'Termina en fecha específica')}
+                                    {durationType === 'installments' && t('form.durationType.installmentsDesc', 'Monto total dividido en cuotas')}
                                 </p>
+
                             </div>
                         )}
 
-                        <div className="flex gap-3">
-                            <button
-                                type="button"
-                                onClick={handleClose}
-                                className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors font-medium"
-                                disabled={saving}
-                            >
-                                {t('form.cancel', 'Cancel')}
-                            </button>
-                            <button
-                                type="submit"
-                                className={`flex-1 px-4 py-2 text-white rounded-md transition-all disabled:opacity-50 font-medium shadow-lg ${flowType === 'EXPENSE'
-                                    ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
-                                    : 'bg-green-500 hover:bg-green-600 shadow-green-500/20'}`}
-                                disabled={saving || (isTerminated && !isActive)}
-                            >
-                                {saving ? t('form.saving', 'Saving...') :
-                                    (isTerminated && !isActive) ? t('form.closed', 'Closed') :
-                                        (commitmentToEdit ? t('form.saveButton', 'Save') : t('form.create', 'Create'))}
-                            </button>
+                        {/* Nº Cuotas/Ocurrencias + Notas (en una fila) */}
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                            {/* Occurrences field - for 'endsOn' type (Defined - NOT divided) */}
+                            {!isTerminated && durationType === 'endsOn' && (
+                                <div className="md:col-span-3">
+                                    <label className={formLabelClasses}>N° de ocurrencias *</label>
+                                    <input
+                                        type="number"
+                                        value={installments}
+                                        placeholder="12"
+                                        onChange={(e) => {
+                                            setInstallments(e.target.value);
+                                            setLastEditedField('installments');
+                                        }}
+                                        className={formInputClasses}
+                                        min="1"
+                                        required
+                                    />
+
+                                </div>
+                            )}
+
+                            {/* Installments field - for 'installments' type (divides amount) */}
+                            {!isTerminated && durationType === 'installments' && (
+                                <div className="md:col-span-3">
+                                    <label className={formLabelClasses}>{t('form.numberOfInstallments', 'Nº Cuotas')} *</label>
+                                    <input
+                                        type="number"
+                                        value={installments}
+                                        placeholder="12"
+                                        onChange={(e) => {
+                                            setInstallments(e.target.value);
+                                            setLastEditedField('installments');
+                                        }}
+                                        className={formInputClasses}
+                                        min="1"
+                                        required
+                                    />
+
+                                </div>
+                            )}
+
+                            {/* Notas - se adapta al espacio disponible */}
+                            <div className={`${(durationType === 'endsOn' || durationType === 'installments') && !isTerminated ? 'md:col-span-9' : 'md:col-span-12'}`}>
+                                <label className={formLabelClasses}>{t('form.notes', 'Notas')}</label>
+                                <input
+                                    type="text"
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    className={formInputClasses}
+                                    placeholder={t('form.addNotes', 'Agregar notas...')}
+                                />
+                            </div>
                         </div>
-                    </div>
-                </form>
+
+
+
+                        {/* Actions */}
+                        <div className="fixed sm:static bottom-0 left-0 right-0 p-5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 z-20 sm:p-0 sm:border-t-0 sm:bg-transparent">
+                            <div className="flex flex-col gap-3">
+                                {/* Terminated Commitment Banner - No reactivation, just info */}
+                                {isTerminated && (
+                                    <div className="p-3 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-lg">⏹️</span>
+                                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                                {t('form.commitmentEnded', 'Este compromiso ha terminado')}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            {t('form.commitmentEndedDesc', 'Terminó el')} {commitmentToEdit?.active_term?.effective_until}.
+                                            {' '}{t('form.commitmentEndedInfo', 'Para reactivarlo, crea uno nuevo.')}
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={handleClose}
+                                        className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all font-bold active:scale-95"
+                                        disabled={saving}
+                                    >
+                                        {t('form.cancel', 'Cancelar')}
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className={`flex-[1.5] px-4 py-3 text-white rounded-xl transition-all disabled:opacity-50 font-bold shadow-xl active:scale-95 ${flowType === 'EXPENSE'
+                                            ? 'bg-red-500 hover:bg-red-600 shadow-red-500/25'
+                                            : 'bg-green-600 hover:bg-green-700 shadow-green-600/25'}`}
+                                        disabled={saving || (isTerminated && !isActive)}
+                                    >
+                                        {saving ? t('form.saving', 'Guardando...') :
+                                            (isTerminated && !isActive) ? t('form.closed', 'Cerrado') :
+                                                (commitmentToEdit ? t('form.saveButton', 'Guardar') : t('form.create', 'Crear compromiso'))}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     );

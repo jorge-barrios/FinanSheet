@@ -750,9 +750,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             key={c.id}
                             onClick={() => !isPaid && onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth())}
                             className={`bg-white dark:bg-slate-800 rounded-xl p-4 border transition-all active:scale-[1.01] ${isPaid ? 'border-emerald-500/20 bg-emerald-500/5' :
-                                    isOverdue ? 'border-red-500/20 bg-red-500/5' :
-                                        isPending ? 'border-amber-500/20 bg-amber-500/5' :
-                                            'border-slate-200 dark:border-slate-700'
+                                isOverdue ? 'border-red-500/20 bg-red-500/5' :
+                                    isPending ? 'border-amber-500/20 bg-amber-500/5' :
+                                        'border-slate-200 dark:border-slate-700'
                                 } shadow-sm`}
                         >
                             <div className="flex items-start justify-between">
@@ -785,14 +785,68 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                 </div>
                                 <div className="text-right ml-4">
                                     <p className={`text-lg font-bold font-mono tabular-nums ${isPaid ? 'text-emerald-600' :
-                                            isOverdue ? 'text-red-500' :
-                                                'text-slate-900 dark:text-white'
+                                        isOverdue ? 'text-red-500' :
+                                            'text-slate-900 dark:text-white'
                                         }`}>
                                         {formatClp(amount ?? 0)}
                                     </p>
                                     <p className="text-[10px] text-slate-500 dark:text-slate-500 font-medium">
                                         {isPaid ? 'Monto pagado' : `Vence el ${dueDay}`}
                                     </p>
+                                </div>
+
+                                {/* Mobile Actions Menu */}
+                                <div className="ml-2">
+                                    <DropdownMenu.Root>
+                                        <DropdownMenu.Trigger asChild>
+                                            <button className="p-2 -mr-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                                                <MoreVertical className="w-5 h-5" />
+                                            </button>
+                                        </DropdownMenu.Trigger>
+                                        <DropdownMenu.Portal>
+                                            <DropdownMenu.Content
+                                                className="z-[100] min-w-[160px] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-1.5 animate-in fade-in zoom-in duration-200"
+                                                align="end"
+                                                sideOffset={5}
+                                            >
+                                                <DropdownMenu.Item
+                                                    className="group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onEditCommitment(c);
+                                                    }}
+                                                >
+                                                    <EditIcon className="w-4 h-4 text-slate-400 group-hover:text-sky-500" />
+                                                    Editar compromiso
+                                                </DropdownMenu.Item>
+
+                                                <DropdownMenu.Item
+                                                    className="group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        // Placeholder logic same as desktop
+                                                        alert('Pausar: Próximamente');
+                                                    }}
+                                                >
+                                                    <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
+                                                    Pausar / Terminar
+                                                </DropdownMenu.Item>
+
+                                                <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1.5" />
+
+                                                <DropdownMenu.Item
+                                                    className="group flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer outline-none transition-colors"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onDeleteCommitment(c.id);
+                                                    }}
+                                                >
+                                                    <TrashIcon className="w-4 h-4 text-red-400 group-hover:text-red-600" />
+                                                    Eliminar
+                                                </DropdownMenu.Item>
+                                            </DropdownMenu.Content>
+                                        </DropdownMenu.Portal>
+                                    </DropdownMenu.Root>
                                 </div>
                             </div>
 
@@ -804,10 +858,10 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                             onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth());
                                         }}
                                         className={`flex-1 text-xs font-bold py-2 px-4 rounded-lg transition-all active:scale-95 border-2 ${isOverdue
-                                                ? 'border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20'
-                                                : isPending
-                                                    ? 'border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20'
-                                                    : 'border-sky-500/30 text-sky-600 dark:text-sky-400 hover:bg-sky-50'
+                                            ? 'border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20'
+                                            : isPending
+                                                ? 'border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20'
+                                                : 'border-sky-500/30 text-sky-600 dark:text-sky-400 hover:bg-sky-50'
                                             }`}
                                     >
                                         Registrar pago
