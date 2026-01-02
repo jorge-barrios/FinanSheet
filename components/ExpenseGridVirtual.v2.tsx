@@ -601,195 +601,208 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     }
 
     return (
-        <div className="px-4 pb-6 lg:pb-0 lg:overflow-hidden">
-            {/* Mobile View */}
-            <div className="lg:hidden space-y-4">
-                {commitments.length > 0 ? commitments.map(c => (
-                    <div key={c.id} className={`bg-white dark:bg-slate-800 rounded-xl ${pad} border border-slate-200 dark:border-slate-700 shadow-sm`}>
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    {c.flow_type === 'INCOME' ? (
-                                        <ArrowTrendingUpIcon className="w-4 h-4 text-green-600" />
-                                    ) : (
-                                        <ArrowTrendingDownIcon className="w-4 h-4 text-red-600" />
-                                    )}
-                                    <span className="font-medium text-slate-900 dark:text-white">{c.name}</span>
-                                    {c.is_important && <StarIcon className="w-4 h-4 text-amber-500" />}
+        <div className="pb-6 lg:pb-0 lg:overflow-hidden">
+            {/* Header Toolbar - Unified for Mobile + Desktop */}
+            <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm px-4 py-4 border-b border-slate-200 dark:border-slate-700/50 shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    {/* Left: Navigation */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Today button */}
+                        <button
+                            onClick={() => onFocusedDateChange && onFocusedDateChange(new Date())}
+                            disabled={isCurrentMonth(focusedDate)}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${isCurrentMonth(focusedDate)
+                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50'
+                                : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 ring-1 ring-slate-200 dark:ring-slate-600 shadow-sm active:scale-95'
+                                }`}
+                        >
+                            🏠 Hoy
+                        </button>
+
+                        {/* Unified Month + Year Navigator */}
+                        <div className="flex items-center bg-white dark:bg-slate-700 rounded-lg ring-1 ring-slate-200 dark:ring-slate-600 shadow-sm">
+                            <button
+                                onClick={() => {
+                                    const newDate = new Date(focusedDate);
+                                    newDate.setMonth(newDate.getMonth() - 1);
+                                    onFocusedDateChange && onFocusedDateChange(newDate);
+                                }}
+                                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-l-lg transition-colors"
+                            >
+                                <ChevronLeftIcon className="w-5 h-5" />
+                            </button>
+                            <div className="px-4 py-2 text-center min-w-[140px] border-x border-slate-200 dark:border-slate-600">
+                                <div className="text-sm font-bold text-slate-900 dark:text-white capitalize">
+                                    {focusedDate.toLocaleDateString('es-ES', { month: 'short' })} {focusedDate.getFullYear()}
                                 </div>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    {getTranslatedCategoryName(c)}
-                                </p>
                             </div>
-                            <div className="text-right">
-                                <p className={`font-bold font-mono tabular-nums ${c.flow_type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
-                                    {c.active_term ? formatClp(c.active_term.amount_in_base ?? c.active_term.amount_original) : '-'}
-                                </p>
-                            </div>
+                            <button
+                                onClick={() => {
+                                    const newDate = new Date(focusedDate);
+                                    newDate.setMonth(newDate.getMonth() + 1);
+                                    onFocusedDateChange && onFocusedDateChange(newDate);
+                                }}
+                                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-r-lg transition-colors"
+                            >
+                                <ChevronRightIcon className="w-5 h-5" />
+                            </button>
                         </div>
-                        <div className="mt-3 flex gap-2">
-                            <button
-                                onClick={() => onEditCommitment(c)}
-                                className="flex-1 text-sm py-1.5 px-3 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600"
-                            >
-                                Editar
-                            </button>
-                            <button
-                                onClick={() => onDeleteCommitment(c.id)}
-                                className="text-sm py-1.5 px-3 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40"
-                            >
-                                <TrashIcon className="w-4 h-4" />
-                            </button>
+
+                        {/* Totals - Hidden on very small screens, visible on mobile medium+ */}
+                        <div className="flex items-center gap-1.5 ml-auto md:ml-0">
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200/50 dark:border-red-800/30">
+                                <span className="text-xs font-bold font-mono tabular-nums text-red-600 dark:text-red-400">
+                                    {formatClp((propTotals || monthlyTotals).expenses)}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/30">
+                                <span className="text-xs font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                                    {formatClp((propTotals || monthlyTotals).income)}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                )) : (
-                    <div className="text-center py-16 text-slate-500">
-                        <p className="text-lg">No hay commitments</p>
+
+                    {/* Right: Display Options (Desktop Only) */}
+                    <div className="flex items-center gap-2">
+                        {/* Show Terminated Toggle (Mobile + Desktop) */}
+                        {terminatedCount > 0 && (
+                            <div className="flex items-center gap-2 pr-2 border-r border-slate-200 dark:border-slate-700 mr-1">
+                                <button
+                                    onClick={() => setShowTerminated(!showTerminated)}
+                                    className="flex items-center gap-2 group cursor-pointer focus:outline-none"
+                                    title={showTerminated ? 'Ocultar compromisos terminados' : 'Mostrar compromisos terminados'}
+                                >
+                                    <div className={`
+                                        relative inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none 
+                                        ${showTerminated ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-700'}
+                                    `}>
+                                        <span
+                                            aria-hidden="true"
+                                            className={`
+                                                pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out
+                                                ${showTerminated ? 'translate-x-3' : 'translate-x-0'}
+                                            `}
+                                        />
+                                    </div>
+                                    <span className="hidden sm:inline text-xs font-medium text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
+                                        Terminados ({terminatedCount})
+                                    </span>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Density Selector (Desktop Only) */}
+                        <div className="hidden lg:flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg ring-1 ring-slate-200 dark:ring-slate-700 shadow-inner">
+                            {(['compact', 'medium'] as const).map((d) => (
+                                <button
+                                    key={d}
+                                    onClick={() => setDensity(d)}
+                                    className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${density === d
+                                        ? 'bg-sky-500 text-white shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                        }`}
+                                >
+                                    {d === 'compact' ? 'Compacta' : 'Detallada'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Mobile View */}
+            <div className="lg:hidden p-4 space-y-4">
+                {commitments.length > 0 ? commitments.map(c => {
+                    const term = c.active_term;
+                    const dueDay = term?.due_day_of_month ?? 1;
+                    const { isPaid, amount: paidAmount } = getPaymentStatus(c.id, focusedDate, dueDay);
+
+                    const today = new Date();
+                    const dueDate = new Date(focusedDate.getFullYear(), focusedDate.getMonth(), dueDay);
+                    const isOverdue = !isPaid && dueDate < today && focusedDate <= today;
+                    const isPending = !isPaid && !isOverdue;
+                    const amount = isPaid ? paidAmount : (term?.amount_in_base ?? term?.amount_original ?? 0);
+
+                    return (
+                        <div
+                            key={c.id}
+                            onClick={() => !isPaid && onRecordPayment(c.id, focusedDate.getFullYear(), focusedDate.getMonth())}
+                            className={`bg-white dark:bg-slate-800 rounded-xl p-4 border transition-all active:scale-[0.98] ${isPaid ? 'border-emerald-200 dark:border-emerald-800/30' :
+                                isOverdue ? 'border-red-200 dark:border-red-800/30 bg-red-50/10' :
+                                    'border-slate-200 dark:border-slate-700'
+                                } shadow-sm`}
+                        >
+                            <div className="flex items-start justify-between">
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className={`w-2 h-2 rounded-full ${c.flow_type === 'INCOME' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                        <span className="font-bold text-slate-900 dark:text-white truncate">{c.name}</span>
+                                        {c.is_important && <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded">
+                                            {getTranslatedCategoryName(c)}
+                                        </span>
+                                        {isPaid && (
+                                            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">
+                                                <CheckCircleIcon className="w-3 h-3" /> Pagado
+                                            </span>
+                                        )}
+                                        {isOverdue && (
+                                            <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 uppercase">
+                                                <ExclamationTriangleIcon className="w-3 h-3" /> Vencido
+                                            </span>
+                                        )}
+                                        {isPending && !isPaid && (
+                                            <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
+                                                <ClockIcon className="w-3 h-3" /> Pendiente
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="text-right ml-4">
+                                    <p className={`text-lg font-bold font-mono tabular-nums ${isPaid ? 'text-emerald-600' :
+                                        isOverdue ? 'text-red-600' :
+                                            'text-slate-900 dark:text-white'
+                                        }`}>
+                                        {formatClp(amount ?? 0)}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-500 font-medium">
+                                        {isPaid ? 'Monto pagado' : `Vence el ${dueDay}`}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {!isPaid && (
+                                <div className="mt-4 flex gap-2">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onRecordPayment(c.id, focusedDate.getFullYear(), focusedDate.getMonth());
+                                        }}
+                                        className={`flex-1 text-sm font-bold py-2.5 px-4 rounded-lg shadow-sm transition-all active:scale-95 ${isOverdue
+                                            ? 'bg-red-500 text-white hover:bg-red-400 shadow-red-200'
+                                            : 'bg-sky-500 text-white hover:bg-sky-400 shadow-sky-200'
+                                            }`}
+                                    >
+                                        Pagar este mes
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    );
+                }) : (
+                    <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                        <p className="text-slate-500">No hay compromisos en esta categoría</p>
                     </div>
                 )}
             </div>
 
-            {/* Desktop View */}
-            <div className="hidden lg:block">
+            {/* Desktop View Content */}
+            <div className="hidden lg:block px-4 pt-2">
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-xl shadow-slate-200/50 dark:shadow-black/30 overflow-hidden">
-                    {/* Header - Finance Noir Style with Gradient Accent */}
-                    <div className="relative p-4 border-b border-slate-200 dark:border-slate-700/50 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-slate-800 dark:via-slate-850 dark:to-slate-800">
-                        {/* Top gradient bar accent */}
-                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-500 via-cyan-500 to-teal-500" />
-                        <div className="flex items-center justify-between">
-                            {/* Left: Navigation */}
-                            <div className="flex items-center gap-3">
-                                {/* Today button */}
-                                <button
-                                    onClick={() => onFocusedDateChange && onFocusedDateChange(new Date())}
-                                    disabled={isCurrentMonth(focusedDate)}
-                                    aria-label="Ir al mes actual"
-                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isCurrentMonth(focusedDate)
-                                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
-                                        : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 ring-1 ring-slate-200 dark:ring-slate-600'
-                                        }`}
-                                >
-                                    🏠 Hoy
-                                </button>
-
-                                {/* Unified Month + Year Navigator */}
-                                <div className="flex items-center bg-white dark:bg-slate-700 rounded-lg ring-1 ring-slate-200 dark:ring-slate-600">
-                                    <button
-                                        onClick={() => {
-                                            const newDate = new Date(focusedDate);
-                                            newDate.setMonth(newDate.getMonth() - 1);
-                                            onFocusedDateChange && onFocusedDateChange(newDate);
-                                        }}
-                                        aria-label="Periodo anterior"
-                                        className="p-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-l-lg transition-colors"
-                                    >
-                                        <ChevronLeftIcon className="w-5 h-5" />
-                                    </button>
-                                    <div className="px-6 py-2 text-center min-w-[180px] border-x border-slate-200 dark:border-slate-600">
-                                        <div className="text-sm font-bold text-slate-900 dark:text-white capitalize">
-                                            {focusedDate.toLocaleDateString('es-ES', { month: 'long' })} {focusedDate.getFullYear()}
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            const newDate = new Date(focusedDate);
-                                            newDate.setMonth(newDate.getMonth() + 1);
-                                            onFocusedDateChange && onFocusedDateChange(newDate);
-                                        }}
-                                        aria-label="Periodo siguiente"
-                                        className="p-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-r-lg transition-colors"
-                                    >
-                                        <ChevronRightIcon className="w-5 h-5" />
-                                    </button>
-                                </div>
-
-                                {/* Monthly Totals Badges */}
-                                <div className="flex items-center gap-2">
-                                    {/* Egresos */}
-                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200/50 dark:border-red-800/30">
-                                        <div className="w-2 h-2 rounded-full bg-red-500" />
-                                        <span className="text-xs font-medium font-mono tabular-nums text-red-600 dark:text-red-400">
-                                            {formatClp((propTotals || monthlyTotals).expenses)}
-                                        </span>
-                                    </div>
-                                    {/* Ingresos */}
-                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/30">
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                        <span className="text-xs font-medium font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
-                                            {formatClp((propTotals || monthlyTotals).income)}
-                                        </span>
-                                    </div>
-                                    {/* Neto */}
-                                    {(() => {
-                                        const neto = (propTotals || monthlyTotals).income - (propTotals || monthlyTotals).expenses;
-                                        const isPositive = neto >= 0;
-                                        return (
-                                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${isPositive
-                                                ? 'bg-sky-50 dark:bg-sky-950/30 border-sky-200/50 dark:border-sky-800/30'
-                                                : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200/50 dark:border-amber-800/30'
-                                                }`}>
-                                                <span className={`text-xs font-bold font-mono tabular-nums ${isPositive ? 'text-sky-600 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                                                    {isPositive ? '+' : ''}{formatClp(neto)}
-                                                </span>
-                                                <span className={`text-[10px] uppercase ${isPositive ? 'text-sky-500 dark:text-sky-500' : 'text-amber-500 dark:text-amber-500'}`}>
-                                                    neto
-                                                </span>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-                            </div>
-
-                            {/* Right: Display Options */}
-                            <div className="flex items-center gap-2">
-                                {/* Density Selector - Improved Active State */}
-                                {/* Density Selector - Segmented Control Style */}
-                                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg ring-1 ring-slate-200 dark:ring-slate-700">
-                                    {(['compact', 'medium'] as const).map((d) => (
-                                        <button
-                                            key={d}
-                                            onClick={() => setDensity(d)}
-                                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${density === d
-                                                ? 'bg-sky-500 text-white shadow-sm'
-                                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
-                                                }`}
-                                        >
-                                            {d === 'compact' ? 'Compacta' : 'Detallada'}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {/* Show Terminated Toggle */}
-                                {terminatedCount > 0 && (
-                                    <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-700 ml-1">
-                                        <button
-                                            onClick={() => setShowTerminated(!showTerminated)}
-                                            className="flex items-center gap-2 group cursor-pointer focus:outline-none"
-                                            title={showTerminated ? 'Ocultar compromisos terminados' : 'Mostrar compromisos terminados'}
-                                        >
-                                            <div className={`
-                                                relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2  focus-visible:ring-white/75
-                                                ${showTerminated ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-700'}
-                                            `}>
-                                                <span
-                                                    aria-hidden="true"
-                                                    className={`
-                                                        pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out
-                                                        ${showTerminated ? 'translate-x-4' : 'translate-x-0'}
-                                                    `}
-                                                />
-                                            </div>
-                                            <span className="text-sm font-medium text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
-                                                Terminados ({terminatedCount})
-                                            </span>
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Category Filter Tabs */}
+                    {/* Simplified Header - Only Tabs */}
                     <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30">
                         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                             <span className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide mr-2">

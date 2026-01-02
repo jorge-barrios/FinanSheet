@@ -166,7 +166,7 @@ export const supabase = isSupabaseConfigured ? createClient<Database>(supabaseUr
     autoRefreshToken: true,
     // Fix for HMR/Reload: Only detect session if hash contains token
     // This prevents false "SIGNED_OUT" events when reloading clean URLs
-    detectSessionInUrl: typeof window !== 'undefined' && window.location.hash.includes('access_token'),
+    detectSessionInUrl: true,
     storage: window.localStorage
   }
 }) : null;
