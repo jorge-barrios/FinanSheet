@@ -1,11 +1,29 @@
 {
-  "name": "Finansheet",
-  "short_name": "Finansheet",
+  "name": "FinanSheet - Gestión Financiera",
+  "short_name": "FinanSheet",
+  "description": "Gestiona tus finanzas personales de forma simple y visual",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
-    { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ],
   "theme_color": "#0b0d1a",
   "background_color": "#0b0d1a",
-  "display": "standalone"
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": [
+    "finance",
+    "productivity"
+  ],
+  "lang": "es"
 }

@@ -168,12 +168,12 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
     const [showReassignModal, setShowReassignModal] = React.useState(false);
     const [pendingSave, setPendingSave] = React.useState<PendingSaveState | null>(null);
 
-    // Load v2 categories when v2 is enabled
+    // Load v2 categories when v2 is enabled OR when form opens
     React.useEffect(() => {
-        if (useV2) {
+        if (useV2 && props.isOpen) {
             loadV2Categories();
         }
-    }, [useV2]);
+    }, [useV2, props.isOpen]);
 
     const loadV2Categories = async () => {
         try {
@@ -501,6 +501,7 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
                     categories={v2Categories}
                     commitmentToEdit={props.commitmentToEdit ?? null}
                     existingCommitments={existingCommitments}
+                    onCategoriesChange={loadV2Categories}
                 />
                 {/* Reassignment confirmation modal */}
                 {pendingSave && (

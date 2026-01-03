@@ -33,15 +33,15 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 // TOOLTIP COMPONENT
 // =============================================================================
 const CompactTooltip = ({ children, content }: { children: React.ReactNode, content: React.ReactNode }) => (
-    <Tooltip.Provider delayDuration={100}>
+    <Tooltip.Provider delayDuration={500}>
         <Tooltip.Root>
             <Tooltip.Trigger asChild>
                 {/* Wrap in span to ensure ref passing if child is composite */}
-                <span className="h-full w-full block outline-none">{children}</span>
+                <span className="h-full w-full block outline-none cursor-default">{children}</span>
             </Tooltip.Trigger>
             <Tooltip.Portal>
                 <Tooltip.Content
-                    className="z-50 rounded-lg bg-white dark:bg-slate-800 px-3 py-2 text-sm shadow-xl border border-slate-200 dark:border-slate-700 animate-in fade-in-0 zoom-in-95 duration-200"
+                    className="z-50 rounded-lg bg-white dark:bg-slate-800 px-3 py-2 text-sm shadow-xl border border-slate-200 dark:border-slate-700 animate-in fade-in-0 zoom-in-95 duration-200 pointer-events-none"
                     sideOffset={5}
                 >
                     {content}
@@ -288,16 +288,22 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
             const rect = el.getBoundingClientRect();
             const vh = window.innerHeight || document.documentElement.clientHeight;
-            const footerH = footerRef.current ? footerRef.current.offsetHeight : 0;
-            const bottomMargin = 24 + footerH;
+            const footerH = footerRef.current ? footerRef.current.offsetHeight : 48;
+            // Just the footer + small margin
+            const bottomMargin = footerH + 16;
 
-            const h = Math.max(300, vh - rect.top - bottomMargin);
+            const h = Math.max(200, vh - rect.top - bottomMargin);
             setAvailableHeight(h);
         };
 
         recalc();
+        // Recalculate after footer renders
+        const timer = setTimeout(recalc, 100);
         window.addEventListener('resize', recalc);
-        return () => window.removeEventListener('resize', recalc);
+        return () => {
+            window.removeEventListener('resize', recalc);
+            clearTimeout(timer);
+        };
     }, []);
 
     // ==========================================================================
@@ -601,7 +607,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     }
 
     return (
-        <div className="pb-6 lg:pb-0 lg:overflow-hidden">
+        <div>
             {/* Header Toolbar - Unified for Mobile + Desktop */}
             <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm px-4 py-4 border-b border-slate-200 dark:border-slate-700/50 shadow-sm">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -649,25 +655,40 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             </button>
                         </div>
 
-                        {/* Totals - Hidden on very small screens, visible on mobile medium+ */}
-                        <div className="flex items-center gap-1.5 ml-auto md:ml-0">
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200/50 dark:border-red-800/30">
-                                <span className="text-xs font-bold font-mono tabular-nums text-red-600 dark:text-red-400">
+                        {/* Totals - Cleaner Statistic Style */}
+                        <div className="flex items-center gap-4 ml-auto pl-4 border-l border-slate-200 dark:border-slate-700 hidden md:flex">
+                            <div className="flex flex-col items-end">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gastos</span>
+                                <span className="text-sm font-bold font-mono tabular-nums text-slate-700 dark:text-slate-200">
                                     {formatClp((propTotals || monthlyTotals).expenses)}
                                 </span>
                             </div>
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/30">
-                                <span className="text-xs font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                            <div className="flex flex-col items-end">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ingresos</span>
+                                <span className="text-sm font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-500">
                                     {formatClp((propTotals || monthlyTotals).income)}
                                 </span>
                             </div>
-                            {/* Paid Total Badge */}
-                            <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200/50 dark:border-indigo-800/30">
-                                <CheckCircleIcon className="w-3 h-3 text-indigo-500" />
-                                <span className="text-xs font-bold font-mono tabular-nums text-indigo-600 dark:text-indigo-400">
-                                    {formatClp(calculateMonthPaidTotal(focusedDate))}
-                                </span>
+                            <div className="flex flex-col items-end">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pagado</span>
+                                <div className="flex items-center gap-1">
+                                    <CheckCircleIcon className="w-3 h-3 text-indigo-500" />
+                                    <span className="text-sm font-bold font-mono tabular-nums text-indigo-600 dark:text-indigo-400">
+                                        {formatClp(calculateMonthPaidTotal(focusedDate))}
+                                    </span>
+                                </div>
                             </div>
+                        </div>
+
+                        {/* Mobile Totals - Compact */}
+                        <div className="flex md:hidden items-center gap-2 ml-auto">
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                {formatClp((propTotals || monthlyTotals).expenses)}
+                            </span>
+                            <span className="text-xs text-slate-400">/</span>
+                            <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                {formatClp(calculateMonthPaidTotal(focusedDate))}
+                            </span>
                         </div>
                     </div>
 
@@ -905,8 +926,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
             </div>
 
             {/* Desktop View Content */}
-            <div className="hidden lg:block px-4 pt-2">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-xl shadow-slate-200/50 dark:shadow-black/30 overflow-hidden">
+            <div className="hidden lg:block px-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-xl shadow-slate-200/50 dark:shadow-black/30 overflow-x-hidden mt-2">
                     {/* Simplified Header - Only Tabs */}
                     <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30">
                         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
@@ -933,7 +954,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                     </div>
 
                     {/* Grid */}
-                    <div className="relative">
+                    <div className="relative mb-2">
                         <div
                             ref={scrollAreaRef}
                             className="relative overflow-x-auto overflow-y-auto scrollbar-thin pr-1"
@@ -1016,7 +1037,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             group
                                                             border-b border-slate-200/80 dark:border-slate-700/50 
                                                             transition-all duration-200 ease-out
-                                                            hover:bg-blue-50/50 dark:hover:bg-slate-800/80 hover:shadow-sm
+                                                            
                                                             ${terminated ? 'bg-slate-50/50 dark:bg-slate-800/30 opacity-60' : ''}
                                                         `}
                                                     >
@@ -1024,7 +1045,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                         <td className={`
                                                             sticky left-0 z-20 border-l-3 ${flowColor}
                                                             ${terminated ? 'bg-slate-50 dark:bg-slate-800/50' : 'bg-white dark:bg-slate-900'} 
-                                                            group-hover:bg-blue-50/50 dark:group-hover:bg-slate-800/80
+                                                            group-hover:bg-blue-50 dark:group-hover:bg-slate-800 cursor-pointer
                                                             border-r border-slate-200 dark:border-slate-700/50
                                                             ${density === 'compact' ? 'px-3 py-2 min-w-[140px] max-w-[300px] w-auto' : pad}
                                                         `}>
@@ -1281,12 +1302,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             const { isPaid, amount: paidAmount, paidOnTime } = getPaymentStatus(commitment.id, monthDate, dueDay);
 
                                                             // Check if there's a payment record (even if not marked as paid)
+                                                            // Check if there's a payment record (even if not marked as paid)
                                                             const commitmentPayments = payments.get(commitment.id) || [];
                                                             const periodStr = periodToString({ year: monthDate.getFullYear(), month: monthDate.getMonth() + 1 });
-                                                            const hasPaymentRecord = commitmentPayments.some(p => {
-                                                                const pPeriod = p.period_date.substring(0, 7);
-                                                                return pPeriod === periodStr;
-                                                            });
+                                                            const currentPayment = commitmentPayments.find(p => p.period_date.substring(0, 7) === periodStr);
+                                                            const hasPaymentRecord = !!currentPayment;
 
                                                             // Calculate expected per-period amount from term (only used when no payment)
                                                             const totalAmount = term?.amount_in_base ?? term?.amount_original ?? 0;
@@ -1336,20 +1356,19 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             const daysOverdue = isOverdue
                                                                 ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
                                                                 : 0;
-                                                            const daysRemaining = isPending
-                                                                ? Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                                                            const daysRemaining = !isOverdue
+                                                                ? Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
                                                                 : 0;
+                                                            const isDisabled = isFutureMonth && !(hasPaymentRecord || (installmentsCount && installmentsCount > 1));
                                                             return (
                                                                 <td
                                                                     key={mi}
                                                                     className={`
                                                                         ${pad} text-right border-r border-slate-200/80 dark:border-slate-700/50 last:border-r-0 
                                                                         cursor-pointer transition-all duration-150 ease-out
-                                                                        hover:bg-slate-100/80 dark:hover:bg-slate-800/80
+                                                                        hover:ring-2 hover:ring-inset hover:ring-indigo-500/50 dark:hover:ring-indigo-400/50
                                                                         ${isCurrentMonth(monthDate) ? 'bg-blue-50/50 dark:bg-blue-900/10 ring-1 ring-inset ring-blue-500/10' : ''}
-                                                                        ${isFutureMonth
-                                                                            ? (hasPaymentRecord || (installmentsCount && installmentsCount > 1) ? '' : 'opacity-25 grayscale')
-                                                                            : ''}
+                                                                        ${isDisabled ? 'opacity-25 grayscale hover:opacity-100 hover:grayscale-0' : ''}
                                                                         ${isOverdue ? 'bg-red-50/50 dark:bg-red-950/20' : ''}
                                                                         ${isPending ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}
                                                                         ${isPaid ? 'bg-emerald-50/30 dark:bg-emerald-950/10' : ''}
@@ -1423,11 +1442,19 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         ) : null}
 
                                                                                         {/* Footer: Due Status */}
-                                                                                        {!isPaid && (
+                                                                                        {isPaid && currentPayment?.payment_date ? (
+                                                                                            <div className="text-[10px] text-right text-emerald-600 dark:text-emerald-500 font-medium">
+                                                                                                Pagado el {new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
+                                                                                            </div>
+                                                                                        ) : !isPaid && (
                                                                                             <div className="text-[10px] text-right text-slate-400">
                                                                                                 {isOverdue
                                                                                                     ? `Venció hace ${daysOverdue} días`
-                                                                                                    : `Vence en ${daysRemaining} días`
+                                                                                                    : daysRemaining === 0
+                                                                                                        ? 'Vence hoy'
+                                                                                                        : isCurrentMonth(monthDate)
+                                                                                                            ? `Vence en ${daysRemaining} días`
+                                                                                                            : `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
                                                                                                 }
                                                                                             </div>
                                                                                         )}
@@ -1482,8 +1509,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                     </div>
                                                                                 )}
                                                                                 {/* Due date */}
-                                                                                <div className="text-xs text-slate-500">
-                                                                                    Vence: {dueDay}/{monthDate.getMonth() + 1}
+                                                                                <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                                                    {isPaid && currentPayment?.payment_date ?
+                                                                                        `Pagado: ${new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}` :
+                                                                                        `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                                                                                    }
                                                                                 </div>
                                                                                 {/* Cuota / Payment number info */}
                                                                                 {cuotaNumber && installmentsCount && installmentsCount > 1 ? (
@@ -1515,7 +1545,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         <span className="text-xs font-semibold">Atrasado ({daysOverdue}d)</span>
                                                                                     </div>
                                                                                 )}
-                                                                                {isPending && (
+                                                                                {isPending && (isCurrentMonth(monthDate) || daysRemaining <= 45) && (
                                                                                     <div className="flex items-center justify-end gap-1 px-2 py-0.5 rounded-full bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
                                                                                         <ClockIcon className="w-3.5 h-3.5" />
                                                                                         <span className="text-xs font-medium">{daysRemaining}d restantes</span>

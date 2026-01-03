@@ -29,6 +29,7 @@ interface CommitmentFormV2Props {
     categories: Category[];
     commitmentToEdit: CommitmentWithTerm | null;
     existingCommitments?: CommitmentWithTerm[]; // For linking
+    onCategoriesChange?: () => void; // Callback to refresh categories
 }
 
 const formInputClasses = "w-full bg-slate-100 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl p-3 sm:p-2.5 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all [color-scheme:light] dark:[color-scheme:dark]";
@@ -41,7 +42,8 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     onSave,
     categories,
     commitmentToEdit,
-    existingCommitments = []
+    existingCommitments = [],
+    onCategoriesChange
 }) => {
     const { t, formatClp } = useLocalization();
     const { fromUnit, convertAmount } = useCurrency();
@@ -503,7 +505,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-50 p-0 sm:p-4 animate-in fade-in duration-300">
+        <div className="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 animate-in fade-in duration-300">
             <div className={`
                 bg-white dark:bg-slate-800 
                 w-full max-w-2xl 
@@ -512,14 +514,15 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                 ${isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 sm:translate-y-0'}
                 sm:relative
                 sm:rounded-xl sm:max-h-[90vh] sm:shadow-2xl
-                fixed bottom-0 top-auto
-                rounded-t-[2rem] rounded-b-none
-                max-h-[92vh]
+                fixed inset-x-0 bottom-0
+                rounded-t-[1.5rem] rounded-b-none
+                h-[95vh]
             `}>
                 {/* Mobile Grab Handle */}
-                <div className="sm:hidden flex justify-center py-3 flex-shrink-0">
-                    <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full" />
+                <div className="sm:hidden flex justify-center pt-2 pb-1 flex-shrink-0">
+                    <div className="w-10 h-1 bg-slate-300 dark:bg-slate-600 rounded-full" />
                 </div>
+
                 <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-5 sm:px-6 py-4 flex items-center justify-between gap-3 z-10 flex-shrink-0">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-1">
                         <div className="flex items-center justify-between sm:justify-start gap-4">

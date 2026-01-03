@@ -1049,11 +1049,7 @@ const App: React.FC = () => {
                     onViewChange={setView}
                     onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
                 />
-                <main className={`flex-1 min-h-0 overflow-y-auto ${view === 'graph' ? 'lg:overflow-hidden' : 'lg:overflow-hidden'}`}>
-                    <div className="max-w-screen-2xl mx-auto pt-4 px-4">
-                        {/* ViewSwitcher relocated to Header */}
-                    </div>
-
+                <main className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
                     <div className={`max-w-screen-2xl mx-auto min-h-0 px-4 ${view === 'graph' ? 'lg:h-full' : 'lg:h-full'}`}>
                         <React.Suspense fallback={<div className="p-6 text-slate-500 dark:text-slate-400">Cargando…</div>}>
                             {view === 'table' && (

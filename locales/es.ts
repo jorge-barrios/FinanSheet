@@ -1,7 +1,7 @@
 
 export const es = {
   "header.export": "Exportar a Excel",
-  "header.addExpense": "Añadir Gasto",
+  "header.addExpense": "Nuevo Compromiso",
   "header.settings": "Menú",
   "header.actions": "Acciones",
   "header.language": "Idioma",
@@ -50,7 +50,7 @@ export const es = {
   "grid.nav_future": "Ver meses siguientes",
 
 
-  "form.addTitle": "Añadir Nuevo Gasto",
+  "form.addTitle": "Nuevo Compromiso",
   "form.editTitle": "Editar Gasto",
   "form.nameLabel": "Nombre del Gasto",
   "form.amountLabel": "Monto Total",
@@ -84,7 +84,7 @@ export const es = {
   "form.ongoingTooltip": "Un gasto recurrente se repite indefinidamente (ej. una suscripción).",
   "form.cancel": "Cancelar",
   "form.save": "Guardar Cambios",
-  "form.add": "Añadir Gasto",
+  "form.add": "Crear Compromiso",
   "form.frequencyLabel": "Frecuencia de Pago",
   "form.summary": "{{count}} pagos de {{installmentAmount}} para un total de {{totalAmount}} desde {{startDate}}.",
 
