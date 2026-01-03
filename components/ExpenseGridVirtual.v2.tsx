@@ -20,7 +20,7 @@ import {
     CheckCircleIcon, ExclamationTriangleIcon, ClockIcon,
     CalendarIcon, InfinityIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon,
     SubscriptionIcon, MiscIcon, CategoryIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
-    StarIcon, IconProps, PauseIcon
+    StarIcon, IconProps, PauseIcon, PlusIcon
 } from './icons';
 import type { CommitmentWithTerm, Payment, FlowType, Term } from '../types.v2';
 import { periodToString } from '../types.v2';
@@ -32,17 +32,17 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 // =============================================================================
 // TOOLTIP COMPONENT
 // =============================================================================
-const CompactTooltip = ({ children, content }: { children: React.ReactNode, content: React.ReactNode }) => (
-    <Tooltip.Provider delayDuration={500}>
-        <Tooltip.Root>
+const CompactTooltip = ({ children, content, triggerClassName, sideOffset = 5 }: { children: React.ReactNode, content: React.ReactNode, triggerClassName?: string, sideOffset?: number }) => (
+    <Tooltip.Provider delayDuration={500} skipDelayDuration={0}>
+        <Tooltip.Root disableHoverableContent={true}>
             <Tooltip.Trigger asChild>
                 {/* Wrap in span to ensure ref passing if child is composite */}
-                <span className="h-full w-full block outline-none cursor-default">{children}</span>
+                <span className={`h-full w-full block outline-none cursor-default ${triggerClassName || ''}`}>{children}</span>
             </Tooltip.Trigger>
             <Tooltip.Portal>
                 <Tooltip.Content
                     className="z-50 rounded-lg bg-white dark:bg-slate-800 px-3 py-2 text-sm shadow-xl border border-slate-200 dark:border-slate-700 animate-in fade-in-0 zoom-in-95 duration-200 pointer-events-none"
-                    sideOffset={5}
+                    sideOffset={sideOffset}
                 >
                     {content}
                     <Tooltip.Arrow className="fill-white dark:fill-slate-800 border-t border-l border-slate-200" />
@@ -948,6 +948,16 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     `}
                                 >
                                     {cat === 'all' ? 'Todos' : cat}
+                                    <span className={`ml-1.5 text-xs ${selectedCategory === cat ? 'opacity-80' : 'opacity-50'}`}>
+                                        ({cat === 'all'
+                                            ? commitments.filter(c => showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
+                                            : commitments.filter(c => {
+                                                const categoryName = getTranslatedCategoryName(c);
+                                                const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
+                                                return isActive && categoryName === cat;
+                                            }).length
+                                        })
+                                    </span>
                                 </button>
                             ))}
                         </div>
@@ -955,6 +965,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                     {/* Grid */}
                     <div className="relative mb-2">
+                        {/* Scroll Indicator - Right Edge Gradient */}
+                        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white/80 dark:from-slate-900/80 to-transparent pointer-events-none z-30" />
+
                         <div
                             ref={scrollAreaRef}
                             className="relative overflow-x-auto overflow-y-auto scrollbar-thin pr-1"
@@ -1364,8 +1377,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                 <td
                                                                     key={mi}
                                                                     className={`
-                                                                        ${pad} text-right border-r border-slate-200/80 dark:border-slate-700/50 last:border-r-0 
-                                                                        cursor-pointer transition-all duration-150 ease-out
+                                                                        text-right border-r border-slate-200/80 dark:border-slate-700/50 last:border-r-0 
+                                                                        cursor-pointer transition-all duration-150 ease-out group/cell
                                                                         hover:ring-2 hover:ring-inset hover:ring-indigo-500/50 dark:hover:ring-indigo-400/50
                                                                         ${isCurrentMonth(monthDate) ? 'bg-blue-50/50 dark:bg-blue-900/10 ring-1 ring-inset ring-blue-500/10' : ''}
                                                                         ${isDisabled ? 'opacity-25 grayscale hover:opacity-100 hover:grayscale-0' : ''}
@@ -1394,30 +1407,37 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                         /* === COMPACT VIEW: Rectangular pill badges === */
                                                                         density === 'compact' ? (
                                                                             <CompactTooltip
+                                                                                triggerClassName={pad}
+                                                                                sideOffset={14}
                                                                                 content={
-                                                                                    <div className="space-y-1.5 min-w-[140px] text-slate-800 dark:text-slate-100">
-                                                                                        {/* Header: Date + Status */}
-                                                                                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1.5 mb-1.5">
+                                                                                    <div className="min-w-[150px] text-slate-800 dark:text-slate-100">
+                                                                                        {/* --- HEADER: Date + Status Badge --- */}
+                                                                                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/50 pb-2 mb-2">
                                                                                             <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
                                                                                                 {monthDate.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
                                                                                             </span>
                                                                                             {isPaid ? (
-                                                                                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">PAGADO</span>
+                                                                                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">PAGADO</span>
                                                                                             ) : isOverdue ? (
-                                                                                                <span className="text-[10px] font-bold text-red-600 bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded">VENCIDO</span>
+                                                                                                <span className="text-[10px] font-bold text-red-600 bg-red-100 dark:bg-red-900/40 px-1.5 py-0.5 rounded">VENCIDO</span>
+                                                                                            ) : isDisabled ? (
+                                                                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">PROGRAMADO</span>
                                                                                             ) : (
-                                                                                                <span className="text-[10px] font-bold text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">PENDIENTE</span>
+                                                                                                <span className="text-[10px] font-bold text-amber-600 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">PENDIENTE</span>
                                                                                             )}
                                                                                         </div>
 
-                                                                                        {/* Amount: Main + Original if differs */}
-                                                                                        <div className="text-right">
-                                                                                            <div className={`text-base font-bold font-mono tabular-nums ${isPaid ? 'text-emerald-600 dark:text-emerald-400' :
-                                                                                                isOverdue ? 'text-red-600 dark:text-red-400' :
+                                                                                        {/* --- CONTENT: Main Info --- */}
+                                                                                        <div className="flex flex-col items-end mb-2">
+                                                                                            {/* Amount - Large & Colored */}
+                                                                                            <div className={`text-xl font-bold font-mono tracking-tight ${isPaid ? 'text-emerald-500 dark:text-emerald-400' :
+                                                                                                isOverdue ? 'text-red-500 dark:text-red-400' :
                                                                                                     'text-slate-700 dark:text-slate-200'
                                                                                                 }`}>
                                                                                                 {formatClp(displayAmount!)}
                                                                                             </div>
+
+                                                                                            {/* Original Currency (if any) */}
                                                                                             {showOriginalCurrency && (
                                                                                                 <div className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
                                                                                                     ({originalCurrency} {perPeriodOriginal?.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
@@ -1425,79 +1445,135 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                             )}
                                                                                         </div>
 
-                                                                                        {/* Payment/Cuota Progress */}
-                                                                                        {cuotaNumber && installmentsCount && installmentsCount > 1 ? (
-                                                                                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                                                                {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
+                                                                                        {/* Secondary Info Row: Installment + Relative Date */}
+                                                                                        <div className="flex items-center justify-between text-xs mb-3">
+                                                                                            {/* Left: Installment counter */}
+                                                                                            <div className="text-slate-500 dark:text-slate-400 font-medium">
+                                                                                                {cuotaNumber && installmentsCount && installmentsCount > 1 ? (
+                                                                                                    <span>{term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}</span>
+                                                                                                ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
+                                                                                                    <span>Pago {(() => {
+                                                                                                        const [startYear, startMonth] = term.effective_from.split('-').map(Number);
+                                                                                                        const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
+                                                                                                            (monthDate.getMonth() + 1 - startMonth) + 1;
+                                                                                                        return paymentNumber > 0 ? paymentNumber : 1;
+                                                                                                    })()}/∞</span>
+                                                                                                ) : (
+                                                                                                    <span className="opacity-0">.</span> // Spacer if no info
+                                                                                                )}
                                                                                             </div>
-                                                                                        ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
-                                                                                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                                                                Pago {(() => {
-                                                                                                    const [startYear, startMonth] = term.effective_from.split('-').map(Number);
-                                                                                                    const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
-                                                                                                        (monthDate.getMonth() + 1 - startMonth) + 1;
-                                                                                                    return paymentNumber > 0 ? paymentNumber : 1;
-                                                                                                })()}/∞
-                                                                                            </div>
-                                                                                        ) : null}
 
-                                                                                        {/* Footer: Due Status */}
-                                                                                        {isPaid && currentPayment?.payment_date ? (
-                                                                                            <div className="text-[10px] text-right text-emerald-600 dark:text-emerald-500 font-medium">
-                                                                                                Pagado el {new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
+                                                                                            {/* Right: Relative Date */}
+                                                                                            <div className="text-right text-slate-400 dark:text-slate-500 text-[10px]">
+                                                                                                {isPaid && currentPayment?.payment_date ? (
+                                                                                                    <span>Pagado el {new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}</span>
+                                                                                                ) : (
+                                                                                                    <span>
+                                                                                                        {isOverdue ? `Venció hace ${daysOverdue} días` :
+                                                                                                            daysRemaining === 0 ? 'Vence hoy' :
+                                                                                                                isCurrentMonth(monthDate) ? `Vence en ${daysRemaining} días` :
+                                                                                                                    `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                                                                                                        }
+                                                                                                    </span>
+                                                                                                )}
                                                                                             </div>
-                                                                                        ) : !isPaid && (
-                                                                                            <div className="text-[10px] text-right text-slate-400">
-                                                                                                {isOverdue
-                                                                                                    ? `Venció hace ${daysOverdue} días`
-                                                                                                    : daysRemaining === 0
-                                                                                                        ? 'Vence hoy'
-                                                                                                        : isCurrentMonth(monthDate)
-                                                                                                            ? `Vence en ${daysRemaining} días`
-                                                                                                            : `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
-                                                                                                }
-                                                                                            </div>
-                                                                                        )}
+                                                                                        </div>
+
+                                                                                        {/* --- FOOTER: Action Hint --- */}
+                                                                                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
+                                                                                            {isPaid ? (
+                                                                                                <>
+                                                                                                    <EditIcon className="w-3 h-3" />
+                                                                                                    <span className="text-[10px] font-medium">Click para ver detalle</span>
+                                                                                                </>
+                                                                                            ) : isDisabled ? (
+                                                                                                <>
+                                                                                                    <ClockIcon className="w-3 h-3" />
+                                                                                                    <span className="text-[10px] font-medium">Programado</span>
+                                                                                                </>
+                                                                                            ) : (
+                                                                                                <>
+                                                                                                    <div className="w-3 h-3 rounded-full border border-current flex items-center justify-center">
+                                                                                                        <span className="text-[8px] font-bold mb-px">i</span>
+                                                                                                    </div>
+                                                                                                    <span className="text-[10px] font-medium">Click para registrar pago</span>
+                                                                                                </>
+                                                                                            )}
+                                                                                        </div>
                                                                                     </div>
                                                                                 }
                                                                             >
-                                                                                <div className="flex justify-center items-center h-full">
+                                                                                <div className="relative flex justify-center items-center h-full">
                                                                                     {isPaid ? (
-                                                                                        <div className={`
-                                                                                        flex items-center justify-center 
-                                                                                        ${paidOnTime ? 'text-emerald-400' : 'text-emerald-500'}
-                                                                                    `}>
-                                                                                            <CheckCircleIcon className="w-5 h-5" />
-                                                                                        </div>
-                                                                                    ) : isOverdue ? (
-                                                                                        <div className="text-red-500 animate-pulse">
-                                                                                            <ExclamationTriangleIcon className="w-5 h-5" />
-                                                                                        </div>
-                                                                                    ) : isPending ? (
-                                                                                        <div className="text-amber-500">
-                                                                                            <ClockIcon className="w-5 h-5" />
-                                                                                        </div>
-                                                                                    ) : (installmentsCount && installmentsCount > 1) ? (
-                                                                                        /* Future Defined (Installment) -> Distinct Icon */
-                                                                                        <div className="text-slate-500 dark:text-slate-400">
-                                                                                            <CalendarIcon className="w-4 h-4" />
-                                                                                        </div>
-                                                                                    ) : (hasPaymentRecord) ? (
-                                                                                        /* Future Saved Amount (Bill Received) -> Solid Clock */
-                                                                                        <div className="text-slate-500 dark:text-slate-400">
-                                                                                            <ClockIcon className="w-5 h-5" />
+                                                                                        <div
+                                                                                            className="relative flex items-center justify-center w-full h-full cursor-pointer group/paid"
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                onRecordPayment(commitment.id, monthDate.getFullYear(), monthDate.getMonth());
+                                                                                            }}
+                                                                                        >
+                                                                                            {/* Check Icon (Default) - Scales down on hover */}
+                                                                                            <div className={`
+                                                                                                flex items-center justify-center transition-all duration-300 group-hover/cell:scale-0 group-hover/cell:opacity-0
+                                                                                                ${paidOnTime ? 'text-emerald-400' : 'text-emerald-500'}
+                                                                                            `}>
+                                                                                                <CheckCircleIcon className="w-5 h-5" />
+                                                                                            </div>
+
+                                                                                            {/* Edit Icon (Hover) - Scales up */}
+                                                                                            <div className="absolute inset-0 flex items-center justify-center transition-all duration-300 scale-0 opacity-0 group-hover/cell:scale-100 group-hover/cell:opacity-100 text-slate-500 dark:text-slate-400">
+                                                                                                <EditIcon className="w-5 h-5" />
+                                                                                            </div>
                                                                                         </div>
                                                                                     ) : (
-                                                                                        /* Future Indefinite -> Faint Clock */
-                                                                                        <div className="text-slate-700 dark:text-slate-600">
-                                                                                            <ClockIcon className="w-5 h-5 opacity-40" />
+                                                                                        /* For unpaid items, we show status icon that transforms to + on hover */
+                                                                                        <div
+                                                                                            className="relative flex items-center justify-center w-full h-full cursor-pointer"
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                onRecordPayment(commitment.id, monthDate.getFullYear(), monthDate.getMonth());
+                                                                                            }}
+                                                                                        >
+                                                                                            {/* Original Icon - Scales down on hover */}
+                                                                                            <div className={`transition-all duration-300 group-hover/cell:scale-0 group-hover/cell:opacity-0 flex items-center justify-center
+                                                                                                ${isOverdue ? 'text-red-500 animate-pulse' :
+                                                                                                    isPending ? 'text-amber-500' :
+                                                                                                        (installmentsCount && installmentsCount > 1) ? 'text-slate-500 dark:text-slate-400' :
+                                                                                                            (hasPaymentRecord) ? 'text-slate-500 dark:text-slate-400' :
+                                                                                                                'text-slate-700 dark:text-slate-600'}
+                                                                                            `}>
+                                                                                                {isOverdue ? <ExclamationTriangleIcon className="w-5 h-5" /> :
+                                                                                                    isPending ? <ClockIcon className="w-5 h-5" /> :
+                                                                                                        (installmentsCount && installmentsCount > 1) ? <CalendarIcon className="w-4 h-4" /> :
+                                                                                                            <ClockIcon className={`w-5 h-5 ${!hasPaymentRecord ? 'opacity-40' : ''}`} />
+                                                                                                }
+                                                                                            </div>
+
+                                                                                            {/* Plus Icon - Scales up on hover */}
+                                                                                            <div className={`
+                                                                                                absolute inset-0 flex items-center justify-center
+                                                                                                transition-all duration-300 scale-0 opacity-0 group-hover/cell:scale-100 group-hover/cell:opacity-100
+                                                                                                ${isOverdue ? 'text-red-500' : isPending ? 'text-amber-500' : 'text-sky-500'}
+                                                                                            `}>
+                                                                                                <PlusIcon className="w-6 h-6 stroke-2" />
+                                                                                            </div>
                                                                                         </div>
                                                                                     )}
                                                                                 </div>
                                                                             </CompactTooltip>
                                                                         ) : (
                                                                             /* === FULL VIEW: All details === */
-                                                                            <div className="space-y-1">
+                                                                            <div
+                                                                                className={`${pad} relative space-y-1 h-full flex flex-col justify-center cursor-pointer`}
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    if (isPaid) {
+                                                                                        onRecordPayment(commitment.id, monthDate.getFullYear(), monthDate.getMonth());
+                                                                                    } else {
+                                                                                        onRecordPayment(commitment.id, monthDate.getFullYear(), monthDate.getMonth());
+                                                                                    }
+                                                                                }}
+                                                                            >
                                                                                 {/* Main amount - neutral colors */}
                                                                                 <div className="font-bold font-mono tabular-nums text-base text-slate-800 dark:text-slate-100">
                                                                                     {formatClp(displayAmount)}
@@ -1532,25 +1608,72 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                     </div>
                                                                                 ) : null}
                                                                                 {/* Status badge - enhanced styling */}
-                                                                                {isPaid && (
-                                                                                    <div className="flex items-center justify-end gap-1 px-2 py-0.5 rounded-full bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
-                                                                                        {paidOnTime && <Sparkles className="w-3 h-3" />}
-                                                                                        <CheckCircleIcon className="w-3.5 h-3.5" />
-                                                                                        <span className="text-xs font-medium">Pagado</span>
-                                                                                    </div>
-                                                                                )}
-                                                                                {isOverdue && (
-                                                                                    <div className="flex items-center justify-end gap-1 px-2 py-0.5 rounded-full bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse">
-                                                                                        <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-                                                                                        <span className="text-xs font-semibold">Atrasado ({daysOverdue}d)</span>
-                                                                                    </div>
-                                                                                )}
-                                                                                {isPending && (isCurrentMonth(monthDate) || daysRemaining <= 45) && (
-                                                                                    <div className="flex items-center justify-end gap-1 px-2 py-0.5 rounded-full bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
-                                                                                        <ClockIcon className="w-3.5 h-3.5" />
-                                                                                        <span className="text-xs font-medium">{daysRemaining}d restantes</span>
-                                                                                    </div>
-                                                                                )}
+                                                                                {/* Status badge - enhanced styling with hover animation */}
+                                                                                <div className="flex items-center justify-end min-h-[20px]">
+                                                                                    {isPaid ? (
+                                                                                        <div className="grid grid-cols-1 items-center justify-items-end group/badge">
+                                                                                            {/* Default: Paid */}
+                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400
+                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
+                                                                                                {paidOnTime && <Sparkles className="w-3 h-3" />}
+                                                                                                <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                                                                <span className="text-xs font-medium">Pagado</span>
+                                                                                            </div>
+                                                                                            {/* Hover: Edit */}
+                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300
+                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
+                                                                                                <EditIcon className="w-3.5 h-3.5" />
+                                                                                                <span className="text-xs font-medium">Editar</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : isOverdue ? (
+                                                                                        <div className="grid grid-cols-1 items-center justify-items-end group/badge">
+                                                                                            {/* Default: Overdue */}
+                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse
+                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
+                                                                                                <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                                                                                                <span className="text-xs font-semibold">Atrasado ({daysOverdue}d)</span>
+                                                                                            </div>
+                                                                                            {/* Hover: Pay */}
+                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300
+                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
+                                                                                                <PlusIcon className="w-3.5 h-3.5" />
+                                                                                                <span className="text-xs font-medium">Registrar</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : isPending && (isCurrentMonth(monthDate) || daysRemaining <= 45) ? (
+                                                                                        <div className="grid grid-cols-1 items-center justify-items-end group/badge">
+                                                                                            {/* Default: Pending */}
+                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400
+                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
+                                                                                                <ClockIcon className="w-3.5 h-3.5" />
+                                                                                                <span className="text-xs font-medium">{daysRemaining}d restantes</span>
+                                                                                            </div>
+                                                                                            {/* Hover: Pay */}
+                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400
+                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
+                                                                                                <PlusIcon className="w-3.5 h-3.5" />
+                                                                                                <span className="text-xs font-medium">Registrar</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        /* Future / Programado */
+                                                                                        <div className="grid grid-cols-1 items-center justify-items-end group/badge">
+                                                                                            {/* Default: Programado */}
+                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700
+                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
+                                                                                                <CalendarIcon className="w-3.5 h-3.5" />
+                                                                                                <span className="text-xs font-medium">Programado</span>
+                                                                                            </div>
+                                                                                            {/* Hover: Register */}
+                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300
+                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
+                                                                                                <PlusIcon className="w-3.5 h-3.5" />
+                                                                                                <span className="text-xs font-medium">Registrar</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
                                                                             </div>
                                                                         )
                                                                     ) : (
