@@ -25,7 +25,7 @@ import {
 import type { CommitmentWithTerm, Payment, FlowType, Term } from '../types.v2';
 import { periodToString } from '../types.v2';
 import { parseDateString, extractYearMonth, getPerPeriodAmount } from '../utils/financialUtils.v2';
-import { Sparkles, Link2, MoreVertical } from 'lucide-react';
+import { Sparkles, Link2, MoreVertical, Home } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 
@@ -611,12 +611,13 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         <button
                             onClick={() => onFocusedDateChange && onFocusedDateChange(new Date())}
                             disabled={isCurrentMonth(focusedDate)}
-                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${isCurrentMonth(focusedDate)
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${isCurrentMonth(focusedDate)
                                 ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50'
                                 : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 ring-1 ring-slate-200 dark:ring-slate-600 shadow-sm active:scale-95'
                                 }`}
                         >
-                            🏠 Hoy
+                            <Home className="w-4 h-4" />
+                            Hoy
                         </button>
 
                         {/* Unified Month + Year Navigator */}
