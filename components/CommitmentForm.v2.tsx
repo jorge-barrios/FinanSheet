@@ -32,8 +32,8 @@ interface CommitmentFormV2Props {
     onCategoriesChange?: () => void; // Callback to refresh categories
 }
 
-const formInputClasses = "w-full bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-3 py-2 sm:py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all [color-scheme:light] dark:[color-scheme:dark]";
-const formLabelClasses = "block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 ml-1";
+const formInputClasses = "w-full h-[38px] bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-3 py-2 sm:py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all [color-scheme:light] dark:[color-scheme:dark]";
+const formLabelClasses = "block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 ml-1 truncate";
 const formSelectClasses = `${formInputClasses} appearance-none`;
 
 export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
