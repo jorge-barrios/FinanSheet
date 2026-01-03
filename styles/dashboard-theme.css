@@ -157,7 +157,8 @@
   --dashboard-accent-light: var(--id-deep-teal-light);
   --dashboard-accent-glow: var(--id-deep-teal-glow);
 
-  --dashboard-positive: #059669; /* Slightly deeper emerald */
+  --dashboard-positive: #059669;
+  /* Slightly deeper emerald */
   --dashboard-positive-light: var(--id-eucalyptus-light);
 
   --dashboard-warning: var(--id-coral);
@@ -196,22 +197,10 @@
 /* =============================================================================
    KPI CARDS - Hero Balance Design
    ============================================================================= */
+/* .kpi-grid: Controlled via Tailwind classes in JS now */
 .kpi-grid {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr 1fr;
   gap: 1rem;
-}
-
-@media (max-width: 1280px) {
-  .kpi-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .kpi-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .kpi-card {
@@ -249,11 +238,9 @@
 .kpi-card--hero {
   grid-row: span 1;
   padding: 1.5rem;
-  background: linear-gradient(
-    135deg,
-    var(--dashboard-surface) 0%,
-    var(--dashboard-surface-elevated) 100%
-  );
+  background: linear-gradient(135deg,
+      var(--dashboard-surface) 0%,
+      var(--dashboard-surface-elevated) 100%);
 }
 
 .kpi-card--hero::before {
@@ -411,7 +398,7 @@
   padding: 0.5rem 1rem;
 }
 
-.timeline-group + .timeline-group {
+.timeline-group+.timeline-group {
   margin-top: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--dashboard-border);
@@ -491,8 +478,15 @@
 }
 
 @keyframes pulse-dot {
-  0%, 100% { box-shadow: 0 0 0 0 var(--dashboard-negative-glow); }
-  50% { box-shadow: 0 0 0 6px transparent; }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--dashboard-negative-glow);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px transparent;
+  }
 }
 
 .timeline-item--upcoming::before {
@@ -582,6 +576,18 @@
   text-align: center;
 }
 
+@media (max-width: 640px) {
+  .month-navigator-display {
+    min-width: auto;
+    font-size: 0.875rem;
+  }
+
+  .month-navigator {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 .month-navigator-today {
   font-size: 0.75rem;
   font-weight: 600;
@@ -609,6 +615,7 @@
     opacity: 0;
     transform: translateY(12px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -625,6 +632,7 @@
     opacity: 0;
     transform: translateY(8px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -641,6 +649,7 @@
     opacity: 0;
     transform: scale(0.96);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -657,6 +666,7 @@
     opacity: 0;
     transform: translateX(-16px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -669,9 +679,12 @@
 
 /* Pulse glow effect */
 @keyframes pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 var(--dashboard-accent-glow);
   }
+
   50% {
     box-shadow: 0 0 16px 4px var(--dashboard-accent-glow);
   }
@@ -686,34 +699,50 @@
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
 }
 
 .animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--dashboard-surface) 0%,
-    var(--dashboard-surface-hover) 50%,
-    var(--dashboard-surface) 100%
-  );
+  background: linear-gradient(90deg,
+      var(--dashboard-surface) 0%,
+      var(--dashboard-surface-hover) 50%,
+      var(--dashboard-surface) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
 /* Staggered animations with cubic-bezier */
-.stagger-1 { animation-delay: 0.05s; }
-.stagger-2 { animation-delay: 0.1s; }
-.stagger-3 { animation-delay: 0.15s; }
-.stagger-4 { animation-delay: 0.2s; }
-.stagger-5 { animation-delay: 0.25s; }
-.stagger-6 { animation-delay: 0.3s; }
+.stagger-1 {
+  animation-delay: 0.05s;
+}
+
+.stagger-2 {
+  animation-delay: 0.1s;
+}
+
+.stagger-3 {
+  animation-delay: 0.15s;
+}
+
+.stagger-4 {
+  animation-delay: 0.2s;
+}
+
+.stagger-5 {
+  animation-delay: 0.25s;
+}
+
+.stagger-6 {
+  animation-delay: 0.3s;
+}
 
 /* Hover transitions - Smooth and responsive */
 .hover-lift {
   transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .hover-lift:hover {
@@ -743,7 +772,7 @@
 /* Number value transitions */
 .value-transition {
   transition: color 0.2s ease-out,
-              transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Accent underline on hover */
@@ -908,11 +937,9 @@
   left: 0;
   right: 0;
   height: 100px;
-  background: linear-gradient(
-    180deg,
-    var(--dashboard-accent-glow) 0%,
-    transparent 100%
-  );
+  background: linear-gradient(180deg,
+      var(--dashboard-accent-glow) 0%,
+      transparent 100%);
   opacity: 0.3;
   pointer-events: none;
   transition: opacity 0.3s ease-out;
@@ -1060,7 +1087,7 @@
 }
 
 /* Month Navigator + KPIs Row responsive wrapper */
-.dashboard-container > div:last-child > div:first-child {
+.dashboard-container>div:last-child>div:first-child {
   flex-wrap: wrap;
 }
 
@@ -1143,7 +1170,7 @@
     padding: 0;
   }
 
-  .sidebar-upcoming .timeline-group + .timeline-group {
+  .sidebar-upcoming .timeline-group+.timeline-group {
     margin-top: 0;
     padding-top: 0;
     border-top: none;
@@ -1152,7 +1179,7 @@
   }
 
   /* Month Navigator + KPIs in column on tablet */
-  .dashboard-container > div:last-child > div:first-child {
+  .dashboard-container>div:last-child>div:first-child {
     flex-direction: column;
   }
 
@@ -1172,7 +1199,7 @@
   }
 
   /* Chart + Categories row */
-  .dashboard-container > div:last-child > div:last-child {
+  .dashboard-container>div:last-child>div:last-child {
     flex-direction: column;
   }
 
@@ -1221,7 +1248,7 @@
     padding: 0;
   }
 
-  .sidebar-upcoming .timeline-group + .timeline-group {
+  .sidebar-upcoming .timeline-group+.timeline-group {
     margin-top: 0;
     padding-top: 0;
     border-top: none;
@@ -1242,7 +1269,7 @@
   }
 
   /* Month Navigator + KPIs stacked */
-  .dashboard-container > div:last-child > div:first-child {
+  .dashboard-container>div:last-child>div:first-child {
     flex-direction: column;
     gap: 0.75rem;
   }
@@ -1286,7 +1313,7 @@
   }
 
   /* Chart + Categories stacked */
-  .dashboard-container > div:last-child > div:last-child {
+  .dashboard-container>div:last-child>div:last-child {
     flex-direction: column;
   }
 
@@ -1379,6 +1406,7 @@
 
 /* Reduce motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {

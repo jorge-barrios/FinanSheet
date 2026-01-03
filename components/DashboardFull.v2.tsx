@@ -583,7 +583,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                         const value = ctx.raw as number;
                         if (value === null || value === undefined) return '';
                         const icon = ctx.dataset.label === 'Ingresos' ? '↑' :
-                                     ctx.dataset.label === 'Gastos' ? '↓' : '◆';
+                            ctx.dataset.label === 'Gastos' ? '↓' : '◆';
                         return `${icon} ${ctx.dataset.label}: ${formatClp(value)}`;
                     },
                     labelTextColor: (ctx: any) => {
@@ -680,9 +680,9 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
     }
 
     return (
-        <div className="dashboard-container h-full flex gap-4 p-4">
+        <div className="dashboard-container h-full flex flex-col lg:flex-row gap-4 p-2 sm:p-4 overflow-y-auto lg:overflow-hidden">
             {/* Sidebar: Pagos por Vencer - Timeline Design */}
-            <div className={`sidebar-upcoming flex-shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-14' : 'w-80'}`}>
+            <div className={`sidebar-upcoming flex-shrink-0 transition-all duration-300 w-full ${sidebarCollapsed ? 'lg:w-14' : 'lg:w-80'} order-last lg:order-first`}>
                 {/* Sidebar Header */}
                 <div className="sidebar-header">
                     <div className="flex items-center justify-between">
@@ -864,7 +864,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
             {/* Main Content */}
             <div className="flex-1 flex flex-col gap-4 min-w-0">
                 {/* Month Navigator + KPIs Row */}
-                <div className="flex gap-4 items-stretch">
+                <div className="flex flex-col xl:flex-row gap-4 items-stretch">
                     {/* Month/Year Navigator */}
                     <div className="month-navigator">
                         <CalendarIcon className="w-5 h-5 text-slate-400 dark:text-slate-500" />
@@ -907,7 +907,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                     </div>
 
                     {/* KPI Cards - Hero Balance Layout with Enhanced Design */}
-                    <div className="flex-1 kpi-grid">
+                    <div className="flex-1 kpi-grid grid grid-cols-2 md:grid-cols-4 xl:flex gap-3">
                         {/* Balance - Hero Card */}
                         <div className="kpi-card kpi-card--hero kpi-card-hero-glow animate-fade-in-up group">
                             <div className="flex items-center justify-between mb-3">
@@ -972,7 +972,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                 </div>
 
                 {/* Chart and Categories Row */}
-                <div className="flex-1 flex gap-4 min-h-0">
+                <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0">
                     {/* Chart */}
                     <div className="chart-panel flex-1 min-w-0">
                         <h3 className="chart-title">
@@ -1020,7 +1020,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                     </div>
 
                     {/* Categories Panel */}
-                    <div className="category-panel w-72">
+                    <div className="category-panel w-full lg:w-72">
                         {/* Tab Header with Counters */}
                         <div className="category-header">
                             <h3 className="category-title">Por Categoría</h3>
@@ -1031,11 +1031,10 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                                 >
                                     <span>Gastos</span>
                                     {expenseCategories.length > 0 && (
-                                        <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full transition-colors ${
-                                            categoryTab === 'expenses'
+                                        <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full transition-colors ${categoryTab === 'expenses'
                                                 ? 'bg-red-500/15 text-red-600 dark:text-red-400'
                                                 : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-                                        }`}>
+                                            }`}>
                                             {expenseCategories.length}
                                         </span>
                                     )}
@@ -1046,11 +1045,10 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                                 >
                                     <span>Ingresos</span>
                                     {incomeCategories.length > 0 && (
-                                        <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full transition-colors ${
-                                            categoryTab === 'income'
+                                        <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full transition-colors ${categoryTab === 'income'
                                                 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                                                 : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-                                        }`}>
+                                            }`}>
                                             {incomeCategories.length}
                                         </span>
                                     )}

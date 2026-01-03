@@ -538,9 +538,9 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                             </button>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-4 mt-1 sm:mt-0">
                             {/* Important Toggle - Always visible */}
-                            <label className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer transition-all ${isImportant
+                            <label className={`inline-flex items-center justify-center w-10 h-10 rounded-xl border cursor-pointer transition-all ${isImportant
                                 ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700'
                                 : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 hover:bg-slate-100'
                                 }`}>
@@ -550,31 +550,32 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                     onChange={(e) => setIsImportant(e.target.checked)}
                                     className="sr-only"
                                 />
-                                <StarIcon className={`w-4 h-4 transition-colors ${isImportant ? 'text-amber-500' : 'text-slate-400'}`} />
+                                <StarIcon className={`w-5 h-5 transition-colors ${isImportant ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
                             </label>
 
                             {/* Type Toggle */}
-                            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden flex-shrink-0 bg-slate-50 dark:bg-slate-900">
+                            <div className="flex-1 sm:flex-none inline-flex rounded-xl border border-slate-300 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-900 h-10">
                                 <button
                                     type="button"
                                     onClick={() => setFlowType(FlowType.EXPENSE)}
-                                    className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 ${flowType === FlowType.EXPENSE
-                                        ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                                        } border-r border-slate-300 dark:border-slate-700`}
+                                    className={`flex-1 sm:flex-none px-4 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${flowType === FlowType.EXPENSE
+                                        ? 'bg-red-500 text-white shadow-md'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                        }`}
                                 >
-                                    <ArrowTrendingDownIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                    <ArrowTrendingDownIcon className="w-4 h-4" />
                                     {t('form.expense', 'Gasto')}
                                 </button>
+                                <div className="w-px bg-slate-300 dark:bg-slate-700" />
                                 <button
                                     type="button"
                                     onClick={() => setFlowType(FlowType.INCOME)}
-                                    className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 ${flowType === FlowType.INCOME
-                                        ? 'bg-green-500 text-white shadow-lg shadow-green-500/20'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                    className={`flex-1 sm:flex-none px-4 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${flowType === FlowType.INCOME
+                                        ? 'bg-emerald-500 text-white shadow-md'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
                                         }`}
                                 >
-                                    <ArrowTrendingUpIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                    <ArrowTrendingUpIcon className="w-4 h-4" />
                                     {t('form.income', 'Ingreso')}
                                 </button>
                             </div>

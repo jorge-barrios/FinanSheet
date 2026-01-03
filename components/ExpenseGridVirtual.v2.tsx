@@ -872,8 +872,34 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         </div>
                     );
                 }) : (
-                    <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
-                        <p className="text-slate-500">No hay compromisos en esta categoría</p>
+                    <div className="text-center py-20 px-6 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                        {commitments.length === 0 ? (
+                            <div className="flex flex-col items-center gap-4">
+                                <div className="w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-2">
+                                    <Sparkles className="w-8 h-8 text-indigo-500 dark:text-indigo-400" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                                        ¡Bienvenido a FinanSheet!
+                                    </h3>
+                                    <p className="text-slate-500 dark:text-slate-400 max-w-xs mx-auto mb-6">
+                                        Aún no tienes compromisos registrados. Comienza agregando tus ingresos y gastos fijos.
+                                    </p>
+                                    <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 py-2 px-4 rounded-full inline-block">
+                                        ✨ Tip: Usa el botón "+" arriba a la derecha
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center">
+                                <p className="text-slate-500 dark:text-slate-400 font-medium">
+                                    No hay compromisos en esta categoría
+                                </p>
+                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                                    Intenta seleccionar otra categoría en el filtro
+                                </p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
