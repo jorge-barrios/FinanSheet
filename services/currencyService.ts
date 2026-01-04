@@ -19,7 +19,16 @@ const DB_NAME = 'finansheet';
 const STORE_NAME = 'currency_rates_store';
 const DB_VERSION = 1;
 const CACHE_KEY = 'latest_rates';
-const TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const TTL_MS = 6 * 60 * 60 * 1000; // 6h (reduced from 24h)
+
+// Helper to check if a snapshot is from a previous calendar day
+function isDifferentDay(updatedAt: number): boolean {
+  const date = new Date(updatedAt);
+  const today = new Date();
+  return date.getDate() !== today.getDate() ||
+    date.getMonth() !== today.getMonth() ||
+    date.getFullYear() !== today.getFullYear();
+}
 
 // Very small IndexedDB helper
 function openDb(): Promise<IDBDatabase> {
@@ -89,7 +98,9 @@ async function fetchAllFromMindicador(): Promise<CurrencySnapshot> {
 
 function isExpired(snap?: CurrencySnapshot): boolean {
   if (!snap) return true;
-  return Date.now() - snap.updatedAt > TTL_MS;
+  const now = Date.now();
+  // Expire if > TTL OR if it's a new calendar day
+  return (now - snap.updatedAt > TTL_MS) || isDifferentDay(snap.updatedAt);
 }
 
 // Pub/Sub

@@ -60,28 +60,25 @@ export function useCurrency() {
   };
 
   const refresh = async () => {
+    setLoading(true); // Show local loading
     try {
       await CurrencyService.refresh();
     } catch (e: any) {
       setError(e?.message || 'Refresh failed');
+    } finally {
+      setLoading(false);
     }
   };
 
   return {
     snapshot,
-    loading,
+    loading, // Now also tracks manual refresh
     error,
     lastUpdated,
     toUnit,
     fromUnit,
     convertAmount,
     refresh,
-    /**
-     * Get exchange rate from any currency to base (CLP)
-     * Used for calculating fx_rate_to_base in terms and payments
-     * @param currency Source currency
-     * @returns Rate (how many CLP per 1 unit of currency)
-     */
     getFxRateToBase: (currency: string): number => {
       if (currency === 'CLP') return 1.0;
       return fromUnit(1, currency as any);

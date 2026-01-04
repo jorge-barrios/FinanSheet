@@ -39,7 +39,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     month,
 }) => {
     const { formatClp } = useLocalization();
-    const { fromUnit, convertAmount, getFxRateToBase } = useCurrency();
+    const { fromUnit, convertAmount, getFxRateToBase, refresh, loading, lastUpdated } = useCurrency();
     const term = commitment.active_term;
 
     // Currency type
@@ -320,9 +320,28 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
 
                     {/* Amount - integrated currency selector like CommitmentForm */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
-                            Monto pagado
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                                Monto pagado
+                            </label>
+                            {lastUpdated && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                                        Tasas: {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                    <button
+                                        onClick={refresh}
+                                        disabled={loading}
+                                        className={`p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 transition-all ${loading ? 'animate-spin' : ''}`}
+                                        title="Refrescar tasas"
+                                    >
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         <div className="flex">
                             <select
                                 value={amountCurrency}
@@ -345,7 +364,9 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                             >
                                 <option value="CLP">CLP</option>
                                 <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
                                 <option value="UF">UF</option>
+                                <option value="UTM">UTM</option>
                             </select>
                             <input
                                 type="number"
@@ -358,7 +379,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                         {/* Show conversion to CLP */}
                         {amountCurrency !== 'CLP' && amount && parseFloat(amount) > 0 && (
                             <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                ≈ {formatClp(fromUnit(parseFloat(amount), amountCurrency as 'USD' | 'UF'))}
+                                ≈ {formatClp(fromUnit(parseFloat(amount), amountCurrency as any))}
                             </div>
                         )}
                     </div>
