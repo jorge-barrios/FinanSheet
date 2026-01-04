@@ -94,7 +94,7 @@ import { useToast } from './context/ToastContext';
 import { useAuth } from './context/AuthContext';
 import { useFeature } from './context/FeatureFlagsContext';
 import { useCommitments } from './context/CommitmentsContext';
-import { CommitmentService, PaymentService, getCurrentUserId } from './services/dataService.v2';
+import { CommitmentService, TermService, PaymentService, getCurrentUserId } from './services/dataService.v2';
 import type { Payment } from './types.v2';
 
 import { getExchangeRate } from './services/exchangeRateService';
@@ -858,6 +858,20 @@ const App: React.FC = () => {
 
     // Centralized handler for opening PaymentRecorder V2
     // Month is 0-indexed (0 = January, 11 = December)
+    const handleResumeCommitment = useCallback(async (commitment: CommitmentWithTerm) => {
+        try {
+            const result = await TermService.unpauseCommitment(commitment.id);
+            if (result) {
+                showToast('Compromiso reanudado', 'success');
+                await refreshCommitments(true);
+            } else {
+                showToast('No se pudo reanudar el compromiso', 'error');
+            }
+        } catch (error: any) {
+            showToast(error.message || 'Error al reanudar compromiso', 'error');
+        }
+    }, [refreshCommitments, showToast]);
+
     const handleOpenPaymentRecorder = useCallback((commitmentId: string, year: number, month: number) => {
         const commitment = commitmentsV2.find(c => c.id === commitmentId);
         if (commitment) {
@@ -1077,6 +1091,7 @@ const App: React.FC = () => {
                                         onPauseCommitment={(c) => {
                                             setPauseModalState({ isOpen: true, commitment: c });
                                         }}
+                                        onResumeCommitment={handleResumeCommitment}
                                         onRecordPayment={handleOpenPaymentRecorder}
                                         onFocusedDateChange={setFocusedDate}
                                         onVisibleMonthsCountChange={setVisibleMonthsCount}

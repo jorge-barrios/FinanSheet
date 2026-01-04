@@ -61,8 +61,11 @@ interface ExpenseGridV2Props {
     onEditCommitment: (commitment: CommitmentWithTerm) => void;
     onDeleteCommitment: (commitmentId: string) => void;
     onPauseCommitment: (commitment: CommitmentWithTerm) => void;
+    onResumeCommitment: (commitment: CommitmentWithTerm) => void;
     onRecordPayment: (commitmentId: string, year: number, month: number) => void;
     onFocusedDateChange?: (date: Date) => void;
+    visibleMonthsCount?: number;
+    onVisibleMonthsCountChange?: (count: number) => void;
     // Optional preloaded data from App.tsx for instant rendering
     preloadedCommitments?: CommitmentWithTerm[];
     preloadedPayments?: Map<string, Payment[]>;
@@ -127,6 +130,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     onEditCommitment,
     onDeleteCommitment,
     onPauseCommitment,
+    onResumeCommitment,
     onRecordPayment,
     onFocusedDateChange,
     preloadedCommitments,
@@ -953,6 +957,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             }
                         }
 
+                        const terminated = isCommitmentTerminated(c);
+                        const paused = isCommitmentPaused(c);
+
                         // Payment record para fecha de pago
                         const currentPayment = commitmentPayments.find(p => p.period_date.substring(0, 7) === periodStr);
 
@@ -1037,13 +1044,18 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                                                         <DropdownMenu.Item
                                                             className="group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors"
+                                                            disabled={terminated}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                onPauseCommitment(c);
+                                                                if (paused) {
+                                                                    onResumeCommitment(c);
+                                                                } else {
+                                                                    onPauseCommitment(c);
+                                                                }
                                                             }}
                                                         >
                                                             <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
-                                                            Pausar / Terminar
+                                                            {paused ? 'Reanudar' : 'Pausar / Terminar'}
                                                         </DropdownMenu.Item>
 
                                                         <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1.5" />
@@ -1387,11 +1399,15 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         disabled={terminated}
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
-                                                                                            onPauseCommitment(commitment);
+                                                                                            if (paused) {
+                                                                                                onResumeCommitment(commitment);
+                                                                                            } else {
+                                                                                                onPauseCommitment(commitment);
+                                                                                            }
                                                                                         }}
                                                                                     >
                                                                                         <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
-                                                                                        {terminated ? 'Terminado' : 'Pausar'}
+                                                                                        {terminated ? 'Terminado' : (paused ? 'Reanudar' : 'Pausar')}
                                                                                     </DropdownMenu.Item>
 
                                                                                     <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
@@ -1537,11 +1553,15 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         disabled={terminated}
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
-                                                                                            onPauseCommitment(commitment);
+                                                                                            if (paused) {
+                                                                                                onResumeCommitment(commitment);
+                                                                                            } else {
+                                                                                                onPauseCommitment(commitment);
+                                                                                            }
                                                                                         }}
                                                                                     >
                                                                                         <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
-                                                                                        {terminated ? 'Terminado' : 'Pausar'}
+                                                                                        {terminated ? 'Terminado' : (paused ? 'Reanudar' : 'Pausar')}
                                                                                     </DropdownMenu.Item>
 
                                                                                     <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1" />

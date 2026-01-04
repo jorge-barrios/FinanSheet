@@ -507,6 +507,28 @@ export const TermService = {
     },
 
     /**
+     * Unpause a commitment by clearing effective_until on the active term
+     * @returns The updated term or null if failed
+     */
+    async unpauseCommitment(commitmentId: string): Promise<Term | null> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        // Get all terms to find the active one (the ones with effective_until set)
+        const terms = await this.getTerms(commitmentId);
+        const activeTerm = terms.find(t => t.effective_until !== null);
+
+        if (!activeTerm) {
+            console.error('No paused term found to unpause');
+            return null;
+        }
+
+        // Update the term to remove the end date
+        return await this.updateTerm(activeTerm.id, {
+            effective_until: null,
+        } as Partial<TermFormData>);
+    },
+
+    /**
      * Resume a commitment by creating a new term
      * @returns The new term or null if failed
      */
