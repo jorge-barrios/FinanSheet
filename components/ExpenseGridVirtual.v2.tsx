@@ -480,11 +480,24 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         const activeItems: CommitmentWithTerm[] = [];
 
         commitments.forEach(c => {
-            const term = c.active_term;
-            // Check if commitment is active or should be shown (terminated toggle)
-            const isActive = showTerminated || !term?.effective_until || new Date(term.effective_until) >= new Date();
+            // Context-aware visibility check
+            let isVisible = showTerminated;
 
-            if (!isActive) return;
+            if (!isVisible) {
+                // Check if active in any of the visible months
+                const isActiveInVisibleRange = visibleMonths.some(m => isActiveInMonth(c, m));
+
+                // OR check if has payment record in any of the visible months
+                const commitmentPayments = payments.get(c.id) || [];
+                const hasPaymentInRange = visibleMonths.some(m => {
+                    const periodStr = periodToString({ year: m.getFullYear(), month: m.getMonth() + 1 });
+                    return commitmentPayments.some(p => p.period_date.substring(0, 7) === periodStr);
+                });
+
+                isVisible = isActiveInVisibleRange || hasPaymentInRange;
+            }
+
+            if (!isVisible) return;
 
             const categoryName = getTranslatedCategoryName(c);
             if (selectedCategory === 'FILTER_IMPORTANT') {
@@ -548,18 +561,23 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     // Available categories for filter tabs (derived from all non-terminated commitments)
     const availableCategories = useMemo(() => {
         const categorySet = new Set<string>();
-        const nonTerminated = commitments.filter(c => {
-            const term = c.active_term;
-            if (!term?.effective_until) return true;
-            const endDate = new Date(term.effective_until);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            return endDate >= today;
+        const visibleInContext = commitments.filter(c => {
+            if (showTerminated) return true;
+
+            // Same logic as groupedCommitments to keep categories consistent
+            const isActiveInVisibleRange = visibleMonths.some(m => isActiveInMonth(c, m));
+            const commitmentPayments = payments.get(c.id) || [];
+            const hasPaymentInRange = visibleMonths.some(m => {
+                const periodStr = periodToString({ year: m.getFullYear(), month: m.getMonth() + 1 });
+                return commitmentPayments.some(p => p.period_date.substring(0, 7) === periodStr);
+            });
+
+            return isActiveInVisibleRange || hasPaymentInRange;
         });
-        nonTerminated.forEach(c => {
+        visibleInContext.forEach(c => {
             categorySet.add(getTranslatedCategoryName(c));
         });
-        const hasImportant = nonTerminated.some(c => c.is_important);
+        const hasImportant = visibleInContext.some(c => c.is_important);
         const categories = ['all', ...Array.from(categorySet).sort((a, b) => a.localeCompare(b, language === 'es' ? 'es' : 'en'))];
 
         if (hasImportant) {
@@ -892,21 +910,20 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
             {/* Mobile View */}
             <div className="lg:hidden p-4 space-y-4">
                 {(() => {
-                    // Filter commitments for mobile (same logic as desktop groupedCommitments)
-                    const checkTerminated = (c: CommitmentWithTerm): boolean => {
-                        const term = c.active_term;
-                        if (!term) return true; // No active term = effectively terminated/expired
-                        if (!term.effective_until) return false; // Infinite term
-                        const endDate = new Date(term.effective_until);
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        return endDate < today;
-                    };
+                    const periodStr = periodToString({ year: focusedDate.getFullYear(), month: focusedDate.getMonth() + 1 });
 
-                    const filteredCommitments = (showTerminated
-                        ? commitments
-                        : commitments.filter(c => !checkTerminated(c))
-                    ).filter(c => {
+                    const filteredCommitments = commitments.filter(c => {
+                        // 1. Siempre mostrar si "Ver terminados" está activo
+                        if (showTerminated) return true;
+
+                        // 2. Verificar si hay un registro de pago en el mes enfocado
+                        const commitmentPayments = payments.get(c.id) || [];
+                        const hasPaymentRecord = commitmentPayments.some(p => p.period_date.substring(0, 7) === periodStr);
+                        if (hasPaymentRecord) return true;
+
+                        // 3. Verificar si está activo según su término en el mes enfocado
+                        return isActiveInMonth(c, focusedDate);
+                    }).filter(c => {
                         // Aplicar filtro de categoría
                         if (selectedCategory === 'all') return true;
                         if (selectedCategory === 'FILTER_IMPORTANT') return c.is_important;
