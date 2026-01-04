@@ -601,13 +601,21 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         return endDate < today;
     };
 
-    // Check if commitment is paused/scheduled to end (has effective_until set, not yet passed)
+    // Check if commitment is paused/scheduled to end (manually paused, not installments or fixed-term)
     const isCommitmentPaused = (commitment: CommitmentWithTerm): boolean => {
         const term = commitment.active_term;
         if (!term?.effective_until) return false;
+
+        // Exclude installment-based commitments (they naturally have an end date)
+        if (term.installments_count && term.installments_count > 1) return false;
+
+        // Exclude one-time payments (frequency ONCE)
+        if (term.frequency === 'ONCE') return false;
+
+        // For MONTHLY with no installments, having effective_until means it was paused
         const endDate = new Date(term.effective_until);
         const today = new Date();
-        return endDate >= today; // Has end date but hasn't passed yet = paused/scheduled
+        return endDate >= today; // Has end date but hasn't passed yet = paused
     };
 
     // Check if commitment is active in a given month based on frequency

@@ -484,37 +484,26 @@ export const TermService = {
     async pauseCommitment(commitmentId: string, lastMonth: string): Promise<Term | null> {
         if (!supabase) throw new Error('Supabase not configured');
 
-        console.log('[pauseCommitment] Starting pause for commitment:', commitmentId, 'lastMonth:', lastMonth);
-
         // Get all terms to find the active one
         const terms = await this.getTerms(commitmentId);
-        console.log('[pauseCommitment] Found terms:', terms.length, terms.map(t => ({ id: t.id, effective_until: t.effective_until })));
-
         const activeTerm = terms.find(t =>
             t.effective_until === null || t.effective_until >= lastMonth
         );
 
         if (!activeTerm) {
-            console.error('[pauseCommitment] No active term found to pause');
+            console.error('No active term found to pause');
             return null;
         }
-
-        console.log('[pauseCommitment] Active term found:', activeTerm.id);
 
         // Calculate last day of the month
         const [year, month] = lastMonth.split('-').map(Number);
         const lastDayOfMonth = new Date(year, month, 0).getDate();
         const effectiveUntil = `${lastMonth}-${String(lastDayOfMonth).padStart(2, '0')}`;
 
-        console.log('[pauseCommitment] Setting effective_until to:', effectiveUntil);
-
         // Update the term
-        const result = await this.updateTerm(activeTerm.id, {
+        return await this.updateTerm(activeTerm.id, {
             effective_until: effectiveUntil,
         } as Partial<TermFormData>);
-
-        console.log('[pauseCommitment] Update result:', result);
-        return result;
     },
 
     /**
