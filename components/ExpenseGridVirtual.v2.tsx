@@ -974,7 +974,12 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             }
                         }
 
-                        const terminated = isCommitmentTerminated(c);
+                        // Determinar si se debe mostrar como tachado (terminated)
+                        // Solo se tacha si: está terminado globalmente, no está activo en este mes, Y ya está pagado.
+                        const isGloballyTerminated = isCommitmentTerminated(c);
+                        const isCurrentlyActive = isActiveInMonth(c, monthDate);
+                        const terminated = isGloballyTerminated && !isCurrentlyActive && isPaid;
+
                         const paused = isCommitmentPaused(c);
 
                         // Payment record para fecha de pago
@@ -1007,7 +1012,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     <div className="flex items-start justify-between mb-3">
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className="font-bold text-slate-900 dark:text-white truncate">
+                                                <span className={`font-bold truncate ${terminated ? 'line-through text-slate-500' : 'text-slate-900 dark:text-white'}`}>
                                                     {c.name}
                                                     {/* New Item Badge Mobile */}
                                                     {((new Date().getTime() - new Date(c.created_at).getTime()) < 5 * 60 * 1000) && (
@@ -1301,7 +1306,16 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                                             {/* Commitment rows */}
                                             {catCommitments.map(commitment => {
-                                                const terminated = isCommitmentTerminated(commitment);
+                                                const monthDate = focusedDate; // En vista compacta, solo vemos el mes enfocado
+                                                const isGloballyTerminated = isCommitmentTerminated(commitment);
+                                                const isCurrentlyActive = isActiveInMonth(commitment, monthDate);
+
+                                                // Necesitamos saber si está pagado en este mes para decidir el tachado
+                                                const termForMonth = getTermForPeriod(commitment, monthDate);
+                                                const dueDay = termForMonth?.due_day_of_month ?? 1;
+                                                const { isPaid } = getPaymentStatus(commitment.id, monthDate, dueDay);
+
+                                                const terminated = isGloballyTerminated && !isCurrentlyActive && isPaid;
                                                 const paused = isCommitmentPaused(commitment);
                                                 const flowColor = commitment.flow_type === 'INCOME' ? 'border-l-emerald-500' : 'border-l-red-500';
                                                 return (
