@@ -1032,8 +1032,8 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                                     <span>Gastos</span>
                                     {expenseCategories.length > 0 && (
                                         <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full transition-colors ${categoryTab === 'expenses'
-                                                ? 'bg-red-500/15 text-red-600 dark:text-red-400'
-                                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                            ? 'bg-red-500/15 text-red-600 dark:text-red-400'
+                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                                             }`}>
                                             {expenseCategories.length}
                                         </span>
@@ -1046,8 +1046,8 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                                     <span>Ingresos</span>
                                     {incomeCategories.length > 0 && (
                                         <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full transition-colors ${categoryTab === 'income'
-                                                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                                             }`}>
                                             {incomeCategories.length}
                                         </span>

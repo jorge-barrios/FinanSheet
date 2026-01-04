@@ -269,7 +269,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                             <span className="text-sm text-slate-600 dark:text-slate-300">
                                 Monto esperado ({expectedCurrency}):
                             </span>
-                            <span className="font-semibold text-slate-900 dark:text-white">
+                            <span className="font-semibold font-mono tabular-nums text-slate-900 dark:text-white">
                                 {expectedCurrency} {formatClp(expectedAmount)}
                             </span>
                         </div>
@@ -352,7 +352,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
                                 placeholder={String(expectedAmount)}
-                                className="flex-1 px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-r-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 dark:text-white placeholder-slate-400"
+                                className="flex-1 px-3 py-2 text-sm font-mono tabular-nums bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-r-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 dark:text-white placeholder-slate-400"
                             />
                         </div>
                         {/* Show conversion to CLP */}

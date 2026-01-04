@@ -24,7 +24,7 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
     const isPaid = paymentDetails?.paid ?? false;
     const dueDate = paymentDetails?.overriddenDueDate ?? expense.dueDate;
 
-    
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dueDateForMonth = new Date(currentYear, currentMonth, dueDate);
@@ -53,8 +53,8 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
             const isCurrentMonthNow = today.getFullYear() === currentYear && today.getMonth() === currentMonth;
             if (isCurrentMonthNow) {
                 const daysUntilDue = Math.floor((dueDateForMonth.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                const text = daysUntilDue >= 0 
-                    ? `Pendiente (${daysUntilDue} día${daysUntilDue !== 1 ? 's' : ''} restantes)` 
+                const text = daysUntilDue >= 0
+                    ? `Pendiente (${daysUntilDue} día${daysUntilDue !== 1 ? 's' : ''} restantes)`
                     : `Pendiente`;
                 return {
                     text,
@@ -79,10 +79,20 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
             onOpenCellEditor(expense.id, currentYear, currentMonth);
         }
     };
-    
+
     return (
-        <div 
-            className={`p-4 rounded-lg shadow-md flex flex-col justify-between transition-colors ring-1 ring-transparent hover:ring-sky-500/50 ${expense.isImportant ? 'bg-fuchsia-50 dark:bg-fuchsia-500/10' : 'bg-white dark:bg-slate-800'}`}
+        <div
+            className={`p-4 rounded-xl flex flex-col justify-between transition-all duration-300 ease-out
+                ${expense.isImportant
+                    ? 'bg-fuchsia-50/90 dark:bg-fuchsia-900/20 ring-1 ring-fuchsia-500/20'
+                    : 'bg-white/90 dark:bg-slate-800/60'
+                }
+                backdrop-blur-md border border-white/50 dark:border-white/5
+                shadow-sm dark:shadow-xl dark:shadow-slate-900/20
+                hover:shadow-md dark:hover:shadow-slate-900/40
+                hover:scale-[1.02] active:scale-[0.98]
+                ring-1 ring-transparent hover:ring-sky-500/50
+            `}
             onClick={handleCardClick}
             role="button"
             tabIndex={0}
@@ -92,7 +102,7 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
             <div className="flex justify-between items-start mb-3">
                 <div>
                     <h3 className="font-bold dark:text-white text-slate-800 text-lg">{expense.name}</h3>
-                    <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                         {getCategoryIcon(expense.category)}
                         <span>{expense.category}</span>
                     </div>
@@ -102,9 +112,11 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
                     <button onClick={(e) => { e.stopPropagation(); onDeleteExpense(expense.id); }} aria-label={`Delete ${expense.name}`} className="text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700/50"><TrashIcon /></button>
                 </div>
             </div>
-            
+
             <div className="flex justify-between items-center mt-2">
-                <span className="text-2xl font-mono font-semibold text-sky-600 dark:text-sky-300">{formatClp(amountInBase)}</span>
+                <span className="font-mono font-semibold tabular-nums text-slate-900 dark:text-white">
+                    {formatClp(amountInBase)}
+                </span>
                 {isInCurrentMonth ? (
                     statusInfo ? (
                         <div className="flex items-center gap-1">
@@ -123,7 +135,7 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
                         </div>
                     )
                 ) : (
-                     <div className="flex items-center">
+                    <div className="flex items-center">
                         <span className="px-3 py-1 text-xs font-semibold text-slate-500 dark:text-slate-500 rounded-full bg-slate-200 dark:bg-slate-700">
                             N/A
                         </span>

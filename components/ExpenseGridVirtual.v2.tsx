@@ -10,7 +10,7 @@
  * - Icon-based feedback
  */
 
-import React, { useMemo, useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState, useCallback } from 'react';
 import { useLocalization } from '../hooks/useLocalization';
 import usePersistentState from '../hooks/usePersistentState';
 import { useCommitments } from '../context/CommitmentsContext';
@@ -364,51 +364,180 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     }, [density, visibleMonths]);
 
 
-    // Group commitments by category (filtered by terminated status AND category filter)
-    const groupedCommitments = useMemo(() => {
-        const groups: { [key: string]: { flowType: FlowType; items: CommitmentWithTerm[] } } = {};
+    // Get payment status for a commitment in a month
+    // Note: We use amount_original for CLP payments due to migration bug with amount_in_base
+    const getPaymentStatus = useCallback((commitmentId: string, monthDate: Date, dueDay: number = 1) => {
+        const commitmentPayments = payments.get(commitmentId) || [];
+        const periodStr = periodToString({ year: monthDate.getFullYear(), month: monthDate.getMonth() + 1 });
 
-        // Helper to check if terminated (or expired/no active term)
-        const checkTerminated = (c: CommitmentWithTerm): boolean => {
-            const term = c.active_term;
-            if (!term) return true; // No active term = effectively terminated/expired
-            if (!term.effective_until) return false; // Infinite term
-            const endDate = new Date(term.effective_until);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            return endDate < today;
-        };
+        const payment = commitmentPayments.find(p => {
+            const pPeriod = p.period_date.substring(0, 7);
+            return pPeriod === periodStr;
+        });
 
-        // Filter commitments based on showTerminated toggle
-        let filteredCommitments = showTerminated
-            ? commitments
-            : commitments.filter(c => !checkTerminated(c));
+        if (payment) {
+            // If currency is CLP, amount_original IS the CLP value (migration bug with amount_in_base)
+            // Otherwise, we'd need to convert - but most payments are in CLP
+            const paidAmount = payment.currency_original === 'CLP'
+                ? payment.amount_original
+                : payment.amount_in_base ?? payment.amount_original;
 
-        // Apply category filter
-        if (selectedCategory !== 'all') {
-            filteredCommitments = filteredCommitments.filter(c => {
-                const categoryName = getTranslatedCategoryName(c);
-                return categoryName === selectedCategory;
-            });
+            // A payment is only "paid" if payment_date exists
+            // If payment_date is null, it's a registered custom amount but not yet paid
+            const paymentDate = payment.payment_date ? parseDateString(payment.payment_date) : null;
+            const isPaid = !!payment.payment_date; // Only true if date exists
+
+            // Check if payment was on time (payment_date <= due date of the month)
+            const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
+            const paidOnTime = paymentDate ? paymentDate <= dueDate : true; // Assume on-time if no date
+
+            return {
+                isPaid,
+                amount: paidAmount,
+                paymentDate,
+                paidOnTime
+            };
         }
 
-        filteredCommitments.forEach(c => {
-            // Use translated category name directly from i18n
+        return { isPaid: false, amount: null, paymentDate: null, paidOnTime: false };
+    }, [payments]);
+
+    // Smart Sort Function
+    const getCommitmentSortData = useCallback((c: CommitmentWithTerm, monthDate: Date) => {
+        const term = getTermForPeriod(c, monthDate);
+        const dueDay = term?.due_day_of_month ?? 32; // 32 = end of list if no active term
+        const { isPaid, amount: paidAmount } = getPaymentStatus(c.id, monthDate, dueDay);
+
+        const today = new Date();
+        const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
+
+        // Check for recently created (Last 5 minutes)
+        // This ensures the user sees what they just created
+        const createdAt = new Date(c.created_at);
+        const isRecentlyCreated = (today.getTime() - createdAt.getTime()) < 5 * 60 * 1000; // 5 mins
+
+        // Status Priority:
+        // -2: Recently Created (Immediate Feedback)
+        // -1: Important (User flagged)
+        // 0: Overdue (Critical) - Not Paid, Past Due, Current/Past Month
+        // 1: Pending (Actionable) - Not Paid, Future Due or Current Month
+        // 2: Paid (Done)
+
+        let statusPriority = 1; // Default to Pending
+
+        if (isRecentlyCreated && !isPaid) {
+            statusPriority = -2; // Top Priority (New)
+        } else if (c.is_important && !isPaid) {
+            statusPriority = -1; // Second Priority (Important)
+        } else if (isPaid) {
+            statusPriority = 2;
+        } else if (dueDate < today && monthDate <= today) {
+            statusPriority = 0; // Overdue
+        }
+
+        // Amount for sorting (Descending importance)
+        const amount = paidAmount ?? term?.amount_in_base ?? term?.amount_original ?? 0;
+
+        return { statusPriority, dueDay, amount, name: c.name };
+    }, [getPaymentStatus]);
+
+    const performSmartSort = useCallback((a: CommitmentWithTerm, b: CommitmentWithTerm) => {
+        const dataA = getCommitmentSortData(a, focusedDate);
+        const dataB = getCommitmentSortData(b, focusedDate);
+
+        // 1. Status Priority (Ascending: 0=Overdue, 1=Pending, 2=Paid)
+        if (dataA.statusPriority !== dataB.statusPriority) {
+            return dataA.statusPriority - dataB.statusPriority;
+        }
+
+        // 2. Due Day (Ascending)
+        if (dataA.dueDay !== dataB.dueDay) {
+            return dataA.dueDay - dataB.dueDay;
+        }
+
+        // 3. Amount (Descending - Higher value first)
+        // Only if amount differs significantly
+        if (Math.abs(dataA.amount - dataB.amount) > 0.01) {
+            return dataB.amount - dataA.amount;
+        }
+
+        // 4. Name (Alphabetical)
+        return dataA.name.localeCompare(b.name, language === 'es' ? 'es' : 'en');
+    }, [getCommitmentSortData, focusedDate, language]);
+
+    // Group commitments by category (for grid view)
+    // Hybrid Strategy:
+    // - Compact View: Treat as flat list (single 'All' group) to enforce strict Priority Sorting (Overdue > Pending)
+    // - Detailed View: Maintain Category Grouping, but sort Groups by Urgency
+    const groupedCommitments = useMemo(() => {
+        // 1. Filter active terms & selected category
+        const activeItems: CommitmentWithTerm[] = [];
+
+        commitments.forEach(c => {
+            const term = c.active_term;
+            // Check if commitment is active or should be shown (terminated toggle)
+            const isActive = showTerminated || !term?.effective_until || new Date(term.effective_until) >= new Date();
+
+            if (!isActive) return;
+
+            const categoryName = getTranslatedCategoryName(c);
+            if (selectedCategory === 'FILTER_IMPORTANT') {
+                if (!c.is_important) return;
+            } else if (selectedCategory !== 'all' && categoryName !== selectedCategory) {
+                return;
+            }
+
+            activeItems.push(c);
+        });
+
+        // 2. COMPACT MODE: Flat List (Strict Smart Sort)
+        if (density === 'compact') {
+            return [{
+                category: 'all', // Dummy category, header is hidden in compact mode anyway
+                flowType: 'EXPENSE', // Irrelevant for flat list
+                commitments: activeItems.sort(performSmartSort)
+            }];
+        }
+
+        // 3. DETAILED MODE: Grouped Items (Grouped Smart Sort)
+        const groups: Record<string, { items: CommitmentWithTerm[], flowType: 'INCOME' | 'EXPENSE' }> = {};
+
+        activeItems.forEach(c => {
             const categoryName = getTranslatedCategoryName(c);
             if (!groups[categoryName]) {
-                groups[categoryName] = { flowType: c.flow_type as FlowType, items: [] };
+                groups[categoryName] = {
+                    items: [],
+                    flowType: c.flow_type
+                };
             }
             groups[categoryName].items.push(c);
         });
 
         return Object.entries(groups)
-            .sort((a, b) => a[0].localeCompare(b[0], language === 'es' ? 'es' : 'en'))
-            .map(([category, data]) => ({
-                category,
-                flowType: data.flowType,
-                commitments: data.items.sort((a, b) => a.name.localeCompare(b.name, language === 'es' ? 'es' : 'en'))
-            }));
-    }, [commitments, showTerminated, selectedCategory, t, language]);
+            .map(([category, data]) => {
+                // Sort items within category
+                const sortedItems = data.items.sort(performSmartSort);
+
+                // Calculate min priority for the category
+                const minPriority = sortedItems.length > 0
+                    ? Math.min(...sortedItems.map(c => getCommitmentSortData(c, focusedDate).statusPriority))
+                    : 2;
+
+                return {
+                    category,
+                    flowType: data.flowType,
+                    commitments: sortedItems,
+                    minPriority
+                };
+            })
+            // Sort categories by Urgency then Name
+            .sort((a, b) => {
+                if (a.minPriority !== b.minPriority) {
+                    return a.minPriority - b.minPriority;
+                }
+                return a.category.localeCompare(b.category, language === 'es' ? 'es' : 'en');
+            });
+    }, [commitments, showTerminated, selectedCategory, t, language, performSmartSort, getCommitmentSortData, focusedDate, density]);
 
     // Available categories for filter tabs (derived from all non-terminated commitments)
     const availableCategories = useMemo(() => {
@@ -424,7 +553,13 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         nonTerminated.forEach(c => {
             categorySet.add(getTranslatedCategoryName(c));
         });
-        return ['all', ...Array.from(categorySet).sort((a, b) => a.localeCompare(b, language === 'es' ? 'es' : 'en'))];
+        const hasImportant = nonTerminated.some(c => c.is_important);
+        const categories = ['all', ...Array.from(categorySet).sort((a, b) => a.localeCompare(b, language === 'es' ? 'es' : 'en'))];
+
+        if (hasImportant) {
+            categories.splice(1, 0, 'FILTER_IMPORTANT');
+        }
+        return categories;
     }, [commitments, language]);
 
     // Count of terminated commitments (for toggle label)
@@ -499,43 +634,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         }
     };
 
-    // Get payment status for a commitment in a month
-    // Note: We use amount_original for CLP payments due to migration bug with amount_in_base
-    const getPaymentStatus = (commitmentId: string, monthDate: Date, dueDay: number = 1) => {
-        const commitmentPayments = payments.get(commitmentId) || [];
-        const periodStr = periodToString({ year: monthDate.getFullYear(), month: monthDate.getMonth() + 1 });
 
-        const payment = commitmentPayments.find(p => {
-            const pPeriod = p.period_date.substring(0, 7);
-            return pPeriod === periodStr;
-        });
-
-        if (payment) {
-            // If currency is CLP, amount_original IS the CLP value (migration bug with amount_in_base)
-            // Otherwise, we'd need to convert - but most payments are in CLP
-            const paidAmount = payment.currency_original === 'CLP'
-                ? payment.amount_original
-                : payment.amount_in_base ?? payment.amount_original;
-
-            // A payment is only "paid" if payment_date exists
-            // If payment_date is null, it's a registered custom amount but not yet paid
-            const paymentDate = payment.payment_date ? parseDateString(payment.payment_date) : null;
-            const isPaid = !!payment.payment_date; // Only true if date exists
-
-            // Check if payment was on time (payment_date <= due date of the month)
-            const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
-            const paidOnTime = paymentDate ? paymentDate <= dueDate : true; // Assume on-time if no date
-
-            return {
-                isPaid,
-                amount: paidAmount,
-                paymentDate,
-                paidOnTime
-            };
-        }
-
-        return { isPaid: false, amount: null, paymentDate: null, paidOnTime: false };
-    };
     // ==========================================================================
     // RENDER
     // ==========================================================================
@@ -591,7 +690,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                 <ChevronLeftIcon className="w-5 h-5" />
                             </button>
                             <div className="px-3 sm:px-4 py-2 text-center min-w-[100px] sm:min-w-[140px] border-x border-slate-200 dark:border-slate-600">
-                                <div className="text-sm font-bold text-slate-900 dark:text-white capitalize">
+                                <div className="text-sm font-semibold text-slate-900 dark:text-white capitalize">
                                     {focusedDate.toLocaleDateString('es-ES', { month: 'short' })} {focusedDate.getFullYear()}
                                 </div>
                             </div>
@@ -743,15 +842,20 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                             }
                                         `}
                                     >
-                                        {cat === 'all' ? 'Todos' : cat}
+                                        {cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? 'Importantes' : cat}
                                         <span className={`ml-1 ${selectedCategory === cat ? 'opacity-80' : 'opacity-50'}`}>
                                             ({cat === 'all'
                                                 ? commitments.filter(c => showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
-                                                : commitments.filter(c => {
-                                                    const categoryName = getTranslatedCategoryName(c);
-                                                    const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
-                                                    return isActive && categoryName === cat;
-                                                }).length
+                                                : cat === 'FILTER_IMPORTANT'
+                                                    ? commitments.filter(c => {
+                                                        const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
+                                                        return isActive && c.is_important;
+                                                    }).length
+                                                    : commitments.filter(c => {
+                                                        const categoryName = getTranslatedCategoryName(c);
+                                                        const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
+                                                        return isActive && categoryName === cat;
+                                                    }).length
                                             })
                                         </span>
                                     </button>
@@ -782,8 +886,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                     ).filter(c => {
                         // Aplicar filtro de categoría
                         if (selectedCategory === 'all') return true;
+                        if (selectedCategory === 'FILTER_IMPORTANT') return c.is_important;
                         return getTranslatedCategoryName(c) === selectedCategory;
-                    });
+                    }).sort(performSmartSort);
 
                     return filteredCommitments.length > 0 ? filteredCommitments.map(c => {
                         // Sync logic with desktop cells
@@ -841,11 +946,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     transition-all duration-300
                                     ${!isPaid ? 'active:scale-[0.98] cursor-pointer' : ''}
 
-                                    /* Finance Premium: Base neutra glassmorphism */
-                                    bg-white/70 dark:bg-slate-900/60
-                                    backdrop-blur-xl
-                                    border border-white/40 dark:border-slate-700/50
-                                    shadow-sm
+                                    /* Finance Premium: Base "Liquid Glass" */
+                                    bg-white/90 dark:bg-slate-800/80
+                                    backdrop-blur-md
+                                    border border-white/50 dark:border-white/10
+                                    shadow-sm dark:shadow-lg dark:shadow-slate-900/20
 
                                     /* Flujo via borde izquierdo (3px) */
                                     border-l-[3px]
@@ -859,12 +964,20 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     <div className="flex items-start justify-between mb-3">
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className="font-bold text-slate-900 dark:text-white truncate">{c.name}</span>
+                                                <span className="font-bold text-slate-900 dark:text-white truncate">
+                                                    {c.name}
+                                                    {/* New Item Badge Mobile */}
+                                                    {((new Date().getTime() - new Date(c.created_at).getTime()) < 5 * 60 * 1000) && (
+                                                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 animate-pulse">
+                                                            NUEVO
+                                                        </span>
+                                                    )}
+                                                </span>
                                                 {c.is_important && <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />}
                                             </div>
                                             {/* Categoría + Cuota info */}
                                             <div className="flex items-center gap-2">
-                                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                                                <span className="text-[10px] text-slate-800 dark:text-slate-200 font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700/80 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-600/50">
                                                     {getTranslatedCategoryName(c)}
                                                 </span>
                                                 {cuotaNumber && installmentsCount && installmentsCount > 1 && (
@@ -949,7 +1062,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                         >
                                             {isPaid ? <CheckCircleIcon className="w-3.5 h-3.5" />
                                                 : isOverdue ? <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-                                                : <ClockIcon className="w-3.5 h-3.5" />}
+                                                    : <ClockIcon className="w-3.5 h-3.5" />}
                                             <span className="text-xs font-medium">
                                                 {isPaid ? 'Pagado' : isOverdue ? 'Vencido' : 'Pendiente'}
                                             </span>
@@ -1033,7 +1146,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     key={cat}
                                     onClick={() => setSelectedCategory(cat)}
                                     className={`
-                                        px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap
+                                        px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap
                                         transition-all duration-200
                                         ${selectedCategory === cat
                                             ? 'bg-sky-500 text-white shadow-sm'
@@ -1041,15 +1154,20 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                         }
                                     `}
                                 >
-                                    {cat === 'all' ? 'Todos' : cat}
+                                    {cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? 'Importantes' : cat}
                                     <span className={`ml-1.5 text-xs ${selectedCategory === cat ? 'opacity-80' : 'opacity-50'}`}>
                                         ({cat === 'all'
                                             ? commitments.filter(c => showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
-                                            : commitments.filter(c => {
-                                                const categoryName = getTranslatedCategoryName(c);
-                                                const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
-                                                return isActive && categoryName === cat;
-                                            }).length
+                                            : cat === 'FILTER_IMPORTANT'
+                                                ? commitments.filter(c => {
+                                                    const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
+                                                    return isActive && c.is_important;
+                                                }).length
+                                                : commitments.filter(c => {
+                                                    const categoryName = getTranslatedCategoryName(c);
+                                                    const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
+                                                    return isActive && categoryName === cat;
+                                                }).length
                                         })
                                     </span>
                                 </button>
@@ -1165,17 +1283,31 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                     {/* Left: Name */}
                                                                     <div className="min-w-0 flex-1 flex items-center">
                                                                         <span
-                                                                            className={`font-medium text-sm truncate block hover:text-sky-600 ${terminated ? 'line-through text-slate-500' : 'text-slate-900 dark:text-white'}`}
+                                                                            className={`font-medium text-sm truncate flex items-center gap-1.5 hover:text-sky-600 ${terminated ? 'line-through text-slate-500' : 'text-slate-900 dark:text-white'}`}
                                                                             title={`${commitment.name} - Click para editar`}
                                                                         >
-                                                                            {commitment.name}
+                                                                            <span className="truncate">{commitment.name}</span>
+                                                                            {/* Important Star */}
+                                                                            {commitment.is_important && (
+                                                                                <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
+                                                                            )}
+                                                                            {/* Linked Icon */}
+                                                                            {commitment.linked_commitment_id && (
+                                                                                <Link2 className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                                                                            )}
+                                                                            {/* New Item Badge */}
+                                                                            {((new Date().getTime() - new Date(commitment.created_at).getTime()) < 5 * 60 * 1000) && (
+                                                                                <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 animate-pulse">
+                                                                                    NUEVO
+                                                                                </span>
+                                                                            )}
                                                                         </span>
                                                                     </div>
 
                                                                     {/* Right: Category + Amount + Icon */}
                                                                     <div className="flex items-center gap-2 shrink-0">
-                                                                        <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 uppercase tracking-wider border border-indigo-100 dark:border-indigo-800/50">
-                                                                            {category}
+                                                                        <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold bg-slate-100 dark:bg-slate-700/80 text-slate-800 dark:text-slate-200 uppercase tracking-wider border border-slate-200 dark:border-slate-600/50">
+                                                                            {getTranslatedCategoryName(commitment)}
                                                                         </span>
                                                                         <div className="flex items-center gap-1.5 text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700/50">
                                                                             <span>
@@ -1513,7 +1645,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         {/* --- CONTENT: Monto + Badge en línea --- */}
                                                                                         <div className="flex items-center justify-between gap-3 mb-1">
                                                                                             {/* Monto - protagonista, siempre neutro */}
-                                                                                            <div className="text-base font-bold font-mono tabular-nums text-slate-800 dark:text-slate-100">
+                                                                                            <div className="text-base font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-100">
                                                                                                 {formatClp(displayAmount!)}
                                                                                             </div>
                                                                                             {/* Badge de estado compacto */}
@@ -1655,7 +1787,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                 }}
                                                                             >
                                                                                 {/* Main amount - neutral colors */}
-                                                                                <div className="font-bold font-mono tabular-nums text-base text-slate-800 dark:text-slate-100">
+                                                                                <div className="font-semibold font-mono tabular-nums text-base text-slate-800 dark:text-slate-100">
                                                                                     {formatClp(displayAmount)}
                                                                                 </div>
                                                                                 {/* Original currency */}
