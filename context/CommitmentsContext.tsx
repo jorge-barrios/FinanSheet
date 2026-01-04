@@ -43,6 +43,14 @@ interface MonthlyData {
     hasExpenseData: boolean; // True if there are active expense commitments
 }
 
+interface MonthTotals {
+    comprometido: number;   // Total committed expenses for month
+    ingresos: number;       // Total committed income for month
+    pagado: number;         // Total payments made (with payment_date)
+    pendiente: number;      // Active commitments without payment
+    balance: number;        // ingresos - comprometido
+}
+
 interface CommitmentsContextValue {
     // Raw data
     commitments: CommitmentWithTerm[];
@@ -64,6 +72,7 @@ interface CommitmentsContextValue {
     // Derived data (calculated from raw data)
     getUpcomingPayments: (selectedMonth: number) => UpcomingPayment[];
     getMonthlyData: () => MonthlyData[];
+    getMonthTotals: (year: number, month: number) => MonthTotals;
     isPaymentMade: (commitmentId: string, year: number, month: number) => boolean;
 }
 
@@ -384,103 +393,150 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
         return paymentForPeriod?.amount_in_base ?? getPerPeriodAmount(term, true);
     }, [payments]);
 
-    const getMonthlyData = useCallback((): MonthlyData[] => {
-        const data: MonthlyData[] = Array.from({ length: 12 }, () => ({
-            income: 0,
-            expenses: 0,
-            balance: 0,
-            hasIncomeData: false,
-            hasExpenseData: false
-        }));
+    // Get totals for a specific month - centralized calculation
+    const getMonthTotals = useCallback((year: number, month: number): MonthTotals => {
+        let comprometido = 0;
+        let ingresos = 0;
+        let pagado = 0;
+        let pendiente = 0;
 
-        // Calculate rolling window: 12 months (8 back + current + 3 forward)
-        const centerDate = new Date(displayYear, displayMonth, 1);
+        const targetPeriod = periodToString({ year, month: month + 1 });
 
-        // Build a map of commitment IDs for quick lookup
+        // Note: We do NOT filter by "terminated" here - that's for UI display only.
+        // A commitment that was active in January but terminated in February
+        // should still count in January's totals.
+        // isTermActiveForMonth already handles the date range logic correctly.
+
+        // Build a map of commitment IDs for quick lookup (same as getMonthlyData)
         const commitmentMap = new Map(commitments.map(c => [c.id, c]));
 
-        // Build a set of linked pairs to track which commitments have been processed
-        // For bidirectional links: A.linked_commitment_id = B.id AND B.linked_commitment_id = A.id
-        // We only want to process each pair ONCE and show NET on the appropriate side
+        // Track processed linked pairs to avoid double-counting
         const processedPairs = new Set<string>();
-
-        // Helper to get the pair key (sorted IDs to ensure consistency)
         const getPairKey = (id1: string, id2: string) => [id1, id2].sort().join('|');
 
-        commitments.forEach(commitment => {
-            const term = commitment.active_term;
+        commitments.forEach(c => {
+            const term = c.active_term;
             if (!term) return;
 
-            // Check if this commitment is part of a linked pair
-            const linkedId = commitment.linked_commitment_id;
+            // Check if active in this month (handles start/end dates and frequency)
+            if (!isTermActiveForMonth(term, year, month)) return;
+
+            // Handle linked commitments (bidirectional) - calculate NET only once per pair
+            const linkedId = c.linked_commitment_id;
             const linkedCommitment = linkedId ? commitmentMap.get(linkedId) : null;
 
-            // Skip if linked commitment doesn't have a reciprocal link (unidirectional - legacy)
-            // OR if we already processed this pair
-            if (linkedCommitment) {
-                const pairKey = getPairKey(commitment.id, linkedId!);
+            let amount = getAmountForPeriod(c, year, month);
+            let flowType = c.flow_type;
 
-                // For bidirectional links, only process once
-                // Show NET on the side with the LARGER amount (the "dominant" flow)
+            if (linkedCommitment) {
+                const pairKey = getPairKey(c.id, linkedId!);
+
+                // Skip if already processed this pair
                 if (processedPairs.has(pairKey)) {
-                    return; // Already processed this pair
+                    return;
                 }
 
                 // Mark pair as processed
                 processedPairs.add(pairKey);
-            }
 
-            // For each of the 12 months in the rolling window
-            for (let i = 0; i < 12; i++) {
-                // Calculate the actual year/month for this slot
-                const slotDate = new Date(centerDate);
-                slotDate.setMonth(slotDate.getMonth() - 8 + i); // Start 8 months before center
+                // Calculate NET if linked commitment is also active
+                const linkedTerm = linkedCommitment.active_term;
+                if (linkedTerm && isTermActiveForMonth(linkedTerm, year, month)) {
+                    const linkedAmount = getAmountForPeriod(linkedCommitment, year, month);
+                    const netAmount = Math.abs(amount - linkedAmount);
 
-                const slotYear = slotDate.getFullYear();
-                const slotMonth = slotDate.getMonth(); // 0-indexed
-
-                if (!isTermActiveForMonth(term, slotYear, slotMonth)) continue;
-
-                // Get this commitment's amount for the period
-                let amount = getAmountForPeriod(commitment, slotYear, slotMonth);
-                let flowType = commitment.flow_type;
-
-                // If linked, calculate NET and determine which side gets it
-                if (linkedCommitment) {
-                    const linkedTerm = linkedCommitment.active_term;
-                    if (linkedTerm && isTermActiveForMonth(linkedTerm, slotYear, slotMonth)) {
-                        const linkedAmount = getAmountForPeriod(linkedCommitment, slotYear, slotMonth);
-                        const netAmount = Math.abs(amount - linkedAmount);
-
-                        // Determine which side "wins" (larger amount determines flow type)
-                        if (amount >= linkedAmount) {
-                            // This commitment is larger - NET goes to this flow type
-                            amount = netAmount;
-                            // flowType stays as commitment.flow_type
-                        } else {
-                            // Linked commitment is larger - NET goes to linked's flow type
-                            amount = netAmount;
-                            flowType = linkedCommitment.flow_type;
-                        }
+                    // Determine which side "wins" (larger amount determines flow type)
+                    if (amount >= linkedAmount) {
+                        amount = netAmount;
+                        // flowType stays as c.flow_type
+                    } else {
+                        amount = netAmount;
+                        flowType = linkedCommitment.flow_type;
                     }
                 }
+            }
 
-                if (flowType === 'INCOME') {
-                    data[i].income += amount;
-                    data[i].hasIncomeData = true;
-                } else {
-                    data[i].expenses += amount;
-                    data[i].hasExpenseData = true;
-                }
+            // Categorize by flow type (comprometido / ingresos use NET amount)
+            if (flowType === 'EXPENSE') {
+                comprometido += amount;
+            } else {
+                ingresos += amount;
+            }
+
+            // Calculate PAGADO - sum of actual payments made
+            // For linked pairs, calculate NET of both payments (not sum of both)
+            const getPaymentAmount = (commitmentId: string): number => {
+                const pmnts = payments.get(commitmentId) || [];
+                const record = pmnts.find(p => {
+                    const pPeriod = p.period_date.substring(0, 7);
+                    return pPeriod === targetPeriod && !!p.payment_date;
+                });
+                if (!record) return 0;
+                return record.currency_original === 'CLP'
+                    ? record.amount_original || 0
+                    : record.amount_in_base ?? record.amount_original ?? 0;
+            };
+
+            const myPaidAmount = getPaymentAmount(c.id);
+            let netPaidAmount = myPaidAmount;
+
+            if (linkedCommitment) {
+                const linkedPaidAmount = getPaymentAmount(linkedCommitment.id);
+                // NET of both payments (like comprometido)
+                netPaidAmount = Math.abs(myPaidAmount - linkedPaidAmount);
+            }
+
+            // Add to pagado - ONLY EXPENSES (not income)
+            if (flowType === 'EXPENSE') {
+                pagado += netPaidAmount;
+            }
+
+            // Check pendiente - only if NOT paid and is expense
+            const isPaid = myPaidAmount > 0 || (linkedCommitment && getPaymentAmount(linkedCommitment.id) > 0);
+            if (!isPaid && flowType === 'EXPENSE') {
+                pendiente += amount;
             }
         });
 
-        data.forEach(d => {
-            d.balance = d.income - d.expenses;
-        });
+        return {
+            comprometido,
+            ingresos,
+            pagado,
+            pendiente,
+            balance: ingresos - comprometido
+        };
+    }, [commitments, payments, isTermActiveForMonth, getAmountForPeriod]);
+
+
+    const getMonthlyData = useCallback((): MonthlyData[] => {
+        const data: MonthlyData[] = [];
+
+        // Calculate rolling window: 12 months (8 back + current + 3 forward)
+        const centerDate = new Date(displayYear, displayMonth, 1);
+
+        for (let i = 0; i < 12; i++) {
+            // Calculate the actual year/month for this slot
+            const slotDate = new Date(centerDate);
+            slotDate.setMonth(slotDate.getMonth() - 8 + i); // Start 8 months before center
+
+            const slotYear = slotDate.getFullYear();
+            const slotMonth = slotDate.getMonth(); // 0-indexed
+
+            const totals = getMonthTotals(slotYear, slotMonth);
+
+            data.push({
+                income: totals.ingresos,
+                expenses: totals.comprometido,
+                balance: totals.balance,
+                hasIncomeData: totals.ingresos > 0,
+                hasExpenseData: totals.comprometido > 0
+            });
+        }
 
         return data;
-    }, [commitments, payments, displayYear, displayMonth, isTermActiveForMonth, getAmountForPeriod]);
+    }, [displayYear, displayMonth, getMonthTotals]);
+
+
 
     // ==========================================================================
     // CONTEXT VALUE
@@ -498,6 +554,7 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
         setDisplayMonth,
         getUpcomingPayments,
         getMonthlyData,
+        getMonthTotals,
         isPaymentMade,
     }), [
         commitments,
@@ -508,6 +565,7 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
         displayYear,
         getUpcomingPayments,
         getMonthlyData,
+        getMonthTotals,
         isPaymentMade
     ]);
 

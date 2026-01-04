@@ -20,7 +20,7 @@ import {
     CheckCircleIcon, ExclamationTriangleIcon, ClockIcon,
     CalendarIcon, InfinityIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon,
     SubscriptionIcon, MiscIcon, CategoryIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
-    StarIcon, IconProps, PauseIcon, PlusIcon
+    StarIcon, IconProps, PauseIcon, PlusIcon, EyeIcon, EyeSlashIcon
 } from './icons';
 import type { CommitmentWithTerm, Payment, FlowType, Term } from '../types.v2';
 import { periodToString } from '../types.v2';
@@ -129,10 +129,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     onFocusedDateChange,
     preloadedCommitments,
     preloadedPayments,
-    monthlyTotals: propTotals,
 }) => {
     const { t, language } = useLocalization();
-    const { getMonthlyData } = useCommitments();
+    const { getMonthTotals } = useCommitments();
 
     // State - use preloaded data if available for instant rendering
     const [commitments, setCommitments] = useState<CommitmentWithTerm[]>(preloadedCommitments || []);
@@ -369,10 +368,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     const groupedCommitments = useMemo(() => {
         const groups: { [key: string]: { flowType: FlowType; items: CommitmentWithTerm[] } } = {};
 
-        // Helper to check if terminated
+        // Helper to check if terminated (or expired/no active term)
         const checkTerminated = (c: CommitmentWithTerm): boolean => {
             const term = c.active_term;
-            if (!term?.effective_until) return false;
+            if (!term) return true; // No active term = effectively terminated/expired
+            if (!term.effective_until) return false; // Infinite term
             const endDate = new Date(term.effective_until);
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -461,27 +461,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         if (!term?.effective_until) return false;
         const endDate = new Date(term.effective_until);
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
         return endDate < today;
-    };
-
-    // Calculate total paid for a specific month (across all commitments)
-    const calculateMonthPaidTotal = (monthDate: Date): number => {
-        let total = 0;
-        const targetYear = monthDate.getFullYear();
-        const targetMonth = monthDate.getMonth() + 1; // 1-based
-
-        for (const [, commitmentPayments] of payments.entries()) {
-            const payment = commitmentPayments.find(p =>
-                p.period_year === targetYear &&
-                p.period_month === targetMonth &&
-                p.status === 'PAID'
-            );
-            if (payment) {
-                total += payment.amount_paid || 0;
-            }
-        }
-        return total;
     };
 
     // Check if commitment is active in a given month based on frequency
@@ -556,36 +536,6 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
         return { isPaid: false, amount: null, paymentDate: null, paidOnTime: false };
     };
-
-    // Calculate monthly totals for footer - matches dashboard logic
-    // Uses getMonthlyData from context (same source as Dashboard)
-    // Calculates correct index based on focusedDate, not fixed to current month
-    const monthlyTotals = useMemo(() => {
-        const data = getMonthlyData();
-        // Calculate the index based on focusedDate relative to today
-        // Dashboard uses: index 8 = displayMonth (current context month)
-        // Rolling window: 8 months back, current, 3 months forward
-        const today = new Date();
-        const currentYear = today.getFullYear();
-        const currentMonth = today.getMonth();
-
-        const focusedYear = focusedDate.getFullYear();
-        const focusedMonth = focusedDate.getMonth();
-
-        // Calculate offset from today: focused - today
-        const monthsDiff = (focusedYear - currentYear) * 12 + (focusedMonth - currentMonth);
-
-        // Index 8 is today, so focused month index = 8 + monthsDiff
-        // Clamp to valid range [0, 11]
-        const targetIdx = Math.max(0, Math.min(11, 8 + monthsDiff));
-
-        const target = data[targetIdx];
-        return {
-            expenses: target?.expenses ?? 0,
-            income: target?.income ?? 0
-        };
-    }, [getMonthlyData, focusedDate]);
-
     // ==========================================================================
     // RENDER
     // ==========================================================================
@@ -609,21 +559,23 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     return (
         <div>
             {/* Header Toolbar - Unified for Mobile + Desktop */}
-            <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm px-4 py-4 border-b border-slate-200 dark:border-slate-700/50 shadow-sm">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    {/* Left: Navigation */}
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* Today button */}
+            <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700/50 shadow-sm transition-all duration-200">
+                {/* Single Row Layout: Navigation | Totals (lg only) | Actions */}
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 md:p-4">
+                    {/* Left: Navigation Group */}
+                    <div className="flex items-center gap-2">
+                        {/* Today button - Visible en mobile también */}
                         <button
                             onClick={() => onFocusedDateChange && onFocusedDateChange(new Date())}
                             disabled={isCurrentMonth(focusedDate)}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${isCurrentMonth(focusedDate)
+                            className={`flex items-center justify-center px-2.5 sm:px-3 py-2 rounded-lg text-sm font-medium transition-all ${isCurrentMonth(focusedDate)
                                 ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50'
                                 : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 ring-1 ring-slate-200 dark:ring-slate-600 shadow-sm active:scale-95'
                                 }`}
+                            title="Ir a hoy"
                         >
                             <Home className="w-4 h-4" />
-                            Hoy
+                            <span className="hidden sm:inline ml-2">Hoy</span>
                         </button>
 
                         {/* Unified Month + Year Navigator */}
@@ -634,11 +586,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     newDate.setMonth(newDate.getMonth() - 1);
                                     onFocusedDateChange && onFocusedDateChange(newDate);
                                 }}
-                                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-l-lg transition-colors"
+                                className="p-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-l-lg transition-colors active:scale-95"
                             >
                                 <ChevronLeftIcon className="w-5 h-5" />
                             </button>
-                            <div className="px-4 py-2 text-center min-w-[140px] border-x border-slate-200 dark:border-slate-600">
+                            <div className="px-3 sm:px-4 py-2 text-center min-w-[100px] sm:min-w-[140px] border-x border-slate-200 dark:border-slate-600">
                                 <div className="text-sm font-bold text-slate-900 dark:text-white capitalize">
                                     {focusedDate.toLocaleDateString('es-ES', { month: 'short' })} {focusedDate.getFullYear()}
                                 </div>
@@ -649,80 +601,86 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     newDate.setMonth(newDate.getMonth() + 1);
                                     onFocusedDateChange && onFocusedDateChange(newDate);
                                 }}
-                                className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-r-lg transition-colors"
+                                className="p-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-r-lg transition-colors active:scale-95"
                             >
                                 <ChevronRightIcon className="w-5 h-5" />
                             </button>
                         </div>
 
-                        {/* Totals - Cleaner Statistic Style */}
-                        <div className="flex items-center gap-4 ml-auto pl-4 border-l border-slate-200 dark:border-slate-700 hidden md:flex">
-                            <div className="flex flex-col items-end">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gastos</span>
-                                <span className="text-sm font-bold font-mono tabular-nums text-slate-700 dark:text-slate-200">
-                                    {formatClp((propTotals || monthlyTotals).expenses)}
-                                </span>
-                            </div>
-                            <div className="flex flex-col items-end">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ingresos</span>
-                                <span className="text-sm font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-500">
-                                    {formatClp((propTotals || monthlyTotals).income)}
-                                </span>
-                            </div>
-                            <div className="flex flex-col items-end">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pagado</span>
-                                <div className="flex items-center gap-1">
-                                    <CheckCircleIcon className="w-3 h-3 text-indigo-500" />
-                                    <span className="text-sm font-bold font-mono tabular-nums text-indigo-600 dark:text-indigo-400">
-                                        {formatClp(calculateMonthPaidTotal(focusedDate))}
+                        {/* Terminated Toggle (Mobile only in nav row) */}
+                        {terminatedCount > 0 && (
+                            <button
+                                onClick={() => setShowTerminated(!showTerminated)}
+                                className={`
+                                    lg:hidden flex items-center justify-center px-2.5 py-2 rounded-lg text-xs font-medium transition-all
+                                    ${showTerminated
+                                        ? 'bg-slate-800 text-white shadow-md ring-1 ring-slate-700'
+                                        : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600'
+                                    }
+                                `}
+                                title={showTerminated ? 'Ocultar terminados' : 'Mostrar terminados'}
+                            >
+                                {showTerminated ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Center: Totals (lg+ only, inline) */}
+                    {(() => {
+                        const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
+                        return (
+                            <div className="hidden lg:flex items-center gap-4 xl:gap-6 px-4 border-x border-slate-200 dark:border-slate-700">
+                                <div className="flex flex-col items-center">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ingresos</span>
+                                    <span className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-500">
+                                        {formatClp(totals.ingresos)}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Comprometido</span>
+                                    <span className="text-sm font-bold font-mono text-slate-700 dark:text-slate-200">
+                                        {formatClp(totals.comprometido)}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pagado</span>
+                                    <span className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
+                                        <CheckCircleIcon className="w-3 h-3" />
+                                        {formatClp(totals.pagado)}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pendiente</span>
+                                    <span className="text-sm font-bold font-mono text-amber-600 dark:text-amber-400">
+                                        {formatClp(totals.pendiente)}
                                     </span>
                                 </div>
                             </div>
-                        </div>
-
-                        {/* Mobile Totals - Compact */}
-                        <div className="flex md:hidden items-center gap-2 ml-auto">
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                {formatClp((propTotals || monthlyTotals).expenses)}
-                            </span>
-                            <span className="text-xs text-slate-400">/</span>
-                            <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                                {formatClp(calculateMonthPaidTotal(focusedDate))}
-                            </span>
-                        </div>
-                    </div>
+                        );
+                    })()}
 
                     {/* Right: Display Options (Desktop Only) */}
-                    <div className="flex items-center gap-2">
-                        {/* Show Terminated Toggle (Mobile + Desktop) */}
+                    <div className="hidden lg:flex items-center gap-2">
+                        {/* Terminated Toggle (Desktop - grouped with density) */}
                         {terminatedCount > 0 && (
-                            <div className="flex items-center gap-2 pr-2 border-r border-slate-200 dark:border-slate-700 mr-1">
-                                <button
-                                    onClick={() => setShowTerminated(!showTerminated)}
-                                    className="flex items-center gap-2 group cursor-pointer focus:outline-none"
-                                    title={showTerminated ? 'Ocultar compromisos terminados' : 'Mostrar compromisos terminados'}
-                                >
-                                    <div className={`
-                                        relative inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none 
-                                        ${showTerminated ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-700'}
-                                    `}>
-                                        <span
-                                            aria-hidden="true"
-                                            className={`
-                                                pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out
-                                                ${showTerminated ? 'translate-x-3' : 'translate-x-0'}
-                                            `}
-                                        />
-                                    </div>
-                                    <span className="hidden sm:inline text-xs font-medium text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
-                                        Terminados ({terminatedCount})
-                                    </span>
-                                </button>
-                            </div>
+                            <button
+                                onClick={() => setShowTerminated(!showTerminated)}
+                                className={`
+                                    flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all
+                                    ${showTerminated
+                                        ? 'bg-slate-800 text-white shadow-md ring-1 ring-slate-700'
+                                        : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600'
+                                    }
+                                `}
+                                title={showTerminated ? 'Ocultar terminados' : 'Mostrar terminados'}
+                            >
+                                {showTerminated ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                                <span>{showTerminated ? 'Ocultar' : 'Ver'} terminados ({terminatedCount})</span>
+                            </button>
                         )}
 
-                        {/* Density Selector (Desktop Only) */}
-                        <div className="hidden lg:flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg ring-1 ring-slate-200 dark:ring-slate-700 shadow-inner">
+                        {/* Density Selector */}
+                        <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg ring-1 ring-slate-200 dark:ring-slate-700 shadow-inner">
                             {(['compact', 'medium'] as const).map((d) => (
                                 <button
                                     key={d}
@@ -738,191 +696,327 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         </div>
                     </div>
                 </div>
+
+                {/* Row 2: KPIs Mobile Redesign (< lg) - Pendiente como héroe */}
+                {(() => {
+                    const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
+                    return (
+                        <div className="lg:hidden px-4 py-4 bg-gradient-to-b from-slate-50/80 to-white/60 dark:from-slate-800/80 dark:to-slate-900/60 border-t border-slate-200/50 dark:border-slate-700/50">
+                            {/* KPI Héroe: Pendiente */}
+                            <div className="text-center mb-4">
+                                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">
+                                    Pendiente
+                                </p>
+                                <p className="text-2xl font-bold font-mono tabular-nums text-amber-600 dark:text-amber-400">
+                                    {formatClp(totals.pendiente)}
+                                </p>
+                            </div>
+
+                            {/* KPIs Secundarios */}
+                            <div className="flex items-center justify-center gap-3 mb-4">
+                                <div className="flex-1 bg-white/60 dark:bg-slate-800/60 rounded-xl px-3 py-2 text-center border border-slate-200/50 dark:border-slate-700/50">
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Comprometido</p>
+                                    <p className="text-sm font-bold font-mono tabular-nums text-slate-700 dark:text-slate-200">
+                                        {formatClp(totals.comprometido)}
+                                    </p>
+                                </div>
+                                <div className="flex-1 bg-white/60 dark:bg-slate-800/60 rounded-xl px-3 py-2 text-center border border-slate-200/50 dark:border-slate-700/50">
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Pagado</p>
+                                    <p className="text-sm font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                                        {formatClp(totals.pagado)}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Filtros de categoría con scroll horizontal */}
+                            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 pb-1">
+                                {availableCategories.map(cat => (
+                                    <button
+                                        key={cat}
+                                        onClick={() => setSelectedCategory(cat)}
+                                        className={`
+                                            flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap
+                                            transition-all duration-200
+                                            ${selectedCategory === cat
+                                                ? 'bg-sky-500 text-white shadow-sm'
+                                                : 'bg-white/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200/50 dark:ring-slate-600/50'
+                                            }
+                                        `}
+                                    >
+                                        {cat === 'all' ? 'Todos' : cat}
+                                        <span className={`ml-1 ${selectedCategory === cat ? 'opacity-80' : 'opacity-50'}`}>
+                                            ({cat === 'all'
+                                                ? commitments.filter(c => showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
+                                                : commitments.filter(c => {
+                                                    const categoryName = getTranslatedCategoryName(c);
+                                                    const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
+                                                    return isActive && categoryName === cat;
+                                                }).length
+                                            })
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })()}
             </div>
 
             {/* Mobile View */}
             <div className="lg:hidden p-4 space-y-4">
-                {commitments.length > 0 ? commitments.map(c => {
-                    // Sync logic with desktop cells
-                    const monthDate = focusedDate;
-                    const term = getTermForPeriod(c, monthDate);
-                    const dueDay = term?.due_day_of_month ?? 1;
-                    const { isPaid, amount: paidAmount } = getPaymentStatus(c.id, monthDate, dueDay);
+                {(() => {
+                    // Filter commitments for mobile (same logic as desktop groupedCommitments)
+                    const checkTerminated = (c: CommitmentWithTerm): boolean => {
+                        const term = c.active_term;
+                        if (!term) return true; // No active term = effectively terminated/expired
+                        if (!term.effective_until) return false; // Infinite term
+                        const endDate = new Date(term.effective_until);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        return endDate < today;
+                    };
 
-                    const commitmentPayments = payments.get(c.id) || [];
-                    const periodStr = periodToString({ year: monthDate.getFullYear(), month: monthDate.getMonth() + 1 });
-                    const hasPaymentRecord = commitmentPayments.some(p => p.period_date.substring(0, 7) === periodStr);
+                    const filteredCommitments = (showTerminated
+                        ? commitments
+                        : commitments.filter(c => !checkTerminated(c))
+                    ).filter(c => {
+                        // Aplicar filtro de categoría
+                        if (selectedCategory === 'all') return true;
+                        return getTranslatedCategoryName(c) === selectedCategory;
+                    });
 
-                    // Calculation logic exactly like desktop
-                    const totalAmount = term?.amount_in_base ?? term?.amount_original ?? 0;
-                    const installmentsCount = term?.installments_count ?? null;
-                    const perPeriodAmount = term?.is_divided_amount && installmentsCount && installmentsCount > 1
-                        ? totalAmount / installmentsCount
-                        : totalAmount;
+                    return filteredCommitments.length > 0 ? filteredCommitments.map(c => {
+                        // Sync logic with desktop cells
+                        const monthDate = focusedDate;
+                        const term = getTermForPeriod(c, monthDate);
+                        const dueDay = term?.due_day_of_month ?? 1;
+                        const { isPaid, amount: paidAmount } = getPaymentStatus(c.id, monthDate, dueDay);
 
-                    const amount = (hasPaymentRecord && paidAmount !== null) ? paidAmount : perPeriodAmount;
+                        const commitmentPayments = payments.get(c.id) || [];
+                        const periodStr = periodToString({ year: monthDate.getFullYear(), month: monthDate.getMonth() + 1 });
+                        const hasPaymentRecord = commitmentPayments.some(p => p.period_date.substring(0, 7) === periodStr);
 
-                    const today = new Date();
-                    const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
-                    const isOverdue = !isPaid && dueDate < today && monthDate <= today;
-                    const isPending = !isPaid && !isOverdue;
+                        // Calculation logic exactly like desktop
+                        const totalAmount = term?.amount_in_base ?? term?.amount_original ?? 0;
+                        const installmentsCount = term?.installments_count ?? null;
+                        const perPeriodAmount = term?.is_divided_amount && installmentsCount && installmentsCount > 1
+                            ? totalAmount / installmentsCount
+                            : totalAmount;
 
-                    return (
-                        <div
-                            key={c.id}
-                            onClick={() => !isPaid && onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth())}
-                            className={`bg-white dark:bg-slate-800 rounded-xl p-4 border transition-all active:scale-[1.01] ${isPaid ? 'border-emerald-500/20 bg-emerald-500/5' :
-                                isOverdue ? 'border-red-500/20 bg-red-500/5' :
-                                    isPending ? 'border-amber-500/20 bg-amber-500/5' :
-                                        'border-slate-200 dark:border-slate-700'
-                                } shadow-sm`}
-                        >
-                            <div className="flex items-start justify-between">
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <div className={`w-2 h-2 rounded-full ${c.flow_type === 'INCOME' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                                        <span className="font-bold text-slate-900 dark:text-white truncate">{c.name}</span>
-                                        {c.is_important && <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />}
+                        const amount = (hasPaymentRecord && paidAmount !== null) ? paidAmount : perPeriodAmount;
+
+                        const today = new Date();
+                        const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
+                        const isOverdue = !isPaid && dueDate < today && monthDate <= today;
+
+                        // Cálculos consistentes con tooltip desktop
+                        const daysOverdue = isOverdue
+                            ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+                            : 0;
+                        const daysRemaining = !isOverdue
+                            ? Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
+                            : 0;
+
+                        // Cuota number (consistente con desktop)
+                        let cuotaNumber: number | null = null;
+                        if (term && installmentsCount && installmentsCount > 1) {
+                            const [startYear, startMonth] = term.effective_from.split('-').map(Number);
+                            const monthsDiff = (monthDate.getFullYear() - startYear) * 12 +
+                                (monthDate.getMonth() + 1 - startMonth);
+                            cuotaNumber = monthsDiff + 1;
+                            if (cuotaNumber < 1 || cuotaNumber > installmentsCount) {
+                                cuotaNumber = null;
+                            }
+                        }
+
+                        // Payment record para fecha de pago
+                        const currentPayment = commitmentPayments.find(p => p.period_date.substring(0, 7) === periodStr);
+
+                        return (
+                            <div
+                                key={c.id}
+                                onClick={() => !isPaid && onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth())}
+                                className={`
+                                    relative overflow-hidden rounded-2xl
+                                    transition-all duration-300
+                                    ${!isPaid ? 'active:scale-[0.98] cursor-pointer' : ''}
+
+                                    /* Finance Premium: Base neutra glassmorphism */
+                                    bg-white/70 dark:bg-slate-900/60
+                                    backdrop-blur-xl
+                                    border border-white/40 dark:border-slate-700/50
+                                    shadow-sm
+
+                                    /* Flujo via borde izquierdo (3px) */
+                                    border-l-[3px]
+                                    ${c.flow_type === 'INCOME' ? 'border-l-emerald-500' : 'border-l-rose-500'}
+
+                                    hover:shadow-md hover:-translate-y-0.5
+                                `}
+                            >
+                                <div className="p-4 pl-3.5">
+                                    {/* Header: Nombre + Categoría + Menu */}
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="font-bold text-slate-900 dark:text-white truncate">{c.name}</span>
+                                                {c.is_important && <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />}
+                                            </div>
+                                            {/* Categoría + Cuota info */}
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                                                    {getTranslatedCategoryName(c)}
+                                                </span>
+                                                {cuotaNumber && installmentsCount && installmentsCount > 1 && (
+                                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                                        {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Mobile Actions Menu */}
+                                        <div className="ml-2 shrink-0">
+                                            <DropdownMenu.Root>
+                                                <DropdownMenu.Trigger asChild>
+                                                    <button
+                                                        className="p-2 -mr-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <MoreVertical className="w-5 h-5" />
+                                                    </button>
+                                                </DropdownMenu.Trigger>
+                                                <DropdownMenu.Portal>
+                                                    <DropdownMenu.Content
+                                                        className="z-[100] min-w-[160px] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-1.5 animate-in fade-in zoom-in duration-200"
+                                                        align="end"
+                                                        sideOffset={5}
+                                                    >
+                                                        <DropdownMenu.Item
+                                                            className="group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onEditCommitment(c);
+                                                            }}
+                                                        >
+                                                            <EditIcon className="w-4 h-4 text-slate-400 group-hover:text-sky-500" />
+                                                            Editar compromiso
+                                                        </DropdownMenu.Item>
+
+                                                        <DropdownMenu.Item
+                                                            className="group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                alert('Pausar: Próximamente');
+                                                            }}
+                                                        >
+                                                            <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
+                                                            Pausar / Terminar
+                                                        </DropdownMenu.Item>
+
+                                                        <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1.5" />
+
+                                                        <DropdownMenu.Item
+                                                            className="group flex items-center gap-2 px-3 py-2.5 text-sm text-rose-600 dark:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 cursor-pointer outline-none transition-colors"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onDeleteCommitment(c.id);
+                                                            }}
+                                                        >
+                                                            <TrashIcon className="w-4 h-4 text-rose-400 group-hover:text-rose-600" />
+                                                            Eliminar
+                                                        </DropdownMenu.Item>
+                                                    </DropdownMenu.Content>
+                                                </DropdownMenu.Portal>
+                                            </DropdownMenu.Root>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
-                                            {getTranslatedCategoryName(c)}
+
+                                    {/* Centro: Badge prominente + Monto (consistente con Dashboard/Grid) */}
+                                    <div className="flex items-center justify-between">
+                                        {/* Badge de estado - estilo Grid Full View: text-xs font-medium, rounded-full */}
+                                        <div
+                                            className={`
+                                                flex items-center gap-1 px-2 py-0.5 rounded-full
+                                                ${isPaid
+                                                    ? 'bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                                                    : isOverdue
+                                                        ? 'bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                                                        : 'bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'}
+                                            `}
+                                            aria-label={isPaid ? 'Pagado' : isOverdue ? 'Vencido' : 'Pendiente'}
+                                            role="status"
+                                        >
+                                            {isPaid ? <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                : isOverdue ? <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                                                : <ClockIcon className="w-3.5 h-3.5" />}
+                                            <span className="text-xs font-medium">
+                                                {isPaid ? 'Pagado' : isOverdue ? 'Vencido' : 'Pendiente'}
+                                            </span>
+                                        </div>
+
+                                        {/* Monto - protagonista, más grande que grid */}
+                                        <div className="text-right">
+                                            <p className="text-lg font-bold font-mono tabular-nums text-slate-800 dark:text-slate-100">
+                                                {formatClp(amount ?? 0)}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Footer: Fecha relativa + CTA corto */}
+                                    <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                            {isPaid && currentPayment?.payment_date ? (
+                                                `Pagado: ${new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                                            ) : isOverdue ? (
+                                                `Venció hace ${daysOverdue} días`
+                                            ) : daysRemaining === 0 ? (
+                                                'Vence hoy'
+                                            ) : (
+                                                `Vence en ${daysRemaining} días`
+                                            )}
                                         </span>
-                                        {isPaid && (
-                                            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">
-                                                <CheckCircleIcon className="w-3 h-3" /> Pagado
-                                            </span>
-                                        )}
-                                        {isOverdue && (
-                                            <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 uppercase">
-                                                <ExclamationTriangleIcon className="w-3 h-3" /> Vencido
-                                            </span>
-                                        )}
-                                        {isPending && !isPaid && (
-                                            <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
-                                                <ClockIcon className="w-3 h-3" /> Pendiente
+                                        {!isPaid && (
+                                            <span className="text-xs text-sky-500 dark:text-sky-400 font-medium">
+                                                Registrar →
                                             </span>
                                         )}
                                     </div>
-                                </div>
-                                <div className="text-right ml-4">
-                                    <p className={`text-lg font-bold font-mono tabular-nums ${isPaid ? 'text-emerald-600' :
-                                        isOverdue ? 'text-red-500' :
-                                            'text-slate-900 dark:text-white'
-                                        }`}>
-                                        {formatClp(amount ?? 0)}
-                                    </p>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-500 font-medium">
-                                        {isPaid ? 'Monto pagado' : `Vence el ${dueDay}`}
-                                    </p>
-                                </div>
-
-                                {/* Mobile Actions Menu */}
-                                <div className="ml-2">
-                                    <DropdownMenu.Root>
-                                        <DropdownMenu.Trigger asChild>
-                                            <button className="p-2 -mr-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                                                <MoreVertical className="w-5 h-5" />
-                                            </button>
-                                        </DropdownMenu.Trigger>
-                                        <DropdownMenu.Portal>
-                                            <DropdownMenu.Content
-                                                className="z-[100] min-w-[160px] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-1.5 animate-in fade-in zoom-in duration-200"
-                                                align="end"
-                                                sideOffset={5}
-                                            >
-                                                <DropdownMenu.Item
-                                                    className="group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onEditCommitment(c);
-                                                    }}
-                                                >
-                                                    <EditIcon className="w-4 h-4 text-slate-400 group-hover:text-sky-500" />
-                                                    Editar compromiso
-                                                </DropdownMenu.Item>
-
-                                                <DropdownMenu.Item
-                                                    className="group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        // Placeholder logic same as desktop
-                                                        alert('Pausar: Próximamente');
-                                                    }}
-                                                >
-                                                    <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
-                                                    Pausar / Terminar
-                                                </DropdownMenu.Item>
-
-                                                <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1.5" />
-
-                                                <DropdownMenu.Item
-                                                    className="group flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer outline-none transition-colors"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onDeleteCommitment(c.id);
-                                                    }}
-                                                >
-                                                    <TrashIcon className="w-4 h-4 text-red-400 group-hover:text-red-600" />
-                                                    Eliminar
-                                                </DropdownMenu.Item>
-                                            </DropdownMenu.Content>
-                                        </DropdownMenu.Portal>
-                                    </DropdownMenu.Root>
                                 </div>
                             </div>
-
-                            {!isPaid && (
-                                <div className="mt-4 flex gap-2">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth());
-                                        }}
-                                        className={`flex-1 text-xs font-bold py-2 px-4 rounded-lg transition-all active:scale-95 border-2 ${isOverdue
-                                            ? 'border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20'
-                                            : isPending
-                                                ? 'border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20'
-                                                : 'border-sky-500/30 text-sky-600 dark:text-sky-400 hover:bg-sky-50'
-                                            }`}
-                                    >
-                                        Registrar pago
-                                    </button>
+                        );
+                    }) : (
+                        <div className="text-center py-20 px-6 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                            {commitments.length === 0 ? (
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-2">
+                                        <Sparkles className="w-8 h-8 text-indigo-500 dark:text-indigo-400" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                                            ¡Bienvenido a FinanSheet!
+                                        </h3>
+                                        <p className="text-slate-500 dark:text-slate-400 max-w-xs mx-auto mb-6">
+                                            Aún no tienes compromisos registrados. Comienza agregando tus ingresos y gastos fijos.
+                                        </p>
+                                        <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 py-2 px-4 rounded-full inline-block">
+                                            ✨ Tip: Usa el botón "+" arriba a la derecha
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center">
+                                    <p className="text-slate-500 dark:text-slate-400 font-medium">
+                                        No hay compromisos en esta categoría
+                                    </p>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                                        Intenta seleccionar otra categoría en el filtro
+                                    </p>
                                 </div>
                             )}
                         </div>
-                    );
-                }) : (
-                    <div className="text-center py-20 px-6 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
-                        {commitments.length === 0 ? (
-                            <div className="flex flex-col items-center gap-4">
-                                <div className="w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-2">
-                                    <Sparkles className="w-8 h-8 text-indigo-500 dark:text-indigo-400" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                                        ¡Bienvenido a FinanSheet!
-                                    </h3>
-                                    <p className="text-slate-500 dark:text-slate-400 max-w-xs mx-auto mb-6">
-                                        Aún no tienes compromisos registrados. Comienza agregando tus ingresos y gastos fijos.
-                                    </p>
-                                    <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 py-2 px-4 rounded-full inline-block">
-                                        ✨ Tip: Usa el botón "+" arriba a la derecha
-                                    </p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center">
-                                <p className="text-slate-500 dark:text-slate-400 font-medium">
-                                    No hay compromisos en esta categoría
-                                </p>
-                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                                    Intenta seleccionar otra categoría en el filtro
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                )}
+                    )
+                })()}
             </div>
 
             {/* Desktop View Content */}
@@ -1004,16 +1098,16 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                             Total pagado
                                         </th>
                                         {visibleMonths.map((month, i) => {
-                                            const monthTotal = calculateMonthPaidTotal(month);
+                                            const monthTotals = getMonthTotals(month.getFullYear(), month.getMonth());
                                             return (
                                                 <th
                                                     key={i}
-                                                    className={`text-center text-xs font-mono tabular-nums border-r border-slate-200 dark:border-slate-700 last:border-r-0 ${density === 'compact' ? 'px-2 py-1.5' : 'px-2 py-2'} ${monthTotal > 0
+                                                    className={`text-center text-xs font-mono tabular-nums border-r border-slate-200 dark:border-slate-700 last:border-r-0 ${density === 'compact' ? 'px-2 py-1.5' : 'px-2 py-2'} ${monthTotals.pagado > 0
                                                         ? 'text-emerald-600 dark:text-emerald-400 font-medium'
                                                         : 'text-slate-400 dark:text-slate-500'
                                                         }`}
                                                 >
-                                                    {monthTotal > 0 ? formatClp(monthTotal) : '—'}
+                                                    {monthTotals.pagado > 0 ? formatClp(monthTotals.pagado) : '—'}
                                                 </th>
                                             );
                                         })}
@@ -1410,94 +1504,84 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                 triggerClassName={pad}
                                                                                 sideOffset={14}
                                                                                 content={
-                                                                                    <div className="min-w-[150px] text-slate-800 dark:text-slate-100">
-                                                                                        {/* --- HEADER: Date + Status Badge --- */}
-                                                                                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/50 pb-2 mb-2">
-                                                                                            <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
-                                                                                                {monthDate.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
-                                                                                            </span>
-                                                                                            {isPaid ? (
-                                                                                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">PAGADO</span>
-                                                                                            ) : isOverdue ? (
-                                                                                                <span className="text-[10px] font-bold text-red-600 bg-red-100 dark:bg-red-900/40 px-1.5 py-0.5 rounded">VENCIDO</span>
-                                                                                            ) : isDisabled ? (
-                                                                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">PROGRAMADO</span>
-                                                                                            ) : (
-                                                                                                <span className="text-[10px] font-bold text-amber-600 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">PENDIENTE</span>
-                                                                                            )}
+                                                                                    <div className="min-w-[140px] text-slate-800 dark:text-slate-100">
+                                                                                        {/* --- HEADER: Fecha del período --- */}
+                                                                                        <div className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 mb-2">
+                                                                                            {monthDate.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
                                                                                         </div>
 
-                                                                                        {/* --- CONTENT: Main Info --- */}
-                                                                                        <div className="flex flex-col items-end mb-2">
-                                                                                            {/* Amount - Large & Colored */}
-                                                                                            <div className={`text-xl font-bold font-mono tracking-tight ${isPaid ? 'text-emerald-500 dark:text-emerald-400' :
-                                                                                                isOverdue ? 'text-red-500 dark:text-red-400' :
-                                                                                                    'text-slate-700 dark:text-slate-200'
-                                                                                                }`}>
+                                                                                        {/* --- CONTENT: Monto + Badge en línea --- */}
+                                                                                        <div className="flex items-center justify-between gap-3 mb-1">
+                                                                                            {/* Monto - protagonista, siempre neutro */}
+                                                                                            <div className="text-base font-bold font-mono tabular-nums text-slate-800 dark:text-slate-100">
                                                                                                 {formatClp(displayAmount!)}
                                                                                             </div>
-
-                                                                                            {/* Original Currency (if any) */}
-                                                                                            {showOriginalCurrency && (
-                                                                                                <div className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                                                                                                    ({originalCurrency} {perPeriodOriginal?.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
-                                                                                                </div>
+                                                                                            {/* Badge de estado compacto */}
+                                                                                            {isPaid ? (
+                                                                                                <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-100/80 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full">
+                                                                                                    <CheckCircleIcon className="w-3 h-3" />
+                                                                                                    Pagado
+                                                                                                </span>
+                                                                                            ) : isOverdue ? (
+                                                                                                <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 dark:text-red-400 bg-red-100/80 dark:bg-red-900/30 px-1.5 py-0.5 rounded-full">
+                                                                                                    <ExclamationTriangleIcon className="w-3 h-3" />
+                                                                                                    Vencido
+                                                                                                </span>
+                                                                                            ) : isDisabled ? (
+                                                                                                <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">
+                                                                                                    <CalendarIcon className="w-3 h-3" />
+                                                                                                    Futuro
+                                                                                                </span>
+                                                                                            ) : (
+                                                                                                <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full">
+                                                                                                    <ClockIcon className="w-3 h-3" />
+                                                                                                    Pendiente
+                                                                                                </span>
                                                                                             )}
                                                                                         </div>
 
-                                                                                        {/* Secondary Info Row: Installment + Relative Date */}
-                                                                                        <div className="flex items-center justify-between text-xs mb-3">
-                                                                                            {/* Left: Installment counter */}
-                                                                                            <div className="text-slate-500 dark:text-slate-400 font-medium">
-                                                                                                {cuotaNumber && installmentsCount && installmentsCount > 1 ? (
-                                                                                                    <span>{term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}</span>
-                                                                                                ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
-                                                                                                    <span>Pago {(() => {
-                                                                                                        const [startYear, startMonth] = term.effective_from.split('-').map(Number);
-                                                                                                        const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
-                                                                                                            (monthDate.getMonth() + 1 - startMonth) + 1;
-                                                                                                        return paymentNumber > 0 ? paymentNumber : 1;
-                                                                                                    })()}/∞</span>
-                                                                                                ) : (
-                                                                                                    <span className="opacity-0">.</span> // Spacer if no info
-                                                                                                )}
+                                                                                        {/* Original Currency (si aplica) */}
+                                                                                        {showOriginalCurrency && (
+                                                                                            <div className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums mb-1">
+                                                                                                {originalCurrency} {perPeriodOriginal?.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                                                             </div>
+                                                                                        )}
 
-                                                                                            {/* Right: Relative Date */}
-                                                                                            <div className="text-right text-slate-400 dark:text-slate-500 text-[10px]">
+                                                                                        {/* Cuota info (si aplica) */}
+                                                                                        {(cuotaNumber && installmentsCount && installmentsCount > 1) ? (
+                                                                                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                                                                {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
+                                                                                            </div>
+                                                                                        ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
+                                                                                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                                                                Pago {(() => {
+                                                                                                    const [startYear, startMonth] = term.effective_from.split('-').map(Number);
+                                                                                                    const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
+                                                                                                        (monthDate.getMonth() + 1 - startMonth) + 1;
+                                                                                                    return paymentNumber > 0 ? paymentNumber : 1;
+                                                                                                })()}/∞
+                                                                                            </div>
+                                                                                        ) : null}
+
+                                                                                        {/* --- FOOTER: Fecha relativa + CTA --- */}
+                                                                                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px]">
+                                                                                            <span className="text-slate-400 dark:text-slate-500">
                                                                                                 {isPaid && currentPayment?.payment_date ? (
-                                                                                                    <span>Pagado el {new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}</span>
+                                                                                                    `Pagado: ${new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                                                                                                ) : isOverdue ? (
+                                                                                                    `Venció hace ${daysOverdue} días`
+                                                                                                ) : daysRemaining === 0 ? (
+                                                                                                    'Vence hoy'
+                                                                                                ) : isCurrentMonth(monthDate) ? (
+                                                                                                    `Vence en ${daysRemaining} días`
                                                                                                 ) : (
-                                                                                                    <span>
-                                                                                                        {isOverdue ? `Venció hace ${daysOverdue} días` :
-                                                                                                            daysRemaining === 0 ? 'Vence hoy' :
-                                                                                                                isCurrentMonth(monthDate) ? `Vence en ${daysRemaining} días` :
-                                                                                                                    `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
-                                                                                                        }
-                                                                                                    </span>
+                                                                                                    `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
                                                                                                 )}
-                                                                                            </div>
-                                                                                        </div>
-
-                                                                                        {/* --- FOOTER: Action Hint --- */}
-                                                                                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
-                                                                                            {isPaid ? (
-                                                                                                <>
-                                                                                                    <EditIcon className="w-3 h-3" />
-                                                                                                    <span className="text-[10px] font-medium">Click para ver detalle</span>
-                                                                                                </>
-                                                                                            ) : isDisabled ? (
-                                                                                                <>
-                                                                                                    <ClockIcon className="w-3 h-3" />
-                                                                                                    <span className="text-[10px] font-medium">Programado</span>
-                                                                                                </>
-                                                                                            ) : (
-                                                                                                <>
-                                                                                                    <div className="w-3 h-3 rounded-full border border-current flex items-center justify-center">
-                                                                                                        <span className="text-[8px] font-bold mb-px">i</span>
-                                                                                                    </div>
-                                                                                                    <span className="text-[10px] font-medium">Click para registrar pago</span>
-                                                                                                </>
+                                                                                            </span>
+                                                                                            {!isPaid && !isDisabled && (
+                                                                                                <span className="text-sky-500 dark:text-sky-400 font-medium">
+                                                                                                    Click →
+                                                                                                </span>
                                                                                             )}
                                                                                         </div>
                                                                                     </div>
@@ -1549,12 +1633,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                                 }
                                                                                             </div>
 
-                                                                                            {/* Plus Icon - Scales up on hover */}
-                                                                                            <div className={`
-                                                                                                absolute inset-0 flex items-center justify-center
-                                                                                                transition-all duration-300 scale-0 opacity-0 group-hover/cell:scale-100 group-hover/cell:opacity-100
-                                                                                                ${isOverdue ? 'text-red-500' : isPending ? 'text-amber-500' : 'text-sky-500'}
-                                                                                            `}>
+                                                                                            {/* Plus Icon - Scales up on hover (siempre sky para acción) */}
+                                                                                            <div className="absolute inset-0 flex items-center justify-center transition-all duration-300 scale-0 opacity-0 group-hover/cell:scale-100 group-hover/cell:opacity-100 text-sky-500">
                                                                                                 <PlusIcon className="w-6 h-6 stroke-2" />
                                                                                             </div>
                                                                                         </div>
@@ -1632,7 +1712,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                             <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse
                                                                                                 transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
                                                                                                 <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-                                                                                                <span className="text-xs font-semibold">Atrasado ({daysOverdue}d)</span>
+                                                                                                <span className="text-xs font-medium">Vencido ({daysOverdue}d)</span>
                                                                                             </div>
                                                                                             {/* Hover: Pay */}
                                                                                             <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300
@@ -1647,7 +1727,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                             <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400
                                                                                                 transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
                                                                                                 <ClockIcon className="w-3.5 h-3.5" />
-                                                                                                <span className="text-xs font-medium">{daysRemaining}d restantes</span>
+                                                                                                <span className="text-xs font-medium">{daysRemaining === 0 ? 'Vence hoy' : `En ${daysRemaining}d`}</span>
                                                                                             </div>
                                                                                             {/* Hover: Pay */}
                                                                                             <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400
