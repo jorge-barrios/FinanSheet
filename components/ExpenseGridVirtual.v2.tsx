@@ -978,7 +978,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         // Solo se tacha si: está terminado globalmente, no está activo en este mes, Y ya está pagado.
                         const isGloballyTerminated = isCommitmentTerminated(c);
                         const isCurrentlyActive = isActiveInMonth(c, monthDate);
-                        const terminated = isGloballyTerminated && !isCurrentlyActive && isPaid;
+                        const terminated = isGloballyTerminated && !isCurrentlyActive && (isPaid || !hasPaymentRecord);
 
                         const paused = isCommitmentPaused(c);
 
@@ -1307,6 +1307,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                             {/* Commitment rows */}
                                             {catCommitments.map(commitment => {
                                                 const monthDate = focusedDate; // En vista compacta, solo vemos el mes enfocado
+                                                const pDate = { year: monthDate.getFullYear(), month: monthDate.getMonth() + 1 };
+                                                const currentPeriodStr = periodToString(pDate);
+
                                                 const isGloballyTerminated = isCommitmentTerminated(commitment);
                                                 const isCurrentlyActive = isActiveInMonth(commitment, monthDate);
 
@@ -1315,7 +1318,10 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                 const dueDay = termForMonth?.due_day_of_month ?? 1;
                                                 const { isPaid } = getPaymentStatus(commitment.id, monthDate, dueDay);
 
-                                                const terminated = isGloballyTerminated && !isCurrentlyActive && isPaid;
+                                                const commitmentPayments = payments.get(commitment.id) || [];
+                                                const hasPaymentRecord = commitmentPayments.some(p => p.period_date.substring(0, 7) === currentPeriodStr);
+
+                                                const terminated = isGloballyTerminated && !isCurrentlyActive && (isPaid || !hasPaymentRecord);
                                                 const paused = isCommitmentPaused(commitment);
                                                 const flowColor = commitment.flow_type === 'INCOME' ? 'border-l-emerald-500' : 'border-l-red-500';
                                                 return (
