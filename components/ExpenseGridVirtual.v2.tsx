@@ -601,6 +601,15 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         return endDate < today;
     };
 
+    // Check if commitment is paused/scheduled to end (has effective_until set, not yet passed)
+    const isCommitmentPaused = (commitment: CommitmentWithTerm): boolean => {
+        const term = commitment.active_term;
+        if (!term?.effective_until) return false;
+        const endDate = new Date(term.effective_until);
+        const today = new Date();
+        return endDate >= today; // Has end date but hasn't passed yet = paused/scheduled
+    };
+
     // Check if commitment is active in a given month based on frequency
     const isActiveInMonth = (commitment: CommitmentWithTerm, monthDate: Date): boolean => {
         const term = commitment.active_term;
@@ -1256,6 +1265,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                             {/* Commitment rows */}
                                             {catCommitments.map(commitment => {
                                                 const terminated = isCommitmentTerminated(commitment);
+                                                const paused = isCommitmentPaused(commitment);
                                                 const flowColor = commitment.flow_type === 'INCOME' ? 'border-l-emerald-500' : 'border-l-red-500';
                                                 return (
                                                     <tr
@@ -1301,6 +1311,13 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                             {((new Date().getTime() - new Date(commitment.created_at).getTime()) < 5 * 60 * 1000) && (
                                                                                 <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 animate-pulse">
                                                                                     NUEVO
+                                                                                </span>
+                                                                            )}
+                                                                            {/* Paused Badge */}
+                                                                            {paused && !terminated && (
+                                                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
+                                                                                    <PauseIcon className="w-2.5 h-2.5" />
+                                                                                    PAUSADO
                                                                                 </span>
                                                                             )}
                                                                         </span>
@@ -1438,6 +1455,12 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                     </span>
                                                                                 );
                                                                             })()}
+                                                                            {paused && !terminated && (
+                                                                                <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded flex items-center gap-1">
+                                                                                    <PauseIcon className="w-3 h-3" />
+                                                                                    Pausado
+                                                                                </span>
+                                                                            )}
                                                                             {terminated && (
                                                                                 <span className="text-xs px-1.5 py-0.5 bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded">
                                                                                     Terminado
