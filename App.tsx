@@ -80,6 +80,7 @@ const TableViewV2 = React.lazy(() => import('./components/ExpenseGridVirtual.v2'
 const CalendarView = React.lazy(() => import('./components/CalendarView'));
 const DashboardFullV2 = React.lazy(() => import('./components/DashboardFull.v2'));
 const PaymentRecorderV2 = React.lazy(() => import('./components/PaymentRecorder.v2'));
+const PauseCommitmentModal = React.lazy(() => import('./components/PauseCommitmentModal'));
 import CategoryManager from './components/CategoryManager';
 import ConfirmationModal from './components/ConfirmationModal';
 import { Expense, PaymentStatus, ExpenseType, View, PaymentDetails, PaymentFrequency, PaymentUnit } from './types';
@@ -146,6 +147,11 @@ const App: React.FC = () => {
     const [paymentToDelete, setPaymentToDelete] = useState<{ expenseId: string; year: number; month: number; } | null>(null);
     // Confirmation modal state (commitment deletion V2)
     const [commitmentToDelete, setCommitmentToDelete] = useState<string | null>(null);
+    // Pause modal state
+    const [pauseModalState, setPauseModalState] = useState<{
+        isOpen: boolean;
+        commitment: CommitmentWithTerm | null;
+    }>({ isOpen: false, commitment: null });
 
     useEffect(() => {
         const root = window.document.documentElement;
@@ -1068,6 +1074,9 @@ const App: React.FC = () => {
                                             // Open confirmation modal instead of window.confirm
                                             setCommitmentToDelete(id);
                                         }}
+                                        onPauseCommitment={(c) => {
+                                            setPauseModalState({ isOpen: true, commitment: c });
+                                        }}
                                         onRecordPayment={handleOpenPaymentRecorder}
                                         onFocusedDateChange={setFocusedDate}
                                         onVisibleMonthsCountChange={setVisibleMonthsCount}
@@ -1244,6 +1253,21 @@ const App: React.FC = () => {
                         commitment={paymentRecorderState.commitment}
                         year={paymentRecorderState.year}
                         month={paymentRecorderState.month}
+                    />
+                </React.Suspense>
+            )}
+
+            {/* Pause Commitment Modal */}
+            {pauseModalState.isOpen && pauseModalState.commitment && (
+                <React.Suspense fallback={null}>
+                    <PauseCommitmentModal
+                        isOpen={pauseModalState.isOpen}
+                        onClose={() => setPauseModalState({ isOpen: false, commitment: null })}
+                        onSuccess={async () => {
+                            showToast('Compromiso pausado', 'success');
+                            await refreshCommitments(true);
+                        }}
+                        commitment={pauseModalState.commitment}
                     />
                 </React.Suspense>
             )}

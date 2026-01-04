@@ -60,6 +60,7 @@ interface ExpenseGridV2Props {
     focusedDate: Date;
     onEditCommitment: (commitment: CommitmentWithTerm) => void;
     onDeleteCommitment: (commitmentId: string) => void;
+    onPauseCommitment: (commitment: CommitmentWithTerm) => void;
     onRecordPayment: (commitmentId: string, year: number, month: number) => void;
     onFocusedDateChange?: (date: Date) => void;
     // Optional preloaded data from App.tsx for instant rendering
@@ -125,6 +126,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     focusedDate,
     onEditCommitment,
     onDeleteCommitment,
+    onPauseCommitment,
     onRecordPayment,
     onFocusedDateChange,
     preloadedCommitments,
@@ -1020,7 +1022,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             className="group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                alert('Pausar: Próximamente');
+                                                                onPauseCommitment(c);
                                                             }}
                                                         >
                                                             <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
@@ -1360,7 +1362,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         disabled={terminated}
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
-                                                                                            alert('Pausar: Próximamente');
+                                                                                            onPauseCommitment(commitment);
                                                                                         }}
                                                                                     >
                                                                                         <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
@@ -1504,8 +1506,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         disabled={terminated}
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
-                                                                                            // onPauseCommitment(commitment); // TODO: Implement
-                                                                                            alert('Pausar: Próximamente');
+                                                                                            onPauseCommitment(commitment);
                                                                                         }}
                                                                                     >
                                                                                         <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />

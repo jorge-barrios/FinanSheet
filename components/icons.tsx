@@ -237,6 +237,12 @@ export const PauseIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
     </svg>
 );
 
+export const PauseCircleIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 9v6m-4.5 0V9M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+    </svg>
+);
+
 export const CheckBadgeIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={className}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 2l6 3.5v7L12 22l-6-9.5v-7L12 2z" />
