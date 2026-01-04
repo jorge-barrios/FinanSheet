@@ -43,13 +43,15 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     const term = commitment.active_term;
 
     // Currency type
-    type CurrencyType = 'CLP' | 'USD' | 'UF';
+    // Currency type - updated to include EUR and UTM
+    type CurrencyType = 'CLP' | 'USD' | 'EUR' | 'UF' | 'UTM';
 
     // Form state
     const [isPaid, setIsPaid] = useState(false);
     const [paymentDate, setPaymentDate] = useState('');
     const [amount, setAmount] = useState('');
-    const [amountCurrency, setAmountCurrency] = useState<CurrencyType>((term?.currency_original as CurrencyType) || 'CLP');
+    // Default to CLP (user's base currency) for payments, regardless of commitment's original currency
+    const [amountCurrency, setAmountCurrency] = useState<CurrencyType>('CLP');
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingPayment, setIsFetchingPayment] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -89,10 +91,14 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                     setAmountCurrency((payment.currency_original as CurrencyType) || 'CLP');
                 } else {
                     // Default values for new payment
+                    // Show CLP by default since "Monto esperado" already shows original currency
                     setIsPaid(false);
                     setPaymentDate(new Date().toISOString().split('T')[0]);
-                    setAmount(String(expectedAmount));
-                    setAmountCurrency((expectedCurrency as CurrencyType) || 'CLP');
+                    const amountInClp = expectedCurrency === 'CLP'
+                        ? expectedAmount
+                        : fromUnit(expectedAmount, expectedCurrency as any);
+                    setAmount(String(Math.round(amountInClp))); // CLP doesn't need decimals
+                    setAmountCurrency('CLP');
                 }
             } catch (err) {
                 console.error('Error fetching existing payment:', err);
@@ -230,7 +236,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                 <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
                     <div>
                         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                            {existingPayment ? 'Editar Pago' : 'Registrar Pago'}
+                            {existingPayment ? 'Editar Pago' : 'Registrar Pago (v2.1)'}
                         </h2>
                         <p className="text-sm text-slate-500 dark:text-slate-400">
                             {commitment.name} · {monthNames[month]} {year}
@@ -270,7 +276,9 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                 Monto esperado ({expectedCurrency}):
                             </span>
                             <span className="font-semibold font-mono tabular-nums text-slate-900 dark:text-white">
-                                {expectedCurrency} {formatClp(expectedAmount)}
+                                {expectedCurrency} ${expectedCurrency === 'CLP'
+                                    ? formatClp(expectedAmount).replace('$', '')
+                                    : expectedAmount.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
