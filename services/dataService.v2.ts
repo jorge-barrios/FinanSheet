@@ -536,9 +536,10 @@ export const TermService = {
             return null;
         }
 
-        // Calculate new effective_from: first day of month after effective_until
-        const endDate = new Date(pausedTerm.effective_until + 'T00:00:00');
-        const newEffectiveFrom = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
+        // Calculate new effective_from: first day of CURRENT month (not month after pause)
+        // This avoids creating "pending" months between pause and resume
+        const today = new Date();
+        const newEffectiveFrom = new Date(today.getFullYear(), today.getMonth(), 1);
         const effectiveFromStr = newEffectiveFrom.toISOString().split('T')[0];
 
         // Create NEW term with version+1 (preserves history)
