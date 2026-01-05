@@ -513,14 +513,15 @@ export const TermService = {
     },
 
     /**
-     * Unpause a commitment by clearing effective_until on the active term
+     * Unpause/Resume a commitment by creating a NEW term
+     * This preserves the history of when the commitment was paused
      * Only works for manually paused terms (not installment-based)
-     * @returns The updated term or null if failed
+     * @returns The new term or null if failed
      */
     async unpauseCommitment(commitmentId: string): Promise<Term | null> {
         if (!supabase) throw new Error('Supabase not configured');
 
-        // Get all terms and find the most recent paused one (without installments)
+        // Get all terms and find the most recent paused/terminated one (without installments)
         const terms = await this.getTerms(commitmentId);
         const pausedTerm = terms
             .sort((a, b) => b.version - a.version) // Most recent first
@@ -535,10 +536,26 @@ export const TermService = {
             return null;
         }
 
-        // Update the term to remove the end date
-        return await this.updateTerm(pausedTerm.id, {
-            effective_until: null,
-        } as Partial<TermFormData>);
+        // Calculate new effective_from: first day of month after effective_until
+        const endDate = new Date(pausedTerm.effective_until + 'T00:00:00');
+        const newEffectiveFrom = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
+        const effectiveFromStr = newEffectiveFrom.toISOString().split('T')[0];
+
+        // Create NEW term with version+1 (preserves history)
+        const newTermData: TermFormData = {
+            amount_original: pausedTerm.amount_original,
+            currency_original: pausedTerm.currency_original,
+            frequency: pausedTerm.frequency,
+            due_day_of_month: pausedTerm.due_day_of_month,
+            effective_from: effectiveFromStr,
+            effective_until: null, // No end date = active indefinitely
+            installments_count: null, // No installments
+            fx_rate_to_base: pausedTerm.fx_rate_to_base,
+            estimation_mode: pausedTerm.estimation_mode,
+            is_divided_amount: pausedTerm.is_divided_amount,
+        };
+
+        return await this.createTerm(commitmentId, newTermData);
     },
 
     /**

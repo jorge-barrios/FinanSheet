@@ -413,50 +413,53 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         return { isPaid: false, amount: null, paymentDate: null, paidOnTime: false };
     }, [payments]);
 
-    // Smart Sort Function
-    const getCommitmentSortData = useCallback((c: CommitmentWithTerm, monthDate: Date) => {
-        const term = getTermForPeriod(c, monthDate);
-        const dueDay = term?.due_day_of_month ?? 32; // 32 = end of list if no active term
-        const { isPaid, amount: paidAmount } = getPaymentStatus(c.id, monthDate, dueDay);
-
+    // Smart Sort Function - Uses CURRENT month for stable sorting across navigation
+    // This prevents items from "jumping" when changing the viewed month
+    const getCommitmentSortData = useCallback((c: CommitmentWithTerm) => {
+        // Always use TODAY for sorting, not the viewed month
         const today = new Date();
-        const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
+        const currentMonthDate = new Date(today.getFullYear(), today.getMonth(), 1);
+
+        const term = c.active_term; // Use active term, not term for period
+        const dueDay = term?.due_day_of_month ?? 32; // 32 = end of list if no active term
+        const { isPaid } = getPaymentStatus(c.id, currentMonthDate, dueDay);
+
+        const dueDate = new Date(today.getFullYear(), today.getMonth(), dueDay);
 
         // Check for recently created (Last 5 minutes)
-        // This ensures the user sees what they just created
         const createdAt = new Date(c.created_at);
-        const isRecentlyCreated = (today.getTime() - createdAt.getTime()) < 5 * 60 * 1000; // 5 mins
+        const isRecentlyCreated = (today.getTime() - createdAt.getTime()) < 5 * 60 * 1000;
 
-        // Status Priority:
-        // -2: Recently Created (Immediate Feedback)
-        // -1: Important (User flagged)
-        // 0: Overdue (Critical) - Not Paid, Past Due, Current/Past Month
-        // 1: Pending (Actionable) - Not Paid, Future Due or Current Month
-        // 2: Paid (Done)
+        // Status Priority (based on CURRENT month, not viewed month):
+        // -2: Recently Created
+        // -1: Important
+        // 0: Overdue (past due in current month)
+        // 1: Pending
+        // 2: Paid (in current month)
 
         let statusPriority = 1; // Default to Pending
 
         if (isRecentlyCreated && !isPaid) {
-            statusPriority = -2; // Top Priority (New)
+            statusPriority = -2;
         } else if (c.is_important && !isPaid) {
-            statusPriority = -1; // Second Priority (Important)
+            statusPriority = -1;
         } else if (isPaid) {
             statusPriority = 2;
-        } else if (dueDate < today && monthDate <= today) {
+        } else if (dueDate < today) {
             statusPriority = 0; // Overdue
         }
 
-        // Amount for sorting (Descending importance)
-        const amount = paidAmount ?? term?.amount_in_base ?? term?.amount_original ?? 0;
+        // Amount from active term
+        const amount = term?.amount_in_base ?? term?.amount_original ?? 0;
 
-        return { statusPriority, dueDay, amount, name: c.name };
+        return { statusPriority, dueDay, amount, name: c.name, id: c.id };
     }, [getPaymentStatus]);
 
     const performSmartSort = useCallback((a: CommitmentWithTerm, b: CommitmentWithTerm) => {
-        const dataA = getCommitmentSortData(a, focusedDate);
-        const dataB = getCommitmentSortData(b, focusedDate);
+        const dataA = getCommitmentSortData(a);
+        const dataB = getCommitmentSortData(b);
 
-        // 1. Status Priority (Ascending: 0=Overdue, 1=Pending, 2=Paid)
+        // 1. Status Priority (based on current month)
         if (dataA.statusPriority !== dataB.statusPriority) {
             return dataA.statusPriority - dataB.statusPriority;
         }
@@ -467,14 +470,17 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         }
 
         // 3. Amount (Descending - Higher value first)
-        // Only if amount differs significantly
         if (Math.abs(dataA.amount - dataB.amount) > 0.01) {
             return dataB.amount - dataA.amount;
         }
 
         // 4. Name (Alphabetical)
-        return dataA.name.localeCompare(b.name, language === 'es' ? 'es' : 'en');
-    }, [getCommitmentSortData, focusedDate, language]);
+        const nameCompare = dataA.name.localeCompare(dataB.name, language === 'es' ? 'es' : 'en');
+        if (nameCompare !== 0) return nameCompare;
+
+        // 5. Stable tiebreaker: UUID
+        return dataA.id.localeCompare(dataB.id);
+    }, [getCommitmentSortData, language]);
 
     // Check if commitment is active in a given month based on frequency
     const isActiveInMonth = useCallback((commitment: CommitmentWithTerm, monthDate: Date): boolean => {
@@ -579,7 +585,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                 // Calculate min priority for the category
                 const minPriority = sortedItems.length > 0
-                    ? Math.min(...sortedItems.map(c => getCommitmentSortData(c, focusedDate).statusPriority))
+                    ? Math.min(...sortedItems.map(c => getCommitmentSortData(c).statusPriority))
                     : 2;
 
                 return {
@@ -596,7 +602,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 }
                 return a.category.localeCompare(b.category, language === 'es' ? 'es' : 'en');
             });
-    }, [commitments, showTerminated, selectedCategory, t, language, performSmartSort, getCommitmentSortData, focusedDate, density]);
+    }, [commitments, showTerminated, selectedCategory, t, language, performSmartSort, getCommitmentSortData, density]);
 
     // Available categories for filter tabs (derived from all non-terminated commitments)
     const availableCategories = useMemo(() => {
@@ -1102,19 +1108,21 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                         </DropdownMenu.Item>
 
                                                         <DropdownMenu.Item
-                                                            className="group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors"
-                                                            disabled={terminated}
+                                                            className={`group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                            disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (paused) {
+                                                                if (terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
                                                                     onResumeCommitment(c);
-                                                                } else {
+                                                                } else if (terminationReason === 'ACTIVE') {
                                                                     onPauseCommitment(c);
                                                                 }
                                                             }}
                                                         >
                                                             <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
-                                                            {paused ? 'Reanudar' : 'Pausar / Terminar'}
+                                                            {terminationReason === 'PAUSED' || terminationReason === 'TERMINATED' ? 'Reanudar' :
+                                                             terminationReason === 'COMPLETED_INSTALLMENTS' ? 'Completado' :
+                                                             'Pausar / Terminar'}
                                                         </DropdownMenu.Item>
 
                                                         <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1.5" />
@@ -1477,19 +1485,20 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                     </DropdownMenu.Item>
 
                                                                                     <DropdownMenu.Item
-                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none"
-                                                                                        disabled={terminated}
+                                                                                        className={`group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                                        disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
-                                                                                            if (paused) {
+                                                                                            if (terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
                                                                                                 onResumeCommitment(commitment);
-                                                                                            } else {
+                                                                                            } else if (terminationReason === 'ACTIVE') {
                                                                                                 onPauseCommitment(commitment);
                                                                                             }
                                                                                         }}
                                                                                     >
                                                                                         <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
-                                                                                        {terminated ? 'Terminado' : (paused ? 'Reanudar' : 'Pausar')}
+                                                                                        {terminationReason === 'PAUSED' || terminationReason === 'TERMINATED' ? 'Reanudar' :
+                                                                                         terminationReason === 'COMPLETED_INSTALLMENTS' ? 'Completado' : 'Pausar'}
                                                                                     </DropdownMenu.Item>
 
                                                                                     <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
@@ -1638,19 +1647,20 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                     </DropdownMenu.Item>
 
                                                                                     <DropdownMenu.Item
-                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none"
-                                                                                        disabled={terminated}
+                                                                                        className={`group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                                        disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
-                                                                                            if (paused) {
+                                                                                            if (terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
                                                                                                 onResumeCommitment(commitment);
-                                                                                            } else {
+                                                                                            } else if (terminationReason === 'ACTIVE') {
                                                                                                 onPauseCommitment(commitment);
                                                                                             }
                                                                                         }}
                                                                                     >
                                                                                         <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
-                                                                                        {terminated ? 'Terminado' : (paused ? 'Reanudar' : 'Pausar')}
+                                                                                        {terminationReason === 'PAUSED' || terminationReason === 'TERMINATED' ? 'Reanudar' :
+                                                                                         terminationReason === 'COMPLETED_INSTALLMENTS' ? 'Completado' : 'Pausar'}
                                                                                     </DropdownMenu.Item>
 
                                                                                     <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
