@@ -95,9 +95,11 @@ const getCategoryIcon = (category: string) => {
 /**
  * Get the active term for a commitment in a specific period/month
  * Supports multi-term commitments (paused/resumed, changed amounts, etc.)
- * 
+ *
  * FIX: Compares only year-month, ignoring day to avoid off-by-one month errors
  * when effective_from has day > 1 (e.g., "2025-12-09" should match Dec 2025)
+ *
+ * FIX: Sort by version DESC to get most recent term when multiple match
  */
 const getTermForPeriod = (commitment: CommitmentWithTerm, monthDate: Date): Term | null => {
     const all_terms = commitment.all_terms || [];
@@ -106,16 +108,19 @@ const getTermForPeriod = (commitment: CommitmentWithTerm, monthDate: Date): Term
     // Extract year-month from target period (ignore day)
     const periodYearMonth = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
 
-    // Find term where start year-month <= period year-month <= end year-month
-    const term = all_terms.find(t => {
-        const termStartYearMonth = t.effective_from.substring(0, 7); // "2025-12"
-        const termEndYearMonth = t.effective_until?.substring(0, 7) || null; // "2026-06" or null
+    // Sort by version DESC to prefer most recent term when multiple match
+    const term = all_terms
+        .slice() // Don't mutate original
+        .sort((a, b) => b.version - a.version) // Most recent first
+        .find(t => {
+            const termStartYearMonth = t.effective_from.substring(0, 7); // "2025-12"
+            const termEndYearMonth = t.effective_until?.substring(0, 7) || null; // "2026-06" or null
 
-        const startMatches = termStartYearMonth <= periodYearMonth;
-        const endMatches = termEndYearMonth === null || termEndYearMonth >= periodYearMonth;
+            const startMatches = termStartYearMonth <= periodYearMonth;
+            const endMatches = termEndYearMonth === null || termEndYearMonth >= periodYearMonth;
 
-        return startMatches && endMatches;
-    });
+            return startMatches && endMatches;
+        });
 
     return term || null;
 };
@@ -471,6 +476,41 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         return dataA.name.localeCompare(b.name, language === 'es' ? 'es' : 'en');
     }, [getCommitmentSortData, focusedDate, language]);
 
+    // Check if commitment is active in a given month based on frequency
+    const isActiveInMonth = useCallback((commitment: CommitmentWithTerm, monthDate: Date): boolean => {
+        const term = commitment.active_term;
+        if (!term) return false;
+
+        // Use extractYearMonth to avoid timezone issues
+        const { year: startYear, month: startMonth } = extractYearMonth(term.effective_from);
+        const startDate = new Date(startYear, startMonth - 1, 1);
+        const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+
+        if (startDate > monthEnd) return false;
+        if (term.effective_until) {
+            const { year: endYear, month: endMonth } = extractYearMonth(term.effective_until);
+            const endDate = new Date(endYear, endMonth - 1, 1);
+            if (endDate < monthStart) return false;
+        }
+
+        // Check frequency - use extracted year/month for correct calculation
+        const monthsDiff = (monthDate.getFullYear() - startYear) * 12 +
+            (monthDate.getMonth() + 1 - startMonth);
+
+        if (monthsDiff < 0) return false;
+
+        switch (term.frequency) {
+            case 'ONCE': return monthsDiff === 0;
+            case 'MONTHLY': return true;
+            case 'BIMONTHLY': return monthsDiff % 2 === 0;
+            case 'QUARTERLY': return monthsDiff % 3 === 0;
+            case 'SEMIANNUALLY': return monthsDiff % 6 === 0;
+            case 'ANNUALLY': return monthsDiff % 12 === 0;
+            default: return true;
+        }
+    }, []);
+
     // Group commitments by category (for grid view)
     // Hybrid Strategy:
     // - Compact View: Treat as flat list (single 'All' group) to enforce strict Priority Sorting (Overdue > Pending)
@@ -614,66 +654,62 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
     };
 
+    // Termination reason type for differentiated badges
+    type TerminationReason = 'ACTIVE' | 'PAUSED' | 'COMPLETED_INSTALLMENTS' | 'TERMINATED';
+
+    /**
+     * Get the termination reason for a commitment
+     * Used to display differentiated badges: PAUSADO, COMPLETADO, TERMINADO
+     */
+    const getTerminationReason = useCallback((commitment: CommitmentWithTerm): TerminationReason => {
+        // Use the most recent term, not just active_term
+        const terms = commitment.all_terms || [];
+        const latestTerm = terms.length > 0
+            ? terms.slice().sort((a, b) => b.version - a.version)[0]
+            : commitment.active_term;
+
+        if (!latestTerm) return 'TERMINATED';
+
+        // No end date = active
+        if (!latestTerm.effective_until) return 'ACTIVE';
+
+        // Use extractYearMonth to avoid timezone issues with date parsing
+        const { year: endYear, month: endMonth } = extractYearMonth(latestTerm.effective_until);
+        const endDate = new Date(endYear, endMonth - 1, 28); // Use day 28 to be safe (end of month)
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // End date hasn't passed yet (compare by month end)
+        // A commitment ending in Dec 2025 is still "active" during Dec 2025
+        const endOfMonth = new Date(endYear, endMonth, 0); // Last day of end month
+
+        if (endOfMonth >= today) {
+            // Has installments = will end by installments (not paused)
+            if (latestTerm.installments_count && latestTerm.installments_count > 1) {
+                return 'ACTIVE'; // Still active, will end when date arrives
+            }
+            // One-time payment is not "paused"
+            if (latestTerm.frequency === 'ONCE') {
+                return 'ACTIVE';
+            }
+            // No installments = manually paused
+            return 'PAUSED';
+        }
+
+        // End date has passed (we're past the end month)
+        if (latestTerm.installments_count && latestTerm.installments_count > 1) {
+            return 'COMPLETED_INSTALLMENTS'; // Completed all installments
+        }
+
+        return 'TERMINATED'; // Ended by pause that already passed
+    }, []);
+
     // Check if commitment is terminated (has effective_until in the past)
-    const isCommitmentTerminated = (commitment: CommitmentWithTerm): boolean => {
-        const term = commitment.active_term;
-        if (!term?.effective_until) return false;
-        const endDate = new Date(term.effective_until);
-        const today = new Date();
-        return endDate < today;
-    };
-
-    // Check if commitment is paused/scheduled to end (manually paused, not installments or fixed-term)
-    const isCommitmentPaused = (commitment: CommitmentWithTerm): boolean => {
-        const term = commitment.active_term;
-        if (!term?.effective_until) return false;
-
-        // Exclude installment-based commitments (they naturally have an end date)
-        if (term.installments_count && term.installments_count > 1) return false;
-
-        // Exclude one-time payments (frequency ONCE)
-        if (term.frequency === 'ONCE') return false;
-
-        // For MONTHLY with no installments, having effective_until means it was paused
-        const endDate = new Date(term.effective_until);
-        const today = new Date();
-        return endDate >= today; // Has end date but hasn't passed yet = paused
-    };
-
-    // Check if commitment is active in a given month based on frequency
-    const isActiveInMonth = (commitment: CommitmentWithTerm, monthDate: Date): boolean => {
-        const term = commitment.active_term;
-        if (!term) return false;
-
-        // Use extractYearMonth to avoid timezone issues
-        const { year: startYear, month: startMonth } = extractYearMonth(term.effective_from);
-        const startDate = new Date(startYear, startMonth - 1, 1);
-        const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-
-        if (startDate > monthEnd) return false;
-        if (term.effective_until) {
-            const { year: endYear, month: endMonth } = extractYearMonth(term.effective_until);
-            const endDate = new Date(endYear, endMonth - 1, 1);
-            if (endDate < monthStart) return false;
-        }
-
-        // Check frequency - use extracted year/month for correct calculation
-        const monthsDiff = (monthDate.getFullYear() - startYear) * 12 +
-            (monthDate.getMonth() + 1 - startMonth);
-
-        if (monthsDiff < 0) return false;
-
-        switch (term.frequency) {
-            case 'ONCE': return monthsDiff === 0;
-            case 'MONTHLY': return true;
-            case 'BIMONTHLY': return monthsDiff % 2 === 0;
-            case 'QUARTERLY': return monthsDiff % 3 === 0;
-            case 'SEMIANNUALLY': return monthsDiff % 6 === 0;
-            case 'ANNUALLY': return monthsDiff % 12 === 0;
-            default: return true;
-        }
-    };
+    const isCommitmentTerminated = useCallback((commitment: CommitmentWithTerm): boolean => {
+        const reason = getTerminationReason(commitment);
+        return reason === 'TERMINATED' || reason === 'COMPLETED_INSTALLMENTS';
+    }, [getTerminationReason]);
 
 
     // ==========================================================================
@@ -975,12 +1011,13 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         }
 
                         // Determinar si se debe mostrar como tachado (terminated)
-                        // Solo se tacha si: está terminado globalmente, no está activo en este mes, Y ya está pagado.
+                        // Solo tachar si: está terminado globalmente, ESTABA activo en este mes, Y YA FUE PAGADO
                         const isGloballyTerminated = isCommitmentTerminated(c);
-                        const isCurrentlyActive = isActiveInMonth(c, monthDate);
-                        const terminated = isGloballyTerminated && !isCurrentlyActive && (isPaid || !hasPaymentRecord);
+                        const wasActiveInMonth = getTermForPeriod(c, monthDate) !== null;
+                        const terminated = isGloballyTerminated && wasActiveInMonth && isPaid;
 
-                        const paused = isCommitmentPaused(c);
+                        const terminationReason = getTerminationReason(c);
+                        const paused = terminationReason === 'PAUSED';
 
                         // Payment record para fecha de pago
                         const currentPayment = commitmentPayments.find(p => p.period_date.substring(0, 7) === periodStr);
@@ -1307,22 +1344,19 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                             {/* Commitment rows */}
                                             {catCommitments.map(commitment => {
                                                 const monthDate = focusedDate; // En vista compacta, solo vemos el mes enfocado
-                                                const pDate = { year: monthDate.getFullYear(), month: monthDate.getMonth() + 1 };
-                                                const currentPeriodStr = periodToString(pDate);
 
                                                 const isGloballyTerminated = isCommitmentTerminated(commitment);
-                                                const isCurrentlyActive = isActiveInMonth(commitment, monthDate);
 
                                                 // Necesitamos saber si está pagado en este mes para decidir el tachado
                                                 const termForMonth = getTermForPeriod(commitment, monthDate);
                                                 const dueDay = termForMonth?.due_day_of_month ?? 1;
                                                 const { isPaid } = getPaymentStatus(commitment.id, monthDate, dueDay);
 
-                                                const commitmentPayments = payments.get(commitment.id) || [];
-                                                const hasPaymentRecord = commitmentPayments.some(p => p.period_date.substring(0, 7) === currentPeriodStr);
-
-                                                const terminated = isGloballyTerminated && !isCurrentlyActive && (isPaid || !hasPaymentRecord);
-                                                const paused = isCommitmentPaused(commitment);
+                                                // Solo tachar si: está terminado globalmente, ESTABA activo en este mes, Y YA FUE PAGADO
+                                                const wasActiveInMonth = termForMonth !== null;
+                                                const terminated = isGloballyTerminated && wasActiveInMonth && isPaid;
+                                                const terminationReason = getTerminationReason(commitment);
+                                                const paused = terminationReason === 'PAUSED';
                                                 const flowColor = commitment.flow_type === 'INCOME' ? 'border-l-emerald-500' : 'border-l-red-500';
                                                 return (
                                                     <tr
@@ -1370,11 +1404,22 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                     NUEVO
                                                                                 </span>
                                                                             )}
-                                                                            {/* Paused Badge */}
-                                                                            {paused && !terminated && (
+                                                                            {/* Status Badges - Differentiated by termination reason */}
+                                                                            {terminationReason === 'PAUSED' && (
                                                                                 <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
                                                                                     <PauseIcon className="w-2.5 h-2.5" />
                                                                                     PAUSADO
+                                                                                </span>
+                                                                            )}
+                                                                            {terminationReason === 'COMPLETED_INSTALLMENTS' && (
+                                                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">
+                                                                                    <CheckCircleIcon className="w-2.5 h-2.5" />
+                                                                                    COMPLETADO
+                                                                                </span>
+                                                                            )}
+                                                                            {terminationReason === 'TERMINATED' && (
+                                                                                <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+                                                                                    TERMINADO
                                                                                 </span>
                                                                             )}
                                                                         </span>
@@ -1516,13 +1561,20 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                     </span>
                                                                                 );
                                                                             })()}
-                                                                            {paused && !terminated && (
+                                                                            {/* Status Badges - Differentiated */}
+                                                                            {terminationReason === 'PAUSED' && (
                                                                                 <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded flex items-center gap-1">
                                                                                     <PauseIcon className="w-3 h-3" />
                                                                                     Pausado
                                                                                 </span>
                                                                             )}
-                                                                            {terminated && (
+                                                                            {terminationReason === 'COMPLETED_INSTALLMENTS' && (
+                                                                                <span className="text-xs px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded flex items-center gap-1">
+                                                                                    <CheckCircleIcon className="w-3 h-3" />
+                                                                                    Completado
+                                                                                </span>
+                                                                            )}
+                                                                            {terminationReason === 'TERMINATED' && (
                                                                                 <span className="text-xs px-1.5 py-0.5 bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded">
                                                                                     Terminado
                                                                                 </span>

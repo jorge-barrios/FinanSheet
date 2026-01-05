@@ -37,9 +37,24 @@ const PauseCommitmentModal: React.FC<PauseCommitmentModalProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [paymentsWarning, setPaymentsWarning] = useState<number>(0);
 
+    // Check if commitment has installments (cannot be paused)
+    const hasInstallments = !!(commitment.active_term?.installments_count &&
+                            commitment.active_term.installments_count > 1);
+
+    // Block pausing commitments with installments
+    useEffect(() => {
+        if (!isOpen) return;
+
+        if (hasInstallments) {
+            setError('Este compromiso tiene cuotas definidas. Para terminarlo anticipadamente, edítelo y modifique la cantidad de cuotas.');
+        } else {
+            setError(null);
+        }
+    }, [isOpen, hasInstallments]);
+
     // Check for payments after selected date
     useEffect(() => {
-        if (!isOpen || !commitment.id) return;
+        if (!isOpen || !commitment.id || hasInstallments) return;
 
         const checkPayments = async () => {
             try {
@@ -52,7 +67,7 @@ const PauseCommitmentModal: React.FC<PauseCommitmentModalProps> = ({
         };
 
         checkPayments();
-    }, [isOpen, commitment.id, selectedYear, selectedMonth]);
+    }, [isOpen, commitment.id, selectedYear, selectedMonth, hasInstallments]);
 
     // Handle ESC key
     useEffect(() => {
@@ -195,8 +210,8 @@ const PauseCommitmentModal: React.FC<PauseCommitmentModalProps> = ({
                     </button>
                     <button
                         onClick={handlePause}
-                        disabled={isLoading}
-                        className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                        disabled={isLoading || hasInstallments}
+                        className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         {isLoading ? (
                             <>

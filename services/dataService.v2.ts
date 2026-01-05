@@ -480,19 +480,25 @@ export const TermService = {
     /**
      * Pause a commitment by setting effective_until on the active term
      * @returns The updated term or null if failed
+     * @throws Error if commitment has installments (must edit instead)
      */
     async pauseCommitment(commitmentId: string, lastMonth: string): Promise<Term | null> {
         if (!supabase) throw new Error('Supabase not configured');
 
-        // Get all terms to find the active one
+        // Get all terms and find the most recent active one
         const terms = await this.getTerms(commitmentId);
-        const activeTerm = terms.find(t =>
-            t.effective_until === null || t.effective_until >= lastMonth
-        );
+        const activeTerm = terms
+            .sort((a, b) => b.version - a.version) // Most recent first
+            .find(t => t.effective_until === null || t.effective_until >= lastMonth);
 
         if (!activeTerm) {
             console.error('No active term found to pause');
             return null;
+        }
+
+        // Block pausing terms with installments - user must edit instead
+        if (activeTerm.installments_count && activeTerm.installments_count > 1) {
+            throw new Error('No se puede pausar un compromiso con cuotas. Debe editarlo para cambiar la cantidad de cuotas.');
         }
 
         // Calculate last day of the month
@@ -508,22 +514,29 @@ export const TermService = {
 
     /**
      * Unpause a commitment by clearing effective_until on the active term
+     * Only works for manually paused terms (not installment-based)
      * @returns The updated term or null if failed
      */
     async unpauseCommitment(commitmentId: string): Promise<Term | null> {
         if (!supabase) throw new Error('Supabase not configured');
 
-        // Get all terms to find the active one (the ones with effective_until set)
+        // Get all terms and find the most recent paused one (without installments)
         const terms = await this.getTerms(commitmentId);
-        const activeTerm = terms.find(t => t.effective_until !== null);
+        const pausedTerm = terms
+            .sort((a, b) => b.version - a.version) // Most recent first
+            .find(t => {
+                // Only manually paused terms can be unpaused
+                const hasInstallments = t.installments_count && t.installments_count > 1;
+                return t.effective_until !== null && !hasInstallments;
+            });
 
-        if (!activeTerm) {
+        if (!pausedTerm) {
             console.error('No paused term found to unpause');
             return null;
         }
 
         // Update the term to remove the end date
-        return await this.updateTerm(activeTerm.id, {
+        return await this.updateTerm(pausedTerm.id, {
             effective_until: null,
         } as Partial<TermFormData>);
     },
