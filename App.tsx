@@ -81,6 +81,7 @@ const CalendarView = React.lazy(() => import('./components/CalendarView'));
 const DashboardFullV2 = React.lazy(() => import('./components/DashboardFull.v2'));
 const PaymentRecorderV2 = React.lazy(() => import('./components/PaymentRecorder.v2'));
 const PauseCommitmentModal = React.lazy(() => import('./components/PauseCommitmentModal'));
+const ResumeCommitmentModal = React.lazy(() => import('./components/ResumeCommitmentModal'));
 import CategoryManager from './components/CategoryManager';
 import ConfirmationModal from './components/ConfirmationModal';
 import { Expense, PaymentStatus, ExpenseType, View, PaymentDetails, PaymentFrequency, PaymentUnit } from './types';
@@ -94,7 +95,7 @@ import { useToast } from './context/ToastContext';
 import { useAuth } from './context/AuthContext';
 import { useFeature } from './context/FeatureFlagsContext';
 import { useCommitments } from './context/CommitmentsContext';
-import { CommitmentService, TermService, PaymentService, getCurrentUserId } from './services/dataService.v2';
+import { CommitmentService, PaymentService, getCurrentUserId } from './services/dataService.v2';
 import type { Payment } from './types.v2';
 
 import { getExchangeRate } from './services/exchangeRateService';
@@ -149,6 +150,11 @@ const App: React.FC = () => {
     const [commitmentToDelete, setCommitmentToDelete] = useState<string | null>(null);
     // Pause modal state
     const [pauseModalState, setPauseModalState] = useState<{
+        isOpen: boolean;
+        commitment: CommitmentWithTerm | null;
+    }>({ isOpen: false, commitment: null });
+    // Resume modal state
+    const [resumeModalState, setResumeModalState] = useState<{
         isOpen: boolean;
         commitment: CommitmentWithTerm | null;
     }>({ isOpen: false, commitment: null });
@@ -856,21 +862,10 @@ const App: React.FC = () => {
         setEditingCell({ expenseId, year, month });
     };
 
-    // Centralized handler for opening PaymentRecorder V2
-    // Month is 0-indexed (0 = January, 11 = December)
-    const handleResumeCommitment = useCallback(async (commitment: CommitmentWithTerm) => {
-        try {
-            const result = await TermService.unpauseCommitment(commitment.id);
-            if (result) {
-                showToast('Compromiso reanudado', 'success');
-                await refreshCommitments(true);
-            } else {
-                showToast('No se pudo reanudar el compromiso', 'error');
-            }
-        } catch (error: any) {
-            showToast(error.message || 'Error al reanudar compromiso', 'error');
-        }
-    }, [refreshCommitments, showToast]);
+    // Handler to open resume modal
+    const handleResumeCommitment = useCallback((commitment: CommitmentWithTerm) => {
+        setResumeModalState({ isOpen: true, commitment });
+    }, []);
 
     const handleOpenPaymentRecorder = useCallback((commitmentId: string, year: number, month: number) => {
         const commitment = commitmentsV2.find(c => c.id === commitmentId);
@@ -1283,6 +1278,21 @@ const App: React.FC = () => {
                             await refreshCommitments(true);
                         }}
                         commitment={pauseModalState.commitment}
+                    />
+                </React.Suspense>
+            )}
+
+            {/* Resume Commitment Modal */}
+            {resumeModalState.isOpen && resumeModalState.commitment && (
+                <React.Suspense fallback={null}>
+                    <ResumeCommitmentModal
+                        isOpen={resumeModalState.isOpen}
+                        onClose={() => setResumeModalState({ isOpen: false, commitment: null })}
+                        onSuccess={async () => {
+                            showToast('Compromiso reanudado', 'success');
+                            await refreshCommitments(true);
+                        }}
+                        commitment={resumeModalState.commitment}
                     />
                 </React.Suspense>
             )}
