@@ -194,7 +194,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg text-sm font-semibold text-white bg-sky-500 hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-sky-500/25 hover:shadow-sky-400/30 hover:shadow-xl"
+            className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-sky-500 to-rose-500 hover:from-sky-400 hover:to-rose-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-sky-500/25 hover:shadow-rose-400/30 hover:shadow-xl active:scale-95"
           >
             {loading ? (
               <>
@@ -218,7 +218,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
           <button
             type="button"
             onClick={handleGoogleSignIn}
-            className="w-full flex justify-center items-center py-2.5 px-4 border border-slate-700 rounded-lg text-sm font-medium text-slate-300 bg-slate-800/50 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-slate-700 transition-all duration-200"
+            className="w-full flex justify-center items-center py-2.5 px-4 border border-white/10 rounded-lg text-sm font-medium text-slate-200 bg-white/5 backdrop-blur-md hover:bg-white/10 hover:text-white hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-white/20 transition-all duration-200 active:scale-95"
           >
             <svg className="h-5 w-5 mr-2" aria-hidden="true" viewBox="0 0 24 24">
               <path d="M12.0003 20.45c4.6667 0 8.45-3.7833 8.45-8.45 0-.75-.0667-1.4667-.1833-2.1667H12.0003v4.1167h4.8333c-.2083 1.125-1.25 3.3333-4.8333 3.3333-2.9 0-5.2667-2.35-5.2667-5.2833s2.3667-5.2833 5.2667-5.2833c1.3167 0 2.5.4667 3.4333 1.35l3.05-3.05C16.967 3.5167 14.6503 2.55 12.0003 2.55 6.7836 2.55 2.5503 6.7833 2.5503 12s4.2333 9.45 9.45 9.45z" fill="currentColor" />
@@ -233,7 +233,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
             <button
               type="button"
               onClick={onToggleMode}
-              className="text-sm font-medium text-sky-400 hover:text-sky-300 transition-colors duration-200 underline underline-offset-4 decoration-sky-400/50 hover:decoration-sky-300"
+              className="text-sm font-medium text-rose-400 hover:text-rose-300 transition-colors duration-200 underline underline-offset-4 decoration-rose-400/50 hover:decoration-rose-300"
             >
               {t('login.registerAction')}
             </button>
