@@ -170,12 +170,24 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
             setError(null);
             setLoading(false);
         } else {
-            // User logged in - load data
+            // User logged in - load initial data
             console.log('CommitmentsContext: User logged in, loading data');
             refresh();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]); // Re-run when user changes (login/logout)
+
+    // REFRESH ON YEAR CHANGE
+    // This is critical: When the user navigates the grid to a different year,
+    // we must fetch the data for that period. The 'refresh' function calculates
+    // the window based on 'displayYear'.
+    // We only trigger on YEAR change to avoid excessive fetching while scrolling months.
+    useEffect(() => {
+        if (user) {
+            console.log(`CommitmentsContext: Year changed to ${displayYear}, refreshing data...`);
+            refresh(true); // Silent refresh to avoid full loading screens
+        }
+    }, [displayYear, user]); // Deliberately exclude 'refresh' to avoid loop, and 'displayMonth' to avoid churn
 
     // ==========================================================================
     // HELPER FUNCTIONS

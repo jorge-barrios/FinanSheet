@@ -14,6 +14,11 @@ import { findTermForPeriod } from '../utils/termUtils';
 import type { CommitmentWithTerm, Payment, PaymentFormData, Term } from '../types.v2';
 import { XMarkIcon, CheckCircleIcon, TrashIcon, ExclamationTriangleIcon } from './icons';
 import { Calendar, Wallet, Coins, Banknote } from 'lucide-react';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
+import { es } from 'date-fns/locale/es';
+
+registerLocale('es', es);
 
 // =============================================================================
 // TYPES
@@ -52,6 +57,9 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     // Currency type
     // Currency type - updated to include EUR and UTM
     type CurrencyType = 'CLP' | 'USD' | 'EUR' | 'UF' | 'UTM';
+
+    // Ref for date picker to enable card click
+    const datePickerRef = React.useRef<DatePicker>(null);
 
     // Form state
     const [isPaid, setIsPaid] = useState(false);
@@ -369,24 +377,76 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                         </button>
 
                         {/* Date Picker Card */}
-                        <div className={`col-span-1 p-4 rounded-2xl border flex flex-col justify-center gap-1 transition-all duration-300 ${isPaid
-                            ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-100'
-                            : 'bg-slate-50 dark:bg-slate-800/50 border-transparent opacity-50 grayscale cursor-not-allowed'
-                            }`}>
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                        <div
+                            onClick={() => {
+                                if (datePickerRef.current) {
+                                    datePickerRef.current.setFocus();
+                                }
+                            }}
+                            className={`col-span-1 p-4 rounded-2xl border flex flex-col justify-center gap-1 transition-all duration-300 cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 ${isPaid
+                                ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-100'
+                                : 'bg-slate-50 dark:bg-slate-800/50 border-transparent opacity-100'
+                                }`}>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 cursor-pointer">
                                 <Calendar className="w-3 h-3" /> Fecha
                             </label>
-                            <input
-                                type="date"
-                                value={paymentDate}
-                                onChange={(e) => setPaymentDate(e.target.value)}
-                                onFocus={() => !isPaid && setIsPaid(true)}
-                                className="w-full bg-transparent p-0 border-none text-sm font-bold text-slate-900 dark:text-white focus:ring-0 focus:outline-none cursor-pointer"
-                            />
+                            <div className="w-full" onClick={(e) => e.stopPropagation()}>
+                                <DatePicker
+                                    ref={datePickerRef}
+                                    selected={paymentDate ? new Date(paymentDate + 'T12:00:00') : new Date()}
+                                    onChange={(date: Date | null) => {
+                                        if (date) {
+                                            // Construct YYYY-MM-DD manually
+                                            const year = date.getFullYear();
+                                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                                            const day = String(date.getDate()).padStart(2, '0');
+                                            setPaymentDate(`${year}-${month}-${day}`);
+                                        }
+                                    }}
+                                    onFocus={undefined}
+                                    dateFormat="dd/MM/yyyy"
+                                    locale="es"
+                                    shouldCloseOnSelect={true}
+                                    strictParsing
+                                    placeholderText="dd/mm/aaaa"
+                                    onKeyDown={(e) => {
+                                        // 1. Allow standard navigation/editing keys
+                                        const navKeys = ['Backspace', 'Delete', 'Tab', 'Enter', 'Escape', '/'];
+                                        if (navKeys.includes(e.key)) {
+                                            return;
+                                        }
+
+                                        // 2. Allow Arrow Keys for cursor navigation (default behavior)
+                                        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                                            return;
+                                        }
+
+                                        // 3. Prevent letters/symbols AND enforce maxLength 10 manually
+                                        if (!/^\d$/.test(e.key)) {
+                                            e.preventDefault();
+                                            return;
+                                        }
+
+                                        // Manual maxLength check
+                                        const input = e.target as HTMLInputElement;
+                                        if (input.value.length >= 10) {
+                                            const selection = window.getSelection();
+                                            if (!selection || selection.toString().length === 0) {
+                                                e.preventDefault();
+                                            }
+                                        }
+                                    }}
+                                    className="w-full bg-transparent p-0 border-none text-sm font-bold text-slate-900 dark:text-white focus:ring-0 focus:outline-none cursor-pointer"
+                                    wrapperClassName="w-full"
+                                    popperClassName="z-[9999]"
+                                    portalId="root"
+                                    autoFocus={false}
+                                />
+                            </div>
                         </div>
 
                         {/* 3. AMOUNT INPUT ROW (Full Width, Animated) */}
-                        <div className={`col-span-2 transition-all duration-500 ease-out ${isPaid ? 'opacity-100 translate-y-0' : 'opacity-80 translate-y-0'}`}>
+                        <div className={`col-span-2 transition-all duration-500 ease-out opacity-100 translate-y-0`}>
                             <div className="relative group">
                                 <label className="absolute -top-2.5 left-4 px-2 bg-white dark:bg-slate-900 text-xs font-bold text-blue-600 dark:text-blue-400 z-10 transition-colors">
                                     Monto Real
@@ -421,7 +481,6 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                         type="number"
                                         value={amount}
                                         onChange={(e) => setAmount(e.target.value)}
-                                        onFocus={() => !isPaid && setIsPaid(true)}
                                         placeholder={String(expectedAmount)}
                                         className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 text-lg font-mono font-bold text-slate-900 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 focus:outline-none"
                                     />

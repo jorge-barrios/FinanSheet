@@ -11,6 +11,11 @@ import { useLocalization } from '../hooks/useLocalization';
 import { useCurrency } from '../hooks/useCurrency';
 import { ArrowTrendingDownIcon, ArrowTrendingUpIcon, StarIcon } from './icons';
 import { Infinity, CalendarCheck, Hash, History, ChevronDown, ChevronUp, Link as LinkIcon } from 'lucide-react';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
+import { es } from 'date-fns/locale/es';
+
+registerLocale('es', es);
 import {
     FlowType,
     Frequency,
@@ -60,7 +65,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     onCommitmentUpdated,
     commitmentToEdit
 }) => {
-    const { t, formatClp } = useLocalization();
+    const { t } = useLocalization();
     const { fromUnit, convertAmount } = useCurrency();
     // Use local date (not UTC) to avoid timezone issues
     const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
@@ -1131,20 +1136,60 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <label className={formLabelClasses}>1er Vencimiento</label>
-                                            <input
-                                                type="date"
-                                                value={startDate}
-                                                onChange={(e) => {
-                                                    const newDate = e.target.value;
-                                                    setStartDate(newDate);
-                                                    if (newDate) {
-                                                        const dayPart = parseInt(newDate.split('-')[2], 10);
-                                                        setDueDay(dayPart.toString());
+                                        <label className={formLabelClasses}>1er Vencimiento</label>
+                                        <div className="relative">
+                                            <DatePicker
+                                                selected={startDate ? new Date(startDate + 'T12:00:00') : new Date()}
+                                                onChange={(date: Date | null) => {
+                                                    if (date) {
+                                                        // Construct YYYY-MM-DD manually to avoid timezone issues
+                                                        const year = date.getFullYear();
+                                                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                                                        const day = String(date.getDate()).padStart(2, '0');
+                                                        const newDate = `${year}-${month}-${day}`;
+
+                                                        setStartDate(newDate);
+                                                        // Update dueDay from the selected date (use local date)
+                                                        setDueDay(String(date.getDate()));
+                                                    }
+                                                }}
+                                                dateFormat="dd/MM/yyyy"
+                                                locale="es"
+                                                shouldCloseOnSelect={true}
+                                                strictParsing
+                                                placeholderText="dd/mm/aaaa"
+                                                onKeyDown={(e) => {
+                                                    // 1. Allow standard navigation/editing keys
+                                                    const navKeys = ['Backspace', 'Delete', 'Tab', 'Enter', 'Escape', '/'];
+                                                    if (navKeys.includes(e.key)) {
+                                                        return;
+                                                    }
+
+                                                    // 2. Allow Arrow Keys for cursor navigation (default behavior)
+                                                    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                                                        return;
+                                                    }
+
+                                                    // 3. Block non-digits and enforce length 10
+                                                    if (!/^\d$/.test(e.key)) {
+                                                        e.preventDefault();
+                                                        return;
+                                                    }
+
+                                                    // Manual maxLength check
+                                                    const input = e.target as HTMLInputElement;
+                                                    if (input.value.length >= 10) {
+                                                        const selection = window.getSelection();
+                                                        if (!selection || selection.toString().length === 0) {
+                                                            e.preventDefault();
+                                                        }
                                                     }
                                                 }}
                                                 className={formInputClasses}
+                                                wrapperClassName="w-full"
+                                                popperClassName="z-[9999]"
+                                                portalId="root"
+                                                autoFocus={false}
                                                 required
                                             />
                                         </div>

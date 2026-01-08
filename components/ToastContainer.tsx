@@ -39,24 +39,28 @@ const ToastItem: React.FC<{ toast: Toast }> = ({ toast }) => {
     };
 
     const getColorClasses = (type: ToastType) => {
+        // Base classes unified for Navy Ocean aesthetic
+        const baseClasses = 'bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/50 border-r border-t border-b border-white/10 text-slate-200';
+
+        // Accent border logic (Left border only)
         switch (type) {
             case 'success':
-                return 'bg-emerald-50/95 dark:bg-emerald-950/90 backdrop-blur-md border-emerald-200 dark:border-emerald-800';
+                return `${baseClasses} border-l-4 border-l-emerald-500`;
             case 'error':
-                return 'bg-rose-50/95 dark:bg-rose-950/90 backdrop-blur-md border-rose-200 dark:border-rose-800';
+                return `${baseClasses} border-l-4 border-l-rose-500`;
             case 'warning':
-                return 'bg-amber-50/95 dark:bg-amber-950/90 backdrop-blur-md border-amber-200 dark:border-amber-800';
+                return `${baseClasses} border-l-4 border-l-amber-500`;
             case 'loading':
-                return 'bg-slate-50/95 dark:bg-slate-800/90 backdrop-blur-md border-slate-200 dark:border-slate-700';
+                return `${baseClasses} border-l-4 border-l-sky-500`;
             case 'info':
             default:
-                return 'bg-sky-50/95 dark:bg-sky-950/90 backdrop-blur-md border-sky-200 dark:border-sky-800';
+                return `${baseClasses} border-l-4 border-l-blue-500`;
         }
     };
 
     return (
         <div
-            className={`flex items-start gap-3 p-4 rounded-lg border shadow-lg transition-all duration-300 min-w-[300px] max-w-md ${getColorClasses(toast.type)} ${isExiting ? 'opacity-0 translate-x-full' : 'opacity-100 translate-x-0'
+            className={`flex items-start gap-4 p-4 rounded-r-lg rounded-l-none border-l-[3px] shadow-2xl transition-all duration-300 min-w-[320px] max-w-md ${getColorClasses(toast.type)} ${isExiting ? 'opacity-0 translate-x-full' : 'opacity-100 translate-x-0'
                 }`}
             role="alert"
         >
@@ -71,7 +75,7 @@ const ToastItem: React.FC<{ toast: Toast }> = ({ toast }) => {
                 className="flex-shrink-0 p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 aria-label="Cerrar notificación"
             >
-                <XMarkIcon className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                <XMarkIcon className="w-4 h-4 text-slate-400 hover:text-white" />
             </button>
         </div>
     );

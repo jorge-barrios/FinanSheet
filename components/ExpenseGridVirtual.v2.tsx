@@ -10,29 +10,46 @@
  * - Icon-based feedback
  */
 
-import React, { useMemo, useEffect, useRef, useState, useCallback } from 'react';
+import React, { useMemo, useEffect, useRef, useState, useCallback, forwardRef } from 'react';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
+import { es } from 'date-fns/locale/es';
+registerLocale('es', es);
 import { useLocalization } from '../hooks/useLocalization';
 import usePersistentState from '../hooks/usePersistentState';
 import { useCommitments } from '../context/CommitmentsContext';
-import { CommitmentService, PaymentService, getCurrentUserId } from '../services/dataService.v2';
 import {
     EditIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon,
     CheckCircleIcon, ExclamationTriangleIcon, ClockIcon,
     CalendarIcon, InfinityIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon,
     SubscriptionIcon, MiscIcon, CategoryIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
-    StarIcon, IconProps, PauseIcon, PlusIcon, EyeIcon, EyeSlashIcon
+    StarIcon, IconProps, PauseIcon, PlusIcon, EyeIcon, EyeSlashIcon, InfoIcon, MoreVertical, Link2
 } from './icons';
-import type { CommitmentWithTerm, Payment, FlowType } from '../types.v2';
-import { periodToString } from '../types.v2';
+import type { CommitmentWithTerm, Payment } from '../types.v2';
 import { parseDateString, extractYearMonth, getPerPeriodAmount } from '../utils/financialUtils.v2';
 import { findTermForPeriod } from '../utils/termUtils';
-import { Sparkles, Link2, MoreVertical, Home, Minus } from 'lucide-react';
+import { Sparkles, Home, Minus } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 
 // =============================================================================
 // TOOLTIP COMPONENT
 // =============================================================================
+// =============================================================================
+// HELPER COMPONENTS
+// =============================================================================
+
+const DateCustomInput = forwardRef<HTMLButtonElement, any>(({ value, onClick }, ref) => (
+    <button
+        className="h-full flex items-center justify-center px-3 sm:px-4 text-center min-w-[100px] sm:min-w-[140px] text-sm font-semibold text-slate-900 dark:text-white capitalize hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-full outline-none border-x border-slate-200 dark:border-slate-600"
+        onClick={onClick}
+        ref={ref}
+    >
+        {value}
+    </button>
+));
+DateCustomInput.displayName = 'DateCustomInput';
+
 const CompactTooltip = ({ children, content, triggerClassName, sideOffset = 5 }: { children: React.ReactNode, content: React.ReactNode, triggerClassName?: string, sideOffset?: number }) => (
     <Tooltip.Provider delayDuration={500} skipDelayDuration={0}>
         <Tooltip.Root disableHoverableContent={true}>
@@ -110,17 +127,29 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     onResumeCommitment,
     onRecordPayment,
     onFocusedDateChange,
-    preloadedCommitments,
-    preloadedPayments,
 }) => {
     const { t, language } = useLocalization();
-    const { getMonthTotals } = useCommitments();
 
-    // State - use preloaded data if available for instant rendering
-    const [commitments, setCommitments] = useState<CommitmentWithTerm[]>(preloadedCommitments || []);
-    const [payments, setPayments] = useState<Map<string, Payment[]>>(preloadedPayments || new Map());
-    const [loading, setLoading] = useState(!preloadedCommitments); // Not loading if preloaded
-    const [error, setError] = useState<string | null>(null);
+    // CONSUME GLOBAL CONTEXT directly - no more local state shadowing
+    const {
+        commitments,
+        payments,
+        loading,
+        error,
+        getMonthTotals,
+        setDisplayYear,
+        setDisplayMonth
+    } = useCommitments();
+
+    // Sync Grid navigation with Context to ensure data is loaded for the viewed period
+    useEffect(() => {
+        const year = focusedDate.getFullYear();
+        const month = focusedDate.getMonth();
+
+        // Update context window to ensure we have data for this period
+        setDisplayYear(year);
+        setDisplayMonth(month);
+    }, [focusedDate, setDisplayYear, setDisplayMonth]);
 
     const [density, setDensity] = usePersistentState<'compact' | 'medium'>(
         'gridDensity',
@@ -146,101 +175,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     const [availableHeight, setAvailableHeight] = useState<number>(400);
     const footerRef = useRef<HTMLDivElement | null>(null);
 
-    // ==========================================================================
-    // DATA FETCHING - PROGRESSIVE LOADING
-    // ==========================================================================
-
-    // Track loaded data to avoid unnecessary refetches
-    const lastLoadedYearRef = useRef<number | null>(null);
-    const fullYearLoadedRef = useRef<boolean>(false);
-
-    useEffect(() => {
-        const currentYear = focusedDate.getFullYear();
-        const currentMonth = focusedDate.getMonth();
-
-        // Use preloaded data from App.tsx if available
-        // This also reacts to changes in preloaded data (hot reload after mutations)
-        if (preloadedCommitments && preloadedCommitments.length > 0) {
-            setCommitments(preloadedCommitments);
-            if (preloadedPayments) {
-                setPayments(preloadedPayments);
-            }
-            setLoading(false);
-            fullYearLoadedRef.current = true;
-            lastLoadedYearRef.current = currentYear;
-            return;
-        }
-
-        // Skip if we already loaded this year's data fully (only when not using preloaded)
-        if (lastLoadedYearRef.current === currentYear && commitments.length > 0 && fullYearLoadedRef.current) {
-            return;
-        }
-
-        const fetchData = async () => {
-            setLoading(true);
-            setError(null);
-
-            try {
-                const userId = await getCurrentUserId();
-                if (!userId) {
-                    setError('No user logged in');
-                    return;
-                }
-
-                // === PHASE 1: Load commitments + visible months only (FAST) ===
-                const commitmentsData = await CommitmentService.getCommitmentsWithTerms(userId);
-                setCommitments(commitmentsData);
-
-                // Calculate visible months range (current month ± 3 months for initial load)
-                const visibleStart = new Date(currentYear, currentMonth - 3, 1);
-                const visibleEnd = new Date(currentYear, currentMonth + 4, 1);
-                const startDate = `${visibleStart.getFullYear()}-${String(visibleStart.getMonth() + 1).padStart(2, '0')}-01`;
-                const endDate = `${visibleEnd.getFullYear()}-${String(visibleEnd.getMonth() + 1).padStart(2, '0')}-01`;
-
-                const visiblePayments = await PaymentService.getPaymentsByDateRange(userId, startDate, endDate);
-
-                // Group payments by commitment_id
-                const paymentsByCommitment = new Map<string, Payment[]>();
-                visiblePayments.forEach(p => {
-                    const existing = paymentsByCommitment.get(p.commitment_id) || [];
-                    paymentsByCommitment.set(p.commitment_id, [...existing, p]);
-                });
-
-                setPayments(paymentsByCommitment);
-                setLoading(false); // Show UI immediately
-                lastLoadedYearRef.current = currentYear;
-
-                // === PHASE 2: Load full year in background (DEFERRED) ===
-                setTimeout(async () => {
-                    try {
-                        const yearStart = `${currentYear}-01-01`;
-                        const yearEnd = `${currentYear + 1}-01-01`;
-
-                        const allPayments = await PaymentService.getPaymentsByDateRange(userId, yearStart, yearEnd);
-
-                        const fullPaymentsByCommitment = new Map<string, Payment[]>();
-                        allPayments.forEach(p => {
-                            const existing = fullPaymentsByCommitment.get(p.commitment_id) || [];
-                            fullPaymentsByCommitment.set(p.commitment_id, [...existing, p]);
-                        });
-
-                        setPayments(fullPaymentsByCommitment);
-                        fullYearLoadedRef.current = true;
-                    } catch (err) {
-                        console.error('Background fetch error:', err);
-                        // Don't set error - we already have visible data
-                    }
-                }, 100); // Small delay to let UI render first
-
-            } catch (err) {
-                console.error('Grid v2 fetch error:', err);
-                setError(err instanceof Error ? err.message : 'Failed to load data');
-                setLoading(false);
-            }
-        };
-
-        fetchData();
-    }, [focusedDate.getFullYear(), preloadedCommitments, preloadedPayments]);
+    // Removed duplicate local fetching logic (fetchData) to prevent state desync
+    // The context now handles all data loading based on setDisplayYear/Month calls above
 
     // ==========================================================================
     // CATEGORY TRANSLATION - uses local i18n files directly (no DB calls)
@@ -351,11 +287,37 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     // Note: We use amount_original for CLP payments due to migration bug with amount_in_base
     const getPaymentStatus = useCallback((commitmentId: string, monthDate: Date, dueDay: number = 1) => {
         const commitmentPayments = payments.get(commitmentId) || [];
-        const periodStr = periodToString({ year: monthDate.getFullYear(), month: monthDate.getMonth() + 1 });
+        // DEBUG: Trace P. Trainer specific matching issues for 2024
+        const isPTrainer = commitmentId === '992f32ae-7143-4605-b661-21908ace3921';
+        const targetYear = monthDate.getFullYear();
+        const targetMonth = monthDate.getMonth() + 1;
+
+        if (isPTrainer && targetYear === 2024 && [9, 10, 11, 12].includes(targetMonth)) {
+            console.log(`[DEBUG] Checking P. Trainer for ${targetYear}-${targetMonth}`, {
+                totalPaymentsInContext: commitmentPayments.length,
+                samplePaymentDates: commitmentPayments.slice(0, 5).map(p => p.period_date),
+                lookingFor: `${targetYear}-${String(targetMonth).padStart(2, '0')}`
+            });
+        }
 
         const payment = commitmentPayments.find(p => {
-            const pPeriod = p.period_date.substring(0, 7);
-            return pPeriod === periodStr;
+            // Robust parsing to avoid string format/timezone issues
+            const parts = p.period_date.split('-');
+            const pYear = parseInt(parts[0], 10);
+            const pMonth = parseInt(parts[1], 10);
+
+            const match = pYear === targetYear && pMonth === targetMonth;
+
+            if (isPTrainer && targetYear === 2024 && [9, 10, 11, 12].includes(targetMonth) && pYear === 2024) {
+                // Log near-misses or matches
+                if (match || Math.abs(pMonth - targetMonth) <= 1) {
+                    console.log(`[DEBUG] Comparing payment ${p.period_date} vs target ${targetYear}-${targetMonth}`, {
+                        pYear, pMonth, match
+                    });
+                }
+            }
+
+            return match;
         });
 
         if (payment) {
@@ -378,11 +340,20 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 isPaid,
                 amount: paidAmount,
                 paymentDate,
-                paidOnTime
+                paidOnTime,
+                payment,
+                hasPaymentRecord: true
             };
         }
 
-        return { isPaid: false, amount: null, paymentDate: null, paidOnTime: false };
+        return {
+            isPaid: false,
+            amount: null,
+            paymentDate: null,
+            paidOnTime: false,
+            payment: null,
+            hasPaymentRecord: false
+        };
     }, [payments]);
 
     // Smart Sort Function - Uses CURRENT month for stable sorting across navigation
@@ -499,10 +470,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 const isActiveInVisibleRange = visibleMonths.some(m => isActiveInMonth(c, m));
 
                 // OR check if has payment record in any of the visible months
-                const commitmentPayments = payments.get(c.id) || [];
                 const hasPaymentInRange = visibleMonths.some(m => {
-                    const periodStr = periodToString({ year: m.getFullYear(), month: m.getMonth() + 1 });
-                    return commitmentPayments.some(p => p.period_date.substring(0, 7) === periodStr);
+                    const { hasPaymentRecord } = getPaymentStatus(c.id, m, 1);
+                    return hasPaymentRecord;
                 });
 
                 isVisible = isActiveInVisibleRange || hasPaymentInRange;
@@ -577,10 +547,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
             // Same logic as groupedCommitments to keep categories consistent
             const isActiveInVisibleRange = visibleMonths.some(m => isActiveInMonth(c, m));
-            const commitmentPayments = payments.get(c.id) || [];
             const hasPaymentInRange = visibleMonths.some(m => {
-                const periodStr = periodToString({ year: m.getFullYear(), month: m.getMonth() + 1 });
-                return commitmentPayments.some(p => p.period_date.substring(0, 7) === periodStr);
+                const { hasPaymentRecord } = getPaymentStatus(c.id, m, 1);
+                return hasPaymentRecord;
             });
 
             return isActiveInVisibleRange || hasPaymentInRange;
@@ -710,7 +679,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         <button
                             onClick={() => onFocusedDateChange && onFocusedDateChange(new Date())}
                             disabled={isCurrentMonth(focusedDate)}
-                            className={`flex items-center justify-center px-2.5 sm:px-3 py-2 rounded-lg text-sm font-medium transition-all ${isCurrentMonth(focusedDate)
+                            className={`h-9 flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium transition-all ${isCurrentMonth(focusedDate)
                                 ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50'
                                 : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 ring-1 ring-slate-200 dark:ring-slate-600 shadow-sm active:scale-95'
                                 }`}
@@ -721,29 +690,39 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         </button>
 
                         {/* Unified Month + Year Navigator */}
-                        <div className="flex items-center bg-white dark:bg-slate-700 rounded-lg ring-1 ring-slate-200 dark:ring-slate-600 shadow-sm">
+                        <div className="h-9 flex items-center bg-white dark:bg-slate-700 rounded-lg ring-1 ring-slate-200 dark:ring-slate-600 shadow-sm">
                             <button
                                 onClick={() => {
                                     const newDate = new Date(focusedDate);
                                     newDate.setMonth(newDate.getMonth() - 1);
                                     onFocusedDateChange && onFocusedDateChange(newDate);
                                 }}
-                                className="p-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-l-lg transition-colors active:scale-95"
+                                className="h-full px-2.5 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-l-lg transition-colors active:scale-95"
                             >
                                 <ChevronLeftIcon className="w-5 h-5" />
                             </button>
-                            <div className="px-3 sm:px-4 py-2 text-center min-w-[100px] sm:min-w-[140px] border-x border-slate-200 dark:border-slate-600">
-                                <div className="text-sm font-semibold text-slate-900 dark:text-white capitalize">
-                                    {focusedDate.toLocaleDateString('es-ES', { month: 'short' })} {focusedDate.getFullYear()}
-                                </div>
-                            </div>
+                            <DatePicker
+                                selected={focusedDate}
+                                onChange={(date) => date && onFocusedDateChange && onFocusedDateChange(date)}
+                                dateFormat="MMM yyyy"
+                                locale="es"
+                                showMonthYearPicker
+                                showYearDropdown
+                                scrollableYearDropdown
+                                yearDropdownItemNumber={10}
+                                customInput={<DateCustomInput />}
+                                wrapperClassName="h-full flex"
+                                popperPlacement="bottom"
+                                showPopperArrow={false}
+                                portalId="root"
+                            />
                             <button
                                 onClick={() => {
                                     const newDate = new Date(focusedDate);
                                     newDate.setMonth(newDate.getMonth() + 1);
                                     onFocusedDateChange && onFocusedDateChange(newDate);
                                 }}
-                                className="p-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-r-lg transition-colors active:scale-95"
+                                className="h-full px-2.5 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-r-lg transition-colors active:scale-95"
                             >
                                 <ChevronRightIcon className="w-5 h-5" />
                             </button>
@@ -754,7 +733,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             <button
                                 onClick={() => setShowTerminated(!showTerminated)}
                                 className={`
-                                    lg:hidden flex items-center justify-center px-2.5 py-2 rounded-lg text-xs font-medium transition-all
+                                    lg:hidden h-9 flex items-center justify-center px-3 rounded-lg text-xs font-medium transition-all
                                     ${showTerminated
                                         ? 'bg-slate-800 text-white shadow-md ring-1 ring-slate-700'
                                         : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600'
@@ -802,16 +781,16 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                     })()}
 
                     {/* Right: Display Options (Desktop Only) */}
-                    <div className="hidden lg:flex items-center gap-2">
+                    <div className="hidden lg:flex items-center gap-3">
                         {/* Terminated Toggle (Desktop - grouped with density) */}
                         {terminatedCount > 0 && (
                             <button
                                 onClick={() => setShowTerminated(!showTerminated)}
                                 className={`
-                                    flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all
+                                    h-9 flex items-center gap-2 px-3 rounded-lg text-sm font-bold transition-all border
                                     ${showTerminated
-                                        ? 'bg-slate-800 text-white shadow-md ring-1 ring-slate-700'
-                                        : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600'
+                                        ? 'bg-slate-800 text-white border-slate-700 shadow-md shadow-slate-900/10'
+                                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
                                     }
                                 `}
                                 title={showTerminated ? 'Ocultar terminados' : 'Mostrar terminados'}
@@ -822,14 +801,14 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         )}
 
                         {/* Density Selector */}
-                        <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg ring-1 ring-slate-200 dark:ring-slate-700 shadow-inner">
+                        <div className="h-9 flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
                             {(['compact', 'medium'] as const).map((d) => (
                                 <button
                                     key={d}
                                     onClick={() => setDensity(d)}
-                                    className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${density === d
-                                        ? 'bg-sky-500 text-white shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                    className={`h-full flex items-center px-3.5 text-sm font-bold rounded-[6px] transition-all duration-200 ${density === d
+                                        ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-500'
+                                        : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
                                         }`}
                                 >
                                     {d === 'compact' ? 'Compacta' : 'Detallada'}
@@ -920,15 +899,16 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
             {/* Mobile View */}
             <div className="lg:hidden p-4 space-y-4">
                 {(() => {
-                    const periodStr = periodToString({ year: focusedDate.getFullYear(), month: focusedDate.getMonth() + 1 });
-
                     const filteredCommitments = commitments.filter(c => {
                         // 1. Siempre mostrar si "Ver terminados" está activo
                         if (showTerminated) return true;
 
                         // 2. Verificar si hay un registro de pago en el mes enfocado
-                        const commitmentPayments = payments.get(c.id) || [];
-                        const hasPaymentRecord = commitmentPayments.some(p => p.period_date.substring(0, 7) === periodStr);
+                        // Use robust getPaymentStatus to check for payment record
+                        const activeTerm = getTermForPeriod(c, focusedDate);
+                        const dueDay = activeTerm?.due_day_of_month ?? 1;
+                        const { hasPaymentRecord } = getPaymentStatus(c.id, focusedDate, dueDay);
+
                         if (hasPaymentRecord) return true;
 
                         // 3. Verificar si está activo según su término en el mes enfocado
@@ -952,11 +932,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         const isTermActiveInMonth = !!term && (!termEnds || termEnds >= monthStart);
 
                         const dueDay = term?.due_day_of_month ?? 1;
-                        const { isPaid, amount: paidAmount } = getPaymentStatus(c.id, monthDate, dueDay);
-
-                        const commitmentPayments = payments.get(c.id) || [];
-                        const periodStr = periodToString({ year: monthDate.getFullYear(), month: monthDate.getMonth() + 1 });
-                        const hasPaymentRecord = commitmentPayments.some(p => p.period_date.substring(0, 7) === periodStr);
+                        const { isPaid, amount: paidAmount, hasPaymentRecord, payment: currentPayment } = getPaymentStatus(c.id, monthDate, dueDay);
 
                         // Calculation logic exactly like desktop
                         const totalAmount = term?.amount_in_base ?? term?.amount_original ?? 0;
@@ -975,9 +951,6 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         // Cálculos consistentes con tooltip desktop
                         const daysOverdue = isOverdue
                             ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
-                            : 0;
-                        const daysRemaining = !isOverdue && isTermActiveInMonth
-                            ? Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
                             : 0;
 
                         // Cuota number (consistente con desktop)
@@ -999,8 +972,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                         const terminationReason = getTerminationReason(c);
 
-                        // Payment record para fecha de pago
-                        const currentPayment = commitmentPayments.find(p => p.period_date.substring(0, 7) === periodStr);
+                        // Payment record from getPaymentStatus
+                        // const currentPayment = ... (already retrieved above)
 
                         return (
                             <div
@@ -1013,10 +986,10 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     ${isPaid
                                         ? 'bg-emerald-50/60 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-500/20 shadow-sm'
                                         : isOverdue
-                                            ? 'bg-white/80 dark:bg-slate-900/60 border-red-200 dark:border-red-900/30'
+                                            ? 'bg-white/80 dark:bg-slate-800/40 border-red-200 dark:border-red-500/30 shadow-sm'
                                             : !isTermActiveInMonth
                                                 ? 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800'
-                                                : 'bg-white/80 dark:bg-slate-900/60 border-white/50 dark:border-white/5 shadow-sm'
+                                                : 'bg-white/90 dark:bg-slate-800/40 border-slate-200 dark:border-white/10 shadow-sm'
                                     }
                                     backdrop-blur-xl
                                     ${isTermActiveInMonth && !isPaid ? 'active:scale-[0.98] cursor-pointer' : 'cursor-default opacity-80'}
@@ -1081,6 +1054,30 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                 <EditIcon className="w-4 h-4" />
                                                             </div>
                                                             Editar
+                                                        </DropdownMenu.Item>
+
+                                                        <DropdownMenu.Item
+                                                            className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                            disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const hasEndDate = !!c.active_term?.effective_until;
+                                                                if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
+                                                                    onResumeCommitment(c);
+                                                                } else {
+                                                                    onPauseCommitment(c);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-500">
+                                                                <PauseIcon className="w-4 h-4" />
+                                                            </div>
+                                                            {(() => {
+                                                                const hasEndDate = !!c.active_term?.effective_until;
+                                                                if (terminationReason === 'COMPLETED_INSTALLMENTS') return 'Completado';
+                                                                if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') return 'Reanudar';
+                                                                return 'Pausar';
+                                                            })()}
                                                         </DropdownMenu.Item>
                                                         <DropdownMenu.Separator className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
                                                         <DropdownMenu.Item
@@ -1335,7 +1332,6 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                 const wasActiveInMonth = termForMonth !== null;
                                                 const terminated = isGloballyTerminated && wasActiveInMonth && isPaid;
                                                 const terminationReason = getTerminationReason(commitment);
-                                                const paused = terminationReason === 'PAUSED';
                                                 return (
                                                     <tr
                                                         key={commitment.id}
@@ -1394,6 +1390,12 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                     PAUSADO
                                                                                 </span>
                                                                             )}
+                                                                            {(!showTerminated && (isGloballyTerminated || terminationReason === 'PAUSED')) && (
+                                                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 ring-1 ring-inset ring-indigo-500/20" title="Visible por actividad en el periodo">
+                                                                                    <InfoIcon className="w-2.5 h-2.5" />
+                                                                                    PENDIENTE
+                                                                                </span>
+                                                                            )}
                                                                             {terminationReason === 'COMPLETED_INSTALLMENTS' && (
                                                                                 <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 ring-1 ring-inset ring-emerald-500/20">
                                                                                     <CheckCircleIcon className="w-2.5 h-2.5" />
@@ -1443,24 +1445,26 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                             </DropdownMenu.Trigger>
                                                                             <DropdownMenu.Portal>
                                                                                 <DropdownMenu.Content
-                                                                                    className="min-w-[160px] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-1 z-50 animate-in fade-in zoom-in-95 duration-100"
+                                                                                    className="min-w-[180px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200"
                                                                                     sideOffset={5}
                                                                                     align="end"
                                                                                     onCloseAutoFocus={(e) => e.preventDefault()}
                                                                                 >
                                                                                     <DropdownMenu.Item
-                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer outline-none"
+                                                                                        className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer outline-none"
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
                                                                                             onEditCommitment(commitment);
                                                                                         }}
                                                                                     >
-                                                                                        <EditIcon className="w-4 h-4 text-slate-400 group-hover:text-blue-500" />
+                                                                                        <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-500">
+                                                                                            <EditIcon className="w-4 h-4" />
+                                                                                        </div>
                                                                                         Editar
                                                                                     </DropdownMenu.Item>
 
                                                                                     <DropdownMenu.Item
-                                                                                        className={`group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                                        className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                                                         disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
@@ -1472,7 +1476,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                             }
                                                                                         }}
                                                                                     >
-                                                                                        <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
+                                                                                        <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-500">
+                                                                                            <PauseIcon className="w-4 h-4" />
+                                                                                        </div>
                                                                                         {(() => {
                                                                                             const hasEndDate = !!commitment.active_term?.effective_until;
                                                                                             if (terminationReason === 'COMPLETED_INSTALLMENTS') return 'Completado';
@@ -1481,16 +1487,18 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         })()}
                                                                                     </DropdownMenu.Item>
 
-                                                                                    <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
+                                                                                    <DropdownMenu.Separator className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
 
                                                                                     <DropdownMenu.Item
-                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer outline-none"
+                                                                                        className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 cursor-pointer outline-none"
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
                                                                                             onDeleteCommitment(commitment.id);
                                                                                         }}
                                                                                     >
-                                                                                        <TrashIcon className="w-4 h-4 group-hover:text-red-600" />
+                                                                                        <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-500">
+                                                                                            <TrashIcon className="w-4 h-4" />
+                                                                                        </div>
                                                                                         Eliminar
                                                                                     </DropdownMenu.Item>
                                                                                 </DropdownMenu.Content>
@@ -1511,6 +1519,12 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                 <ArrowTrendingDownIcon className="w-4 h-4 text-red-600" />
                                                                             )}
                                                                             <span className={`font-medium ${terminated ? 'line-through text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white'}`}>{commitment.name}</span>
+                                                                            {(!showTerminated && (isGloballyTerminated || terminationReason === 'PAUSED')) && (
+                                                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 ring-1 ring-inset ring-indigo-500/20" title="Visible por actividad en el periodo">
+                                                                                    <InfoIcon className="w-2.5 h-2.5" />
+                                                                                    PENDIENTE
+                                                                                </span>
+                                                                            )}
                                                                             {commitment.is_important && <StarIcon className="w-4 h-4 text-amber-500" />}
                                                                             {commitment.linked_commitment_id && (() => {
                                                                                 const linkedCommitment = commitments.find(c => c.id === commitment.linked_commitment_id);
@@ -1518,16 +1532,18 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                                                                                 // Get current month for calculating actual NET
                                                                                 const now = new Date();
-                                                                                const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                                                                                // currentPeriod removed (we use robust date matching now)
 
                                                                                 // Get actual amount for this commitment (payment or projected)
-                                                                                const myPayments = payments.get(commitment.id) || [];
-                                                                                const myPayment = myPayments.find(p => p.period_date.substring(0, 7) === currentPeriod);
+                                                                                // myPayments removed (unused)
+                                                                                const myStatus = getPaymentStatus(commitment.id, now, commitment.active_term?.due_day_of_month ?? 1);
+                                                                                const myPayment = myStatus.payment;
                                                                                 const myAmount = myPayment?.amount_in_base ?? (commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0);
 
                                                                                 // Get actual amount for linked commitment
-                                                                                const linkedPayments = payments.get(linkedCommitment.id) || [];
-                                                                                const linkedPayment = linkedPayments.find(p => p.period_date.substring(0, 7) === currentPeriod);
+                                                                                // linkedPayments removed (unused)
+                                                                                const linkedStatus = getPaymentStatus(linkedCommitment.id, now, linkedCommitment.active_term?.due_day_of_month ?? 1);
+                                                                                const linkedPayment = linkedStatus.payment;
                                                                                 const linkedAmount = linkedPayment?.amount_in_base ?? (linkedCommitment.active_term ? getPerPeriodAmount(linkedCommitment.active_term, true) : 0);
 
                                                                                 const netAmount = Math.abs(myAmount - linkedAmount);
@@ -1614,23 +1630,25 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                             </DropdownMenu.Trigger>
                                                                             <DropdownMenu.Portal>
                                                                                 <DropdownMenu.Content
-                                                                                    className="min-w-[160px] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-1 z-50 animate-in fade-in zoom-in-95 duration-100"
+                                                                                    className="min-w-[180px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200"
                                                                                     sideOffset={5}
                                                                                     align="end"
                                                                                 >
                                                                                     <DropdownMenu.Item
-                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer outline-none"
+                                                                                        className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer outline-none"
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
                                                                                             onEditCommitment(commitment);
                                                                                         }}
                                                                                     >
-                                                                                        <EditIcon className="w-4 h-4 text-slate-400 group-hover:text-blue-500" />
+                                                                                        <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-500">
+                                                                                            <EditIcon className="w-4 h-4" />
+                                                                                        </div>
                                                                                         Editar
                                                                                     </DropdownMenu.Item>
 
                                                                                     <DropdownMenu.Item
-                                                                                        className={`group flex items-center gap-2 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                                        className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                                                         disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
@@ -1642,7 +1660,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                             }
                                                                                         }}
                                                                                     >
-                                                                                        <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
+                                                                                        <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-500">
+                                                                                            <PauseIcon className="w-4 h-4" />
+                                                                                        </div>
                                                                                         {(() => {
                                                                                             const hasEndDate = !!commitment.active_term?.effective_until;
                                                                                             if (terminationReason === 'COMPLETED_INSTALLMENTS') return 'Completado';
@@ -1651,16 +1671,18 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         })()}
                                                                                     </DropdownMenu.Item>
 
-                                                                                    <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
+                                                                                    <DropdownMenu.Separator className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
 
                                                                                     <DropdownMenu.Item
-                                                                                        className="group flex items-center gap-2 px-2 py-1.5 text-sm text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer outline-none"
+                                                                                        className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 cursor-pointer outline-none"
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
                                                                                             onDeleteCommitment(commitment.id);
                                                                                         }}
                                                                                     >
-                                                                                        <TrashIcon className="w-4 h-4 group-hover:text-red-600" />
+                                                                                        <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-500">
+                                                                                            <TrashIcon className="w-4 h-4" />
+                                                                                        </div>
                                                                                         Eliminar
                                                                                     </DropdownMenu.Item>
                                                                                 </DropdownMenu.Content>
@@ -1677,14 +1699,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             const term = getTermForPeriod(commitment, monthDate);
                                                             const isActive = isActiveInMonth(commitment, monthDate);
                                                             const dueDay = term?.due_day_of_month ?? 1;
-                                                            const { isPaid, amount: paidAmount, paidOnTime } = getPaymentStatus(commitment.id, monthDate, dueDay);
-
-                                                            // Check if there's a payment record (even if not marked as paid)
-                                                            // Check if there's a payment record (even if not marked as paid)
-                                                            const commitmentPayments = payments.get(commitment.id) || [];
-                                                            const periodStr = periodToString({ year: monthDate.getFullYear(), month: monthDate.getMonth() + 1 });
-                                                            const currentPayment = commitmentPayments.find(p => p.period_date.substring(0, 7) === periodStr);
-                                                            const hasPaymentRecord = !!currentPayment;
+                                                            const { isPaid, amount: paidAmount, paidOnTime, payment: currentPayment, hasPaymentRecord } = getPaymentStatus(commitment.id, monthDate, dueDay);
 
                                                             // Calculate expected per-period amount from term (only used when no payment)
                                                             const totalAmount = term?.amount_in_base ?? term?.amount_original ?? 0;

@@ -1338,22 +1338,38 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                             <div className="space-y-1 max-h-32 overflow-y-auto">
                                                 {termPayments
                                                     .sort((a, b) => a.period_date.localeCompare(b.period_date))
-                                                    .map(payment => (
-                                                        <div
-                                                            key={payment.id}
-                                                            className="flex items-center justify-between text-xs py-1 px-2 bg-slate-100 dark:bg-slate-800 rounded"
-                                                        >
-                                                            <span className="text-slate-600 dark:text-slate-300">
-                                                                {formatMonthYear(payment.period_date)}
-                                                            </span>
-                                                            <span className="font-medium text-slate-900 dark:text-white">
-                                                                {payment.currency_original === 'CLP'
-                                                                    ? formatClp(payment.amount_original)
-                                                                    : `${payment.currency_original} ${payment.amount_original.toLocaleString()}`
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                    ))
+                                                    .map(payment => {
+                                                        const isPaid = !!payment.payment_date;
+                                                        return (
+                                                            <div
+                                                                key={payment.id}
+                                                                className="flex items-center justify-between text-xs py-1.5 px-2 bg-slate-100 dark:bg-slate-800 rounded mb-1 last:mb-0"
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-slate-600 dark:text-slate-300 font-medium">
+                                                                        {formatMonthYear(payment.period_date)}
+                                                                    </span>
+                                                                    {isPaid ? (
+                                                                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-200 dark:border-emerald-800">
+                                                                            <Check className="w-3 h-3" />
+                                                                            PAGADO {payment.payment_date}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold border border-slate-300 dark:border-slate-600">
+                                                                            <Clock className="w-3 h-3" />
+                                                                            PENDIENTE
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <span className={`font-bold ${isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                                    {payment.currency_original === 'CLP'
+                                                                        ? formatClp(payment.amount_original)
+                                                                        : `${payment.currency_original} ${payment.amount_original.toLocaleString()}`
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })
                                                 }
                                             </div>
                                         </div>

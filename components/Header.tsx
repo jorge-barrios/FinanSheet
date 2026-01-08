@@ -81,7 +81,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                     {/* Menú unificado */}
                     <div className="relative" ref={menuRef}>
                         <button
-                            className="flex items-center gap-1 px-2 sm:px-3 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-sm font-medium text-slate-700 dark:text-slate-200 border border-slate-300/60 dark:border-slate-600/60"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all text-sm font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm"
                             aria-haspopup="menu"
                             aria-expanded={isMenuOpen}
                             aria-label={t('header.settings') || 'Abrir menú'}
@@ -92,16 +92,16 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                             <span className="sm:hidden">
                                 <MenuIcon className="w-5 h-5" />
                             </span>
-                            <ChevronDownIcon className="w-4 h-4 hidden sm:block" />
+                            <ChevronDownIcon className="w-4 h-4 hidden sm:block opacity-50" />
                         </button>
                         {isMenuOpen && (
                             <div
                                 role="menu"
                                 aria-label="Menú"
-                                className="absolute right-0 mt-2 w-64 rounded-md bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black/10 dark:ring-white/10 p-2 z-50"
+                                className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-xl ring-1 ring-slate-200 dark:ring-slate-800 p-2 z-50 animate-in fade-in zoom-in-95 duration-100"
                             >
                                 {/* Sección: Configuración */}
-                                <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                <div className="px-2 py-1.5 text-[11px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                                     Configuración
                                 </div>
 
@@ -111,7 +111,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                                     <select
                                         value={language}
                                         onChange={(e) => { setLanguage(e.target.value as 'en' | 'es'); setIsMenuOpen(false); }}
-                                        className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-white rounded-md py-1.5 pl-8 pr-7 text-sm appearance-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
+                                        className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-700 dark:text-slate-200 rounded-xl py-2 pl-9 pr-8 text-sm font-medium appearance-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all outline-none"
                                         aria-label={t('header.language') || 'Idioma'}
                                     >
                                         <option value="en">{t('header.english')}</option>
@@ -124,9 +124,11 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                                 <button
                                     role="menuitem"
                                     onClick={() => { handleThemeToggle(); setIsMenuOpen(false); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 transition-colors"
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors"
                                 >
-                                    {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+                                    <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                                        {theme === 'dark' ? <SunIcon className="w-4 h-4" /> : <MoonIcon className="w-4 h-4" />}
+                                    </div>
                                     <span>{t(theme === 'dark' ? 'header.lightMode' : 'header.darkMode')}</span>
                                 </button>
 
@@ -146,16 +148,15 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                                         }
                                         setIsMenuOpen(false);
                                     }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 transition-colors"
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors"
                                 >
-                                    <span className={`w-5 h-5 rounded-full flex-shrink-0 transition-all ${
-                                        colorTheme === 'identidad'
+                                    <span className={`w-7 h-7 rounded-lg flex-shrink-0 transition-all shadow-sm ${colorTheme === 'identidad'
                                             ? 'bg-gradient-to-br from-[#00555A] to-[#FF6F61]'
                                             : 'bg-gradient-to-br from-teal-500 to-cyan-500'
-                                    }`} />
+                                        }`} />
                                     <div className="flex flex-col items-start flex-1">
-                                        <span>Color Palette</span>
-                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                        <span className="leading-tight">Tema de Color</span>
+                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
                                             {colorTheme === 'identidad' ? 'Claridad Estructurada' : 'Ocean Teal'}
                                         </span>
                                     </div>
@@ -166,12 +167,14 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                                     role="menuitem"
                                     onClick={() => { refresh(); }}
                                     disabled={currencyLoading}
-                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
                                 >
-                                    <ArrowPathIcon className={`w-5 h-5 ${currencyLoading ? 'animate-spin' : ''}`} />
+                                    <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:text-emerald-500 transition-colors">
+                                        <ArrowPathIcon className={`w-4 h-4 ${currencyLoading ? 'animate-spin' : ''}`} />
+                                    </div>
                                     <div className="flex flex-col items-start flex-1">
-                                        <span>{t('header.refreshRates', 'Actualizar tasas')}</span>
-                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                        <span className="leading-tight">{t('header.refreshRates', 'Actualizar tasas')}</span>
+                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
                                             {currencyLoading
                                                 ? t('header.updating', 'Actualizando...')
                                                 : lastUpdated
@@ -186,10 +189,10 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                                 </button>
 
                                 {/* Divisor */}
-                                <div className="border-t border-slate-200 dark:border-slate-700 my-2"></div>
+                                <div className="h-px bg-slate-100 dark:bg-slate-800 my-1 mx-2"></div>
 
                                 {/* Sección: Gestión */}
-                                <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                <div className="px-2 py-1.5 text-[11px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                                     Gestión
                                 </div>
 
@@ -197,9 +200,11 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                                 <button
                                     role="menuitem"
                                     onClick={() => { onOpenCategoryManager(); setIsMenuOpen(false); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 transition-colors"
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors group"
                                 >
-                                    <TagIcon className="w-5 h-5" />
+                                    <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/40 transition-colors">
+                                        <TagIcon className="w-4 h-4" />
+                                    </div>
                                     <span>Categorías</span>
                                 </button>
 
@@ -207,13 +212,13 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                                 <button
                                     role="menuitem"
                                     onClick={() => { setIsFeatureFlagsOpen(true); setIsMenuOpen(false); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 transition-colors"
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors"
                                 >
-                                    <span className="text-lg">🚀</span>
+                                    <div className="flex items-center justify-center w-7 h-7 text-lg">🚀</div>
                                     <div className="flex flex-col items-start flex-1">
-                                        <span>Feature Flags</span>
+                                        <span className="leading-tight">Feature Flags</span>
                                         {flags.useV2UI && (
-                                            <span className="text-xs text-sky-600 dark:text-sky-400">
+                                            <span className="text-[10px] font-bold text-sky-500 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 rounded-full mt-0.5">
                                                 v2 enabled
                                             </span>
                                         )}
@@ -224,32 +229,36 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                                 <button
                                     role="menuitem"
                                     onClick={() => { onExport(); setIsMenuOpen(false); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 transition-colors"
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors group"
                                 >
-                                    <DownloadIcon className="w-5 h-5" />
+                                    <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900/40 transition-colors">
+                                        <DownloadIcon className="w-4 h-4" />
+                                    </div>
                                     <span>{t('header.export')}</span>
                                 </button>
 
                                 {/* User section */}
                                 {user && (
                                     <>
-                                        <div className="border-t border-slate-200 dark:border-slate-700 my-2"></div>
+                                        <div className="h-px bg-slate-100 dark:bg-slate-800 my-1 mx-2"></div>
 
                                         {/* Sección: Cuenta */}
-                                        <div className="px-2 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                        <div className="px-2 py-1.5 text-[11px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                                             Cuenta
                                         </div>
 
-                                        <div className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 rounded-md mb-1">
+                                        <div className="px-3 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-lg mx-2 mb-1 truncate">
                                             {user.email}
                                         </div>
 
                                         <button
                                             role="menuitem"
                                             onClick={handleLogout}
-                                            className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-sm text-red-600 dark:text-red-400 transition-colors"
+                                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 text-sm font-bold text-rose-600 dark:text-rose-400 transition-colors group"
                                         >
-                                            <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                                            <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-500 group-hover:bg-rose-100 dark:group-hover:bg-rose-900/30 transition-colors">
+                                                <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                                            </div>
                                             <span>{t('header.logout', 'Cerrar sesión')}</span>
                                         </button>
                                     </>
@@ -261,10 +270,10 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                     {/* CTA principal */}
                     <button
                         onClick={onAddExpense}
-                        className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 dark:hover:bg-sky-400 transition-colors text-sm font-medium text-white shadow-lg shadow-sky-500/20"
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] transition-all text-sm font-bold text-white shadow-md shadow-sky-600/20"
                         title={t('header.addExpense') || 'Añadir gasto'}
                     >
-                        <PlusIcon className="w-5 h-5" />
+                        <PlusIcon className="w-5 h-5 stroke-[2.5]" />
                         <span className="hidden sm:inline">{t('header.addExpense')}</span>
                     </button>
                 </div>
