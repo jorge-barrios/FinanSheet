@@ -1264,7 +1264,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                             <th
                                                 key={i}
                                                 id={`month-header-${i}`}
-                                                className={`text-center font-semibold border-r border-slate-200 dark:border-slate-700 last:border-r-0 ${density === 'compact' ? 'px-2 py-2 min-w-[55px] text-sm' : 'p-2.5 min-w-[120px]'} ${isCurrentMonth(month)
+                                                className={`text-center font-semibold border-r border-slate-200 dark:border-slate-700 last:border-r-0 ${density === 'compact' ? 'px-2 py-2 min-w-[55px] text-sm' : 'p-2.5 min-w-[90px] lg:min-w-[120px]'} ${isCurrentMonth(month)
                                                     ? 'bg-blue-50/90 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-1 ring-inset ring-blue-500/20 z-20'
                                                     : 'text-slate-700 dark:text-slate-300'
                                                     }`}
@@ -1748,7 +1748,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                         hover:ring-2 hover:ring-inset hover:ring-indigo-500/50 dark:hover:ring-indigo-400/50
                                                                         ${isCurrentMonth(monthDate) ? 'bg-blue-50/30 dark:bg-blue-900/10 ring-1 ring-inset ring-blue-500/10' : ''}
                                                                         ${isDisabled ? 'opacity-50 grayscale hover:opacity-100 hover:grayscale-0' : ''}
-                                                                        ${isGap ? 'bg-slate-50/50 dark:bg-slate-900/30' : ''}
+                                                                        ${isGap ? 'bg-slate-100/60 dark:bg-slate-900/50' : ''}
                                                                         ${isOverdue ? 'bg-red-50/30 dark:bg-red-950/20' : ''}
                                                                         ${isPending ? 'bg-amber-50/20 dark:bg-amber-950/10' : ''}
                                                                         ${isPaid ? 'bg-emerald-50/20 dark:bg-emerald-950/10' : ''}

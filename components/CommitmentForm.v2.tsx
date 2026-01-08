@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import '../styles/commitmentFormAnimations.css';
 import { useLocalization } from '../hooks/useLocalization';
 import { useCurrency } from '../hooks/useCurrency';
 import { ArrowTrendingDownIcon, ArrowTrendingUpIcon, StarIcon } from './icons';
@@ -43,8 +44,8 @@ interface CommitmentFormV2Props {
     onCommitmentUpdated?: () => void;
 }
 
-const formInputClasses = "w-full h-[46px] bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-2xl px-4 py-2.5 text-[15px] focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500/50 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 backdrop-blur-xl shadow-sm";
-const formLabelClasses = "block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 ml-1";
+const formInputClasses = "w-full h-[46px] bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-2xl px-4 py-3 text-[15px] focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition-all duration-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 backdrop-blur-xl shadow-sm";
+const formLabelClasses = "block text-xs font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2 ml-1";
 const formSelectClasses = `${formInputClasses} appearance-none cursor-pointer pr-10`;
 
 export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
@@ -109,6 +110,8 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
 
     // Loading state
     const [saving, setSaving] = useState(false);
+    const [shakeField, setShakeField] = useState<string | null>(null);
+    const [currencyDropdownOpen, setCurrencyDropdownOpen] = useState(false);
 
     // Terms section state (for editing existing commitments)
     // Auto-expand when editing commitment with multiple terms
@@ -664,27 +667,33 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Validación mejorada con mensajes específicos
+        // Helper to trigger shake animation
+        const triggerShake = (fieldName: string) => {
+            setShakeField(fieldName);
+            setTimeout(() => setShakeField(null), 500);
+        };
+
+        // Validación mejorada con shake animation
         if (!name.trim()) {
-            alert('Por favor completa el campo "Nombre"');
+            triggerShake('name');
             return;
         }
 
         // Skip term field validation when editing with history (term fields are disabled)
         if (!termFieldsDisabled) {
             if (!amount) {
-                alert('Por favor completa el campo "Monto"');
+                triggerShake('amount');
                 return;
             }
 
             // Validar campos de duración según el tipo
             if (durationType === 'endsOn' && !installments) {
-                alert('Por favor completa el campo "Nº de ocurrencias"');
+                triggerShake('installments');
                 return;
             }
 
             if (durationType === 'installments' && !installments) {
-                alert('Por favor completa el campo "Nº Cuotas"');
+                triggerShake('installments');
                 return;
             }
         }
@@ -856,12 +865,12 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     // Dynamic classes based on flow type
     const themeClasses = {
         saveBtn: isExpense
-            ? 'bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 shadow-rose-500/30'
-            : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-emerald-500/30',
+            ? 'bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 shadow-rose-500/30 active:scale-95'
+            : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-emerald-500/30 active:scale-95',
         activeTab: isExpense
             ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
             : 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20',
-        inactiveTab: 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800',
+        inactiveTab: 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200',
         lightBg: isExpense ? 'bg-rose-50/50 dark:bg-rose-900/10' : 'bg-emerald-50/50 dark:bg-emerald-900/10',
         border: isExpense ? 'border-rose-100 dark:border-rose-900/30' : 'border-emerald-100 dark:border-emerald-900/30',
         text: isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400',
@@ -872,7 +881,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
             <div className={`
                 w-full max-w-[600px]
                 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl
@@ -882,15 +891,37 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                 max-h-[90vh]
                 overflow-hidden
                 transition-all duration-300 ease-out
-                ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}
+                ${isOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-4'}
             `}>
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/50">
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">
-                        {commitmentToEdit ? t('form.editCommitment', 'Editar Compromiso') : t('form.newCommitment', 'Nuevo Compromiso')}
-                    </h2>
-
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-20 sticky top-0">
                     <div className="flex items-center gap-3">
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white leading-none">
+                            {commitmentToEdit ? t('form.editCommitment', 'Editar') : t('form.newCommitment', 'Nuevo')}
+                        </h2>
+
+                        {/* Integrated Toggle - Same Row */}
+                        <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <button
+                                type="button"
+                                onClick={() => setFlowType(FlowType.EXPENSE)}
+                                className={`px-4 py-2 rounded-[6px] text-sm font-bold transition-all flex items-center gap-2 ${flowType === FlowType.EXPENSE ? themeClasses.activeTab : themeClasses.inactiveTab}`}
+                            >
+                                <ArrowTrendingDownIcon className="w-4 h-4" />
+                                {t('form.expense', 'Gasto')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setFlowType(FlowType.INCOME)}
+                                className={`px-4 py-2 rounded-[6px] text-sm font-bold transition-all flex items-center gap-2 ${flowType === FlowType.INCOME ? themeClasses.activeTab : themeClasses.inactiveTab}`}
+                            >
+                                <ArrowTrendingUpIcon className="w-4 h-4" />
+                                {t('form.income', 'Ingreso')}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
                         {/* Important Toggle */}
                         <button
                             type="button"
@@ -917,91 +948,101 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                 <div className="flex-1 overflow-y-auto overflow-x-hidden">
                     <form ref={formRef} onSubmit={handleSubmit} className="p-6 space-y-5"> {/* Reduced space-y slightly */}
 
-                        {/* 1. Flow Type Tabs */}
-                        <div className="flex justify-center -mb-2"> {/* Negative margin to pull up */}
-                            <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 scale-90"> {/* Slightly smaller tabs */}
-                                <button
-                                    type="button"
-                                    onClick={() => setFlowType(FlowType.EXPENSE)}
-                                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${flowType === FlowType.EXPENSE ? themeClasses.activeTab : themeClasses.inactiveTab}`}
-                                >
-                                    <ArrowTrendingDownIcon className="w-4 h-4" />
-                                    {t('form.expense', 'Gasto')}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setFlowType(FlowType.INCOME)}
-                                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${flowType === FlowType.INCOME ? themeClasses.activeTab : themeClasses.inactiveTab}`}
-                                >
-                                    <ArrowTrendingUpIcon className="w-4 h-4" />
-                                    {t('form.income', 'Ingreso')}
-                                </button>
-                            </div>
-                        </div>
+                        {/* 1. Flow Type Tabs REMOVED (Moved to Header) */}
 
                         {/* 2. Hero Amount Input */}
                         {!termFieldsDisabled && (
-                            <div className="flex flex-col items-center justify-center py-2 relative group">
-                                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0">Monto</label>
-                                <div className="flex items-baseline relative">
-                                    <span className={`text-3xl font-bold mr-2 ${themeClasses.text} opacity-50`}>$</span>
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={displayAmount}
-                                        onChange={(e) => {
-                                            const rawValue = e.target.value;
-                                            if (currency === 'CLP') {
-                                                const cleaned = rawValue.replace(/\./g, '');
-                                                if (cleaned === '' || /^\d+$/.test(cleaned)) {
-                                                    setAmount(cleaned);
-                                                    setDisplayAmount(cleaned ? formatCLPInput(cleaned) : '');
+                            <div className="flex flex-col items-center justify-center py-1 relative">
+                                <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">Monto</label>
+                                <div className="flex items-center gap-2">
+                                    {/* Amount Input with $ symbol */}
+                                    <div className="flex items-baseline relative">
+                                        <span className={`text-3xl font-bold mr-2 ${themeClasses.text} opacity-50`}>$</span>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            value={displayAmount}
+                                            onChange={(e) => {
+                                                const rawValue = e.target.value;
+                                                if (currency === 'CLP') {
+                                                    const cleaned = rawValue.replace(/\./g, '');
+                                                    if (cleaned === '' || /^\d+$/.test(cleaned)) {
+                                                        setAmount(cleaned);
+                                                        setDisplayAmount(cleaned ? formatCLPInput(cleaned) : '');
+                                                    }
+                                                } else {
+                                                    if (rawValue === '' || /^\d*\.?\d*$/.test(rawValue)) {
+                                                        setAmount(rawValue);
+                                                        setDisplayAmount(rawValue);
+                                                    }
                                                 }
-                                            } else {
-                                                if (rawValue === '' || /^\d*\.?\d*$/.test(rawValue)) {
-                                                    setAmount(rawValue);
-                                                    setDisplayAmount(rawValue);
-                                                }
-                                            }
-                                            if (baseCLP !== null) setBaseCLP(null);
-                                        }}
-                                        className={`
-                                            bg-transparent border-none p-0 text-center text-5xl font-extrabold tracking-tighter w-full max-w-[300px]
-                                            focus:ring-0 outline-none placeholder:text-slate-200 dark:placeholder:text-slate-800
-                                            ${themeClasses.text}
-                                        `}
-                                        placeholder="0"
-                                        autoFocus={!commitmentToEdit}
-                                    />
-                                </div>
-                                {/* Currency Selector Mini - Slightly tighter */}
-                                <div className="mt-1">
-                                    <select
-                                        value={currency}
-                                        onChange={(e) => handleCurrencyChange(e.target.value as any)}
-                                        className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold py-0.5 px-2 rounded-full border border-slate-200 dark:border-slate-700 cursor-pointer outline-none focus:ring-2 focus:ring-slate-300"
-                                    >
-                                        <option value="CLP">CLP</option>
-                                        <option value="USD">USD</option>
-                                        <option value="EUR">EUR</option>
-                                        <option value="UF">UF</option>
-                                    </select>
+                                                if (baseCLP !== null) setBaseCLP(null);
+                                            }}
+                                            className={`
+                                                bg-transparent border-none p-0 text-center text-5xl font-extrabold font-mono tracking-tighter tabular-nums w-full max-w-[280px]
+                                                focus:ring-0 outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600
+                                                ${themeClasses.text}
+                                                ${shakeField === 'amount' ? 'animate-shake' : ''}
+                                            `}
+                                            placeholder="0"
+                                            autoFocus={!commitmentToEdit}
+                                        />
+                                    </div>
+
+                                    {/* Currency Dropdown Selector */}
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrencyDropdownOpen(!currencyDropdownOpen)}
+                                            className="group/currency px-3 py-1.5 bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-700 hover:from-slate-200 hover:to-slate-100 dark:hover:from-slate-700 dark:hover:to-slate-600 text-slate-700 dark:text-slate-200 text-2xl font-black rounded-xl border-2 border-slate-200 dark:border-slate-600 cursor-pointer outline-none focus:ring-4 focus:ring-sky-500/30 transition-all duration-200 active:scale-95 shadow-lg hover:shadow-xl flex items-center gap-1.5"
+                                        >
+                                            <span className="tracking-tight">{currency}</span>
+                                            <svg className={`w-4 h-4 opacity-60 group-hover/currency:opacity-100 transition-all duration-200 ${currencyDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+
+                                        {/* Dropdown Menu */}
+                                        {currencyDropdownOpen && (
+                                            <div className="absolute top-full mt-2 right-0 bg-white dark:bg-slate-800 rounded-xl border-2 border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden z-50 animate-in slide-in-from-top-2 fade-in duration-200 min-w-[100px]">
+                                                {['CLP', 'USD', 'EUR', 'UF', 'UTM'].map((curr) => (
+                                                    <button
+                                                        key={curr}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            handleCurrencyChange(curr as any);
+                                                            setCurrencyDropdownOpen(false);
+                                                        }}
+                                                        className={`w-full px-4 py-2.5 text-left text-sm font-bold transition-colors ${curr === currency
+                                                            ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+                                                            : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                                                            }`}
+                                                    >
+                                                        {curr}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}
 
                         {/* 3. Main Bento Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+                            {/* Separator line for visual hierarchy */}
+                            <div className="md:col-span-2 h-px bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-700 to-transparent my-1"></div>
 
                             {/* Card: Basic Info */}
-                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div>
                                     <label className={formLabelClasses}>{t('form.name', 'Nombre')}</label>
                                     <input
                                         type="text"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
-                                        className={formInputClasses}
+                                        className={`${formInputClasses} ${shakeField === 'name' ? 'animate-shake' : ''}`}
                                         placeholder="Ej: Netflix, Arriendo..."
                                         required
                                     />
@@ -1137,7 +1178,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                                             flex items-center px-3 py-2.5 rounded-xl border transition-all text-left gap-3
                                                             ${durationType === type.id
                                                                 ? `${themeClasses.lightBg} ${themeClasses.border} ${themeClasses.text} ring-1 ${themeClasses.ring.replace('focus:', '')}`
-                                                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                                                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-300'
                                                             }
                                                         `}
                                                     >
@@ -1151,9 +1192,9 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                                 ))}
                                             </div>
 
-                                            {/* Conditional Input embedded at bottom of card */}
+                                            {/* Conditional Input */}
                                             {durationType !== 'recurring' && (
-                                                <div className="animate-in fade-in slide-in-from-top-2 pt-1">
+                                                <div className="pt-1">
                                                     <div className="flex items-center gap-2">
                                                         <input
                                                             type="number"
@@ -1162,7 +1203,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                                                 setInstallments(e.target.value);
                                                                 setLastEditedField('installments');
                                                             }}
-                                                            className={`${formInputClasses} !h-[40px]`}
+                                                            className={`${formInputClasses} !h-[40px] ${shakeField === 'installments' ? 'animate-shake' : ''}`}
                                                             placeholder={durationType === 'endsOn' ? "N° Ocurrencias" : "N° de Cuotas"}
                                                             min="1"
                                                             autoFocus
@@ -1185,7 +1226,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                             )}
 
                             {/* Row 4: Link & Notes */}
-                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {/* Link Commitment Selector */}
                                 <div>
                                     <label className={formLabelClasses}>
@@ -1282,12 +1323,12 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                 </div>
 
                 {/* Footer Actions */}
-                <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-10 flex gap-3">
+                <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-10 flex gap-3">
                     {/* Cancel Button */}
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-6 py-3.5 rounded-xl font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-all"
+                        className="px-5 py-2.5 rounded-xl font-bold text-sm text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-600 transition-all duration-200 active:scale-95"
                     >
                         Cancelar
                     </button>
@@ -1298,7 +1339,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                         onClick={handleSmartClose} // Keep the smart validation logic here
                         disabled={saving}
                         className={`
-                            flex-1 py-3.5 rounded-xl text-white font-bold text-base tracking-wide
+                            flex-1 py-2.5 rounded-xl text-white font-bold text-sm tracking-wide
                             transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
                             shadow-lg ${themeClasses.saveBtn}
                         `}
