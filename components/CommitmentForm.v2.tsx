@@ -5,16 +5,19 @@
  * Uses v2 data model: Commitment → Term → Payments
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocalization } from '../hooks/useLocalization';
 import { useCurrency } from '../hooks/useCurrency';
 import { ArrowTrendingDownIcon, ArrowTrendingUpIcon, StarIcon } from './icons';
-import { Infinity, CalendarCheck, Hash } from 'lucide-react';
+import { Infinity, CalendarCheck, Hash, History, ChevronDown, ChevronUp, Link as LinkIcon } from 'lucide-react';
 import {
     FlowType,
     Frequency,
 } from '../types.v2';
-import { getPerPeriodAmount } from '../utils/financialUtils.v2';
+import { TermsListView } from './TermsListView';
+import { TermService, PaymentService } from '../services/dataService.v2';
+import type { Term, Payment } from '../types.v2';
+// import { getPerPeriodAmount } from '../utils/financialUtils.v2';
 import type {
     CommitmentFormData,
     TermFormData,
@@ -22,28 +25,39 @@ import type {
 } from '../types.v2';
 import type { Category } from '../services/categoryService.v2';
 
+interface SaveOptions {
+    skipTermProcessing?: boolean; // When true, wrapper should only update commitment metadata
+    currentActiveTermId?: string; // The actual current active term ID (may differ from props)
+}
+
 interface CommitmentFormV2Props {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (commitment: CommitmentFormData, term: TermFormData) => Promise<void>;
+    onSave: (commitment: CommitmentFormData, term: TermFormData, options?: SaveOptions) => Promise<void>;
     categories: Category[];
     commitmentToEdit: CommitmentWithTerm | null;
-    existingCommitments?: CommitmentWithTerm[]; // For linking
-    onCategoriesChange?: () => void; // Callback to refresh categories
+    existingCommitments?: CommitmentWithTerm[];
+    onCategoriesChange?: () => void;
+    openWithPauseForm?: boolean;
+    openWithResumeForm?: boolean;
+    onCommitmentUpdated?: () => void;
 }
 
-const formInputClasses = "w-full h-[38px] bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-3 py-2 sm:py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all [color-scheme:light] dark:[color-scheme:dark]";
-const formLabelClasses = "block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 ml-1 truncate";
-const formSelectClasses = `${formInputClasses} appearance-none`;
+const formInputClasses = "w-full h-[46px] bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-2xl px-4 py-2.5 text-[15px] focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500/50 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 backdrop-blur-xl shadow-sm";
+const formLabelClasses = "block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 ml-1";
+const formSelectClasses = `${formInputClasses} appearance-none cursor-pointer pr-10`;
 
 export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     isOpen,
     onClose,
     onSave,
     categories,
-    commitmentToEdit,
     existingCommitments = [],
-    onCategoriesChange
+    // onCategoriesChange,
+    openWithPauseForm,
+    openWithResumeForm,
+    onCommitmentUpdated,
+    commitmentToEdit
 }) => {
     const { t, formatClp } = useLocalization();
     const { fromUnit, convertAmount } = useCurrency();
@@ -96,6 +110,30 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     // Loading state
     const [saving, setSaving] = useState(false);
 
+    // Terms section state (for editing existing commitments)
+    // Auto-expand when editing commitment with multiple terms
+    const [showTermsHistory, setShowTermsHistory] = useState(false);
+
+    // Auto-expand terms history when commitment has multiple terms OR is paused OR openWithPauseForm
+    // Auto-expand terms history when commitment has multiple terms OR is paused OR openWithPauseForm
+    useEffect(() => {
+        // Prioritize explicit open flags
+        if (openWithPauseForm || openWithResumeForm) {
+            setShowTermsHistory(true);
+            return;
+        }
+
+        if (commitmentToEdit) {
+            const hasMultipleTerms = (commitmentToEdit.all_terms?.length || 0) > 1;
+            const isPaused = !!commitmentToEdit.active_term?.effective_until;
+            if (hasMultipleTerms || isPaused) {
+                setShowTermsHistory(true);
+            }
+        }
+    }, [commitmentToEdit, openWithPauseForm, openWithResumeForm]);
+    const [termPayments, setTermPayments] = useState<Payment[]>([]);
+    const [loadingPayments, setLoadingPayments] = useState(false);
+
     // Detect if editing a terminated/paused commitment (has effective_until in the past)
     const isTerminated = (() => {
         if (!commitmentToEdit?.active_term?.effective_until) return false;
@@ -104,11 +142,37 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
         return endDateObj < todayObj;
     })();
 
+    // Detect if the active term is paused/closed (has effective_until set, regardless of date)
+    const isTermPaused = !!(commitmentToEdit?.active_term?.effective_until);
+
+    // Detect if commitment has multiple terms (history) - if so, term fields should be read-only
+    const hasTermsHistory = commitmentToEdit && (commitmentToEdit.all_terms?.length || 0) > 1;
+
+    // Show terms section if: 2+ terms OR 1 term that is paused (to allow editing the pause) OR manually shown
+    const shouldShowTermsSection = commitmentToEdit && (
+        (commitmentToEdit.all_terms?.length || 0) >= 2 || isTermPaused || showTermsHistory
+    );
+
+    // When editing existing commitment: term fields are disabled unless reactivating
+    // Also disable if manually showing terms history (e.g. for pausing)
+    const termFieldsDisabled = (commitmentToEdit && !isTerminated && hasTermsHistory) || showTermsHistory;
+
     // isActive state - for toggling pause/resume (only for editing)
     const [isActive, setIsActive] = useState(!isTerminated);
 
     // Flag to skip auto-calculation during initial load of edit data
     const isInitialLoadRef = useRef(false);
+
+    // Form ref para poder hacer submit desde los botones X
+    const formRef = useRef<HTMLFormElement>(null);
+
+    // Format CLP with thousand separators
+    const formatCLPInput = (value: string): string => {
+        if (!value) return '';
+        const num = parseFloat(value);
+        if (isNaN(num)) return value;
+        return new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(num);
+    };
 
     // Convert amount when switching currency (using centralized convertAmount)
     const handleCurrencyChange = (newCurrency: typeof currency) => {
@@ -137,14 +201,6 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
         setCurrency(newCurrency);
     };
 
-    // Format CLP with thousand separators
-    const formatCLPInput = (value: string): string => {
-        if (!value) return '';
-        const num = parseFloat(value);
-        if (isNaN(num)) return value;
-        return new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(num);
-    };
-
     // Set default category
     useEffect(() => {
         if (categories.length > 0 && !categoryId) {
@@ -152,8 +208,214 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
         }
     }, [categories, categoryId]);
 
+    // Local copy of commitment that can be updated when terms change
+    const [localCommitment, setLocalCommitment] = useState<CommitmentWithTerm | null>(null);
+
+    // Use local copy if available, otherwise use prop
+    const effectiveCommitment = localCommitment || commitmentToEdit;
+
+    // Sync local commitment with prop when it changes
+    useEffect(() => {
+        setLocalCommitment(commitmentToEdit);
+    }, [commitmentToEdit]);
+
+    // Detect if ANY data has changed (metadata OR term fields when editable)
+    const hasChanges = useMemo(() => {
+        // New commitment case - always allow save
+        if (!commitmentToEdit) return true;
+
+        // Compare current form values with original commitment
+        const originalName = commitmentToEdit.name || '';
+        const originalCategoryId = commitmentToEdit.category_id;
+        const originalFlowType = commitmentToEdit.flow_type;
+        const originalIsImportant = commitmentToEdit.is_important || false;
+        const originalNotes = commitmentToEdit.notes || '';
+        const originalLinkedId = commitmentToEdit.linked_commitment_id || null;
+
+        // Check if any metadata field has changed
+        const nameChanged = name !== originalName;
+        const categoryChanged = categoryId !== originalCategoryId;
+        const flowTypeChanged = flowType !== originalFlowType;
+        const importantChanged = isImportant !== originalIsImportant;
+        const notesChanged = notes !== originalNotes;
+
+        // Special handling for linked ID changes (including __UNLINK__)
+        const linkedChanged = (() => {
+            if (linkedCommitmentId === '__UNLINK__') return !!originalLinkedId; // unlinking when there was a link
+            return linkedCommitmentId !== originalLinkedId;
+        })();
+
+        const metadataChanged = nameChanged || categoryChanged || flowTypeChanged || importantChanged || notesChanged || linkedChanged;
+
+        if (metadataChanged) return true;
+
+        // If term fields are editable, check for term changes
+        if (!termFieldsDisabled && commitmentToEdit.active_term) {
+            const t = commitmentToEdit.active_term;
+
+            // Amount
+            const amountVal = parseFloat(amount);
+            const amountChanged = !isNaN(amountVal) && Math.abs(amountVal - t.amount_original) > 0.001;
+
+            // Currency & Frequency & Dates
+            const currencyChanged = currency !== t.currency_original;
+            const frequencyChanged = frequency !== t.frequency;
+            const startChanged = startDate !== t.effective_from;
+            const dueDayChanged = parseInt(dueDay) !== t.due_day_of_month;
+
+            // End Date / Duration logic
+            // Simplified: if current form implies a different effective_until than the stored one
+            let formEffectiveUntil: string | null = null;
+            if (durationType === 'endsOn' && endDate) formEffectiveUntil = endDate;
+            // Note: installments duration calculates effective_until in backend trigger, 
+            // but for UI dirty check we mainly care if user changed explicit end date or type.
+
+            const originalEffectiveUntil = t.effective_until;
+            const endDateChanged = formEffectiveUntil !== originalEffectiveUntil;
+
+            // Installments count
+            const installmentsVal = installments ? parseInt(installments) : null;
+            const originalInstallments = t.installments_count;
+            const installmentsChanged = installmentsVal !== originalInstallments;
+
+            return amountChanged || currencyChanged || frequencyChanged || startChanged || dueDayChanged || endDateChanged || installmentsChanged;
+        }
+
+        return false;
+    }, [commitmentToEdit, name, categoryId, flowType, isImportant, notes, linkedCommitmentId,
+        termFieldsDisabled, amount, currency, frequency, startDate, dueDay, durationType, endDate, installments]);
+
+    // Load payments when terms history is expanded
+    useEffect(() => {
+        if (showTermsHistory && effectiveCommitment && termPayments.length === 0 && !loadingPayments) {
+            loadPayments();
+        }
+    }, [showTermsHistory, effectiveCommitment]);
+
+    // Reload commitment data (terms) from the database
+    const reloadCommitmentData = async () => {
+        if (!commitmentToEdit) return;
+        try {
+            const terms = await TermService.getTerms(commitmentToEdit.id);
+            // Sort by version DESC to get active term first
+            const sortedTerms = [...terms].sort((a, b) => b.version - a.version);
+            const activeTerm = sortedTerms[0] || null;
+
+            setLocalCommitment({
+                ...commitmentToEdit,
+                active_term: activeTerm,
+                all_terms: sortedTerms,
+            });
+        } catch (error) {
+            console.error('Error reloading commitment data:', error);
+        }
+    };
+
+    const loadPayments = async () => {
+        if (!effectiveCommitment) return;
+        setLoadingPayments(true);
+        try {
+            const payments = await PaymentService.getPayments(effectiveCommitment.id);
+            setTermPayments(payments);
+        } catch (error) {
+            console.error('Error loading payments:', error);
+        } finally {
+            setLoadingPayments(false);
+        }
+    };
+
+    // Handler for term updates from TermsListView
+    const handleTermUpdate = async (termId: string, updates: Partial<Term>) => {
+        // This throws on error, which TermsListView catches and displays
+        const result = await TermService.updateTerm(termId, updates);
+        if (!result) {
+            throw new Error('No se pudo actualizar el término');
+        }
+        // Reload commitment data (terms) and payments
+        await reloadCommitmentData();
+        await loadPayments();
+        onCommitmentUpdated?.();
+    };
+
+    // Handler for creating new terms from TermsListView
+    const handleTermCreate = async (termData: Partial<Term>) => {
+        if (!commitmentToEdit) return;
+        await TermService.createTerm(commitmentToEdit.id, termData as any);
+        // Reload commitment data (terms) and payments
+        await reloadCommitmentData();
+        await loadPayments();
+        onCommitmentUpdated?.();
+    };
+
+    // Handler for deleting terms from TermsListView
+    const handleTermDelete = async (termId: string) => {
+        // Smart Undo Logic:
+        // If deleting the most recent term, and it immediately follows the previous one (no gap),
+        // offer to reopen the previous term (remove effective_until) to restore continuity.
+        const terms = effectiveCommitment?.all_terms || [];
+        const termIndex = terms.findIndex(t => t.id === termId);
+        let termToReopenId: string | null = null;
+
+        // Only if deleting the most recent term (index 0) AND there is a previous term
+        if (termIndex === 0 && terms.length > 1) {
+            const currentTerm = terms[0];
+            const prevTerm = terms[1];
+
+            if (prevTerm.effective_until) {
+                const prevEndVals = prevTerm.effective_until.split('-').map(Number); // [YYYY, MM, DD]
+                const prevEndDate = new Date(prevEndVals[0], prevEndVals[1] - 1, 1); // 1st of end month
+
+                // Next month of previous term
+                prevEndDate.setMonth(prevEndDate.getMonth() + 1);
+                const nextMonthYM = `${prevEndDate.getFullYear()}-${String(prevEndDate.getMonth() + 1).padStart(2, '0')}`;
+
+                const currentStartYM = currentTerm.effective_from.substring(0, 7);
+
+                // Use strict continuity: current starts exactly next month or same month
+                if (currentStartYM <= nextMonthYM) {
+                    if (confirm(`El término anterior (V${prevTerm.version}) termina en ${prevTerm.effective_until}.\n\n¿Desea reabrirlo (quitar fecha de fin) para mantener la continuidad?`)) {
+                        termToReopenId = prevTerm.id;
+                    }
+                }
+            }
+        }
+
+        try {
+            // CRITICAL: Delete the current term FIRST to avoid overlap collision
+            await TermService.deleteTerm(termId);
+
+            // Then reopen the previous term if requested
+            if (termToReopenId) {
+                try {
+                    await TermService.updateTerm(termToReopenId, { effective_until: null });
+                } catch (e) {
+                    console.error('Error reopening previous term', e);
+                    // Non-blocking error, user can manually fix
+                    alert('El término se eliminó, pero hubo un error al reabrir el anterior. Por favor edítalo manualmente.');
+                }
+            }
+
+            // Reload commitment data (terms) and payments
+            await reloadCommitmentData();
+            await loadPayments();
+            onCommitmentUpdated?.();
+        } catch (e) {
+            console.error('Error deleting term', e);
+            alert('Error eliminando el término');
+        }
+    };
+
+    // Callback for TermsListView to refresh data
+    const handleRefresh = async () => {
+        await reloadCommitmentData();
+        await loadPayments();
+    };
+
+    // Load edit data - CommitmentWithTerm has fields directly + active_term
     // Load edit data - CommitmentWithTerm has fields directly + active_term
     useEffect(() => {
+        if (!isOpen) return;
+
         if (commitmentToEdit) {
             // CommitmentWithTerm extends Commitment, so fields are directly on the object
             setName(commitmentToEdit.name || '');
@@ -183,18 +445,13 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                 setDueDay(term.due_day_of_month?.toString() || '1');
                 setStartDate(term.effective_from || today);
                 // Set duration type based on term data
-                // Usar is_divided_amount para distinguir "En cuotas" vs "Definido"
                 if (term.is_divided_amount && term.installments_count && term.installments_count > 0) {
-                    // "En cuotas" - divide el monto total
                     setDurationType('installments');
                 } else if (term.installments_count && term.installments_count > 0) {
-                    // "Definido" - monto fijo por período con N ocurrencias
                     setDurationType('endsOn');
                 } else if (!term.effective_until) {
-                    // "Indefinido" - sin fecha de término
                     setDurationType('recurring');
                 } else {
-                    // Tiene effective_until pero sin installments_count - es "Definido" antiguo
                     setDurationType('endsOn');
                 }
                 setEndDate(term.effective_until || '');
@@ -204,14 +461,42 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                 const isPaused = term.effective_until && new Date(term.effective_until) < new Date(today);
                 setIsActive(!isPaused);
 
-                // Clear flag after 600ms (longer than debounce 500ms) to prevent
-                // debounce from firing when loading edit data
                 setTimeout(() => {
                     isInitialLoadRef.current = false;
                 }, 600);
             }
+        } else {
+            // RESET FORM FOR NEW COMMITMENT
+            setName('');
+            // Reset category to first available if needed, or null to force selection logic
+            if (categories.length > 0) {
+                setCategoryId(categories.find(c => c.name === 'General')?.id || categories[0].id);
+            } else {
+                setCategoryId(null);
+            }
+            setFlowType(FlowType.EXPENSE);
+            setIsImportant(false);
+            setNotes('');
+            setLinkedCommitmentId(null);
+
+            setFrequency('MONTHLY' as Frequency);
+            setAmount('');
+            setDisplayAmount('');
+            setCurrency('CLP');
+
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            setStartDate(todayStr); // Reset to today
+            setDueDay(now.getDate().toString()); // Reset to today's day
+
+            setDurationType('recurring');
+            setEndDate('');
+            setInstallments('');
+            setLastEditedField(null);
+            setIsActive(true);
+            setShowTermsHistory(false);
         }
-    }, [commitmentToEdit]);
+    }, [commitmentToEdit, isOpen]);
 
     // ============================================================================
     // DEBOUNCED AUTO-CALCULATION (500ms delay to prevent loops and give live feedback)
@@ -385,20 +670,23 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
             return;
         }
 
-        if (!amount) {
-            alert('Por favor completa el campo "Monto"');
-            return;
-        }
+        // Skip term field validation when editing with history (term fields are disabled)
+        if (!termFieldsDisabled) {
+            if (!amount) {
+                alert('Por favor completa el campo "Monto"');
+                return;
+            }
 
-        // Validar campos de duración según el tipo
-        if (durationType === 'endsOn' && !installments) {
-            alert('Por favor completa el campo "Nº de ocurrencias"');
-            return;
-        }
+            // Validar campos de duración según el tipo
+            if (durationType === 'endsOn' && !installments) {
+                alert('Por favor completa el campo "Nº de ocurrencias"');
+                return;
+            }
 
-        if (durationType === 'installments' && !installments) {
-            alert('Por favor completa el campo "Nº Cuotas"');
-            return;
+            if (durationType === 'installments' && !installments) {
+                alert('Por favor completa el campo "Nº Cuotas"');
+                return;
+            }
         }
 
         setSaving(true);
@@ -430,56 +718,98 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                 isUnlinking: linkedCommitmentId === '__UNLINK__',
             };
 
-            // due_day_of_month from dueDay state
-            const dueDayNum = parseInt(dueDay) || 1;
-            // Note: effective_from is the term start date (not the first payment date)
-            // The first payment date calculation (if start day > due day) happens at payment generation time
+            // When term fields are disabled, use the existing active term's data
+            // This allows saving metadata-only changes (name, category, notes)
+            let termData: TermFormData;
 
-            console.log('Saving term with startDate:', startDate, 'dueDay:', dueDay);
+            // Use effectiveCommitment (local copy that gets updated after TermsListView changes)
+            const currentActiveTerm = effectiveCommitment?.active_term || commitmentToEdit?.active_term;
 
-            // Determinar si hay installments_count (para "Definido" y "En cuotas")
-            const hasInstallments = (durationType === 'installments' || durationType === 'endsOn') && installments;
-            const installmentsCount = hasInstallments ? parseInt(installments) : null;
+            if (termFieldsDisabled && currentActiveTerm) {
+                // Use existing term data - don't modify term
+                const existingTerm = currentActiveTerm;
+                termData = {
+                    effective_from: existingTerm.effective_from,
+                    effective_until: existingTerm.effective_until,
+                    frequency: existingTerm.frequency,
+                    installments_count: existingTerm.installments_count,
+                    due_day_of_month: existingTerm.due_day_of_month,
+                    currency_original: existingTerm.currency_original,
+                    amount_original: existingTerm.amount_original,
+                    fx_rate_to_base: existingTerm.fx_rate_to_base,
+                    estimation_mode: existingTerm.estimation_mode,
+                    is_divided_amount: existingTerm.is_divided_amount,
+                };
+            } else {
+                // due_day_of_month from dueDay state
+                const dueDayNum = parseInt(dueDay) || 1;
+                // Note: effective_from is the term start date (not the first payment date)
+                // The first payment date calculation (if start day > due day) happens at payment generation time
 
-            const termData: TermFormData = {
-                effective_from: startDate, // Use startDate directly - NO adjustment
-                // Si hay installments_count, el trigger de Supabase calcula effective_until
-                // Solo enviar effective_until para 'recurring' sin límite definido
-                effective_until: hasInstallments ? null : (endDate || null),
-                frequency,
-                // installments_count se guarda para AMBOS: "En cuotas" y "Definido"
-                // Esto permite que el trigger calcule effective_until correctamente
-                installments_count: installmentsCount,
-                due_day_of_month: dueDayNum,
-                currency_original: currency,
-                amount_original: parseFloat(amount),
-                // Calculate fx_rate_to_base: how many CLP per 1 unit of original currency
-                // If baseCLP was set during conversion, use it; otherwise use CurrencyService rate
-                fx_rate_to_base: (() => {
-                    const amt = parseFloat(amount);
-                    if (amt <= 0) return 1.0;
-                    if (currency === 'CLP') return 1.0;
-                    if (baseCLP && baseCLP > 0) return baseCLP / amt;
-                    // Use CurrencyService to get proper rate (fromUnit returns CLP for 1 unit)
-                    return fromUnit(1, currency as any);
-                })(),
-                estimation_mode: null,
-                // is_divided_amount: true SOLO para "En cuotas" (divide el monto total)
-                // false para "Definido" (monto fijo por período)
-                is_divided_amount: durationType === 'installments',
+                console.log('Saving term with startDate:', startDate, 'dueDay:', dueDay);
+
+                // Determinar si hay installments_count (para "Definido" y "En cuotas")
+                const hasInstallments = (durationType === 'installments' || durationType === 'endsOn') && installments;
+                const installmentsCount = hasInstallments ? parseInt(installments) : null;
+
+                termData = {
+                    effective_from: startDate, // Use startDate directly - NO adjustment
+                    // Si hay installments_count, el trigger de Supabase calcula effective_until
+                    // Solo enviar effective_until para 'recurring' sin límite definido
+                    effective_until: hasInstallments ? null : (endDate || null),
+                    frequency,
+                    // installments_count se guarda para AMBOS: "En cuotas" y "Definido"
+                    // Esto permite que el trigger calcule effective_until correctamente
+                    installments_count: installmentsCount,
+                    due_day_of_month: dueDayNum,
+                    currency_original: currency,
+                    amount_original: parseFloat(amount),
+                    // Calculate fx_rate_to_base: how many CLP per 1 unit of original currency
+                    // If baseCLP was set during conversion, use it; otherwise use CurrencyService rate
+                    fx_rate_to_base: (() => {
+                        const amt = parseFloat(amount);
+                        if (amt <= 0) return 1.0;
+                        if (currency === 'CLP') return 1.0;
+                        if (baseCLP && baseCLP > 0) return baseCLP / amt;
+                        // Use CurrencyService to get proper rate (fromUnit returns CLP for 1 unit)
+                        return fromUnit(1, currency as any);
+                    })(),
+                    estimation_mode: null,
+                    // is_divided_amount: true SOLO para "En cuotas" (divide el monto total)
+                    // false para "Definido" (monto fijo por período)
+                    is_divided_amount: durationType === 'installments',
+                };
+            }
+
+            console.log('[handleSubmit] Saving with:', {
+                commitmentData,
+                termData,
+                termFieldsDisabled,
+                currentActiveTermId: effectiveCommitment?.active_term?.id,
+            });
+
+            // Pass options to let wrapper know whether to process term changes
+            const saveOptions: SaveOptions = {
+                // When term fields are disabled, we only want to update commitment metadata
+                // The term was already updated via TermsListView or shouldn't be touched
+                skipTermProcessing: !!termFieldsDisabled,
+                // Pass the actual current active term ID (may have changed via TermsListView)
+                currentActiveTermId: effectiveCommitment?.active_term?.id,
             };
 
-            await onSave(commitmentData, termData);
+            await onSave(commitmentData, termData, saveOptions);
             handleClose();
         } catch (error) {
             console.error('Error saving commitment:', error);
-            alert('Error saving commitment');
+            // Show more detailed error message
+            const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+            alert(`Error saving commitment: ${errorMessage}`);
         } finally {
             setSaving(false);
         }
     };
 
-    const handleClose = () => {
+    const resetForm = () => {
         // Reset form
         setName('');
         setCategoryId(categories[0]?.id || null);
@@ -498,146 +828,123 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
         setInstallments('');
         setLinkedCommitmentId(null); // ✅ Reset linked commitment
         setLastEditedField(null);     // ✅ Reset last edited field
+        setShowTermsHistory(false);   // ✅ Reset terms history visibility
+        setTermPayments([]);          // ✅ Clear loaded payments
+    };
 
+    const handleClose = () => {
+        resetForm();
         onClose();
+    };
+
+    // Smart close: guarda solo si hay cambios en metadatos o término, si no solo cierra
+    const handleSmartClose = () => {
+        if (hasChanges && formRef.current) {
+            // Hay cambios pendientes - guardar y cerrar
+            formRef.current.requestSubmit();
+        } else {
+            // No hay cambios - solo cerrar
+            handleClose();
+        }
+    };
+
+    if (!isOpen) return null;
+
+    // Dynamic Theme Logic
+    const isExpense = flowType === FlowType.EXPENSE;
+
+    // Dynamic classes based on flow type
+    const themeClasses = {
+        saveBtn: isExpense
+            ? 'bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 shadow-rose-500/30'
+            : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-emerald-500/30',
+        activeTab: isExpense
+            ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
+            : 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20',
+        inactiveTab: 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800',
+        lightBg: isExpense ? 'bg-rose-50/50 dark:bg-rose-900/10' : 'bg-emerald-50/50 dark:bg-emerald-900/10',
+        border: isExpense ? 'border-rose-100 dark:border-rose-900/30' : 'border-emerald-100 dark:border-emerald-900/30',
+        text: isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400',
+        iconBg: isExpense ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-600' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600',
+        ring: isExpense ? 'focus:ring-rose-500/20' : 'focus:ring-emerald-500/20'
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 animate-in fade-in duration-300">
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
             <div className={`
-                bg-white dark:bg-slate-800 
-                w-full max-w-2xl 
+                w-full max-w-[600px]
+                bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl
+                rounded-3xl shadow-2xl shadow-black/50
+                border border-white/20 dark:border-slate-800
                 flex flex-col
-                transition-all duration-300 ease-out
-                ${isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 sm:translate-y-0'}
-                sm:relative
-                sm:rounded-xl sm:max-h-[90vh] sm:shadow-2xl
-                fixed inset-x-0 bottom-0
-                rounded-none
-                h-[100dvh] sm:h-auto
+                max-h-[90vh]
                 overflow-hidden
+                transition-all duration-300 ease-out
+                ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}
             `}>
-                {/* Mobile Grab Handle - Removed for full screen */}
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/50">
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+                        {commitmentToEdit ? t('form.editCommitment', 'Editar Compromiso') : t('form.newCommitment', 'Nuevo Compromiso')}
+                    </h2>
 
-                <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between gap-3 z-10 flex-shrink-0">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-1">
-                        <div className="flex items-center justify-center sm:justify-start gap-4">
-                            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-tight text-center w-full">
-                                {commitmentToEdit ? t('form.editCommitment', 'Edit Commitment') : t('form.newCommitment', 'New Commitment')}
-                            </h2>
+                    <div className="flex items-center gap-3">
+                        {/* Important Toggle */}
+                        <button
+                            type="button"
+                            onClick={() => setIsImportant(!isImportant)}
+                            className={`p-2 rounded-full transition-all ${isImportant
+                                ? 'bg-amber-100 text-amber-500 dark:bg-amber-900/30 dark:text-amber-400 ring-2 ring-amber-500/20'
+                                : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                        >
+                            <StarIcon className={`w-5 h-5 ${isImportant ? 'fill-current' : ''}`} />
+                        </button>
 
-                            <button
-                                type="button"
-                                onClick={handleClose}
-                                className="sm:hidden -mr-1 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                            >
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={onClose} // FIX: Now explicitly closes/discards
+                            className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition w-9 h-9 flex items-center justify-center hover:text-rose-500"
+                        >
+                            <span className="text-xl leading-none">&times;</span>
+                        </button>
+                    </div>
+                </div>
 
-                        <div className="flex items-center gap-4 mt-1 sm:mt-0">
-                            {/* Important Toggle - Always visible */}
-                            <label className={`inline-flex items-center justify-center w-10 h-10 rounded-xl border cursor-pointer transition-all ${isImportant
-                                ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700'
-                                : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 hover:bg-slate-100'
-                                }`}>
-                                <input
-                                    type="checkbox"
-                                    checked={isImportant}
-                                    onChange={(e) => setIsImportant(e.target.checked)}
-                                    className="sr-only"
-                                />
-                                <StarIcon className={`w-5 h-5 transition-colors ${isImportant ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
-                            </label>
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto overflow-x-hidden">
+                    <form ref={formRef} onSubmit={handleSubmit} className="p-6 space-y-5"> {/* Reduced space-y slightly */}
 
-                            {/* Type Toggle */}
-                            <div className="flex-1 sm:flex-none inline-flex rounded-xl border border-slate-300 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-900 h-10">
+                        {/* 1. Flow Type Tabs */}
+                        <div className="flex justify-center -mb-2"> {/* Negative margin to pull up */}
+                            <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 scale-90"> {/* Slightly smaller tabs */}
                                 <button
                                     type="button"
                                     onClick={() => setFlowType(FlowType.EXPENSE)}
-                                    className={`flex-1 sm:flex-none px-4 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${flowType === FlowType.EXPENSE
-                                        ? 'bg-rose-500 text-white shadow-md'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                        }`}
+                                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${flowType === FlowType.EXPENSE ? themeClasses.activeTab : themeClasses.inactiveTab}`}
                                 >
                                     <ArrowTrendingDownIcon className="w-4 h-4" />
                                     {t('form.expense', 'Gasto')}
                                 </button>
-                                <div className="w-px bg-slate-300 dark:bg-slate-700" />
                                 <button
                                     type="button"
                                     onClick={() => setFlowType(FlowType.INCOME)}
-                                    className={`flex-1 sm:flex-none px-4 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${flowType === FlowType.INCOME
-                                        ? 'bg-emerald-500 text-white shadow-md'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                        }`}
+                                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${flowType === FlowType.INCOME ? themeClasses.activeTab : themeClasses.inactiveTab}`}
                                 >
                                     <ArrowTrendingUpIcon className="w-4 h-4" />
                                     {t('form.income', 'Ingreso')}
                                 </button>
                             </div>
                         </div>
-                    </div>
 
-                    <button
-                        type="button"
-                        onClick={handleClose}
-                        className="hidden sm:block text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                    >
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto">
-                    <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-3 sm:space-y-4 pb-28 sm:pb-5">
-                        {/* Row 1: Nombre (2/3) + Categoría (1/3) */}
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                            <div className="md:col-span-8">
-                                <label className={formLabelClasses}>{t('form.name', 'Nombre')} *</label>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    className={formInputClasses}
-                                    placeholder={t('form.namePlaceholder', 'Ej: Arriendo, Sueldo, Netflix')}
-                                    required
-                                />
-                            </div>
-                            <div className="md:col-span-4">
-                                <label className={formLabelClasses}>{t('form.category', 'Categoría')}</label>
-                                <div className="relative">
-                                    <select
-                                        value={categoryId || ''}
-                                        onChange={(e) => setCategoryId(e.target.value || null)}
-                                        className={formSelectClasses}
-                                    >
-                                        {categories.map((cat) => (
-                                            <option key={cat.id} value={cat.id}>
-                                                {cat.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Row 2: [Moneda|Monto] + Frecuencia + Primer Vencimiento */}
-                        <div className="grid grid-cols-2 md:grid-cols-12 gap-3">
-                            {/* Monto con Moneda integrada */}
-                            <div className="col-span-2 md:col-span-5">
-                                <label className={formLabelClasses}>{t('form.amount', 'Monto')} *</label>
-                                <div className="flex items-center w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-900 overflow-hidden focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all h-[38px]">
+                        {/* 2. Hero Amount Input */}
+                        {!termFieldsDisabled && (
+                            <div className="flex flex-col items-center justify-center py-2 relative group">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0">Monto</label>
+                                <div className="flex items-baseline relative">
+                                    <span className={`text-3xl font-bold mr-2 ${themeClasses.text} opacity-50`}>$</span>
                                     <input
                                         type="text"
                                         inputMode="numeric"
@@ -658,312 +965,350 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                             }
                                             if (baseCLP !== null) setBaseCLP(null);
                                         }}
-                                        className="flex-1 min-w-0 bg-transparent border-none px-3 py-3 sm:py-2.5 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-0 outline-none font-bold text-lg text-right font-mono tracking-tight"
+                                        className={`
+                                            bg-transparent border-none p-0 text-center text-5xl font-extrabold tracking-tighter w-full max-w-[300px]
+                                            focus:ring-0 outline-none placeholder:text-slate-200 dark:placeholder:text-slate-800
+                                            ${themeClasses.text}
+                                        `}
                                         placeholder="0"
+                                        autoFocus={!commitmentToEdit}
+                                    />
+                                </div>
+                                {/* Currency Selector Mini - Slightly tighter */}
+                                <div className="mt-1">
+                                    <select
+                                        value={currency}
+                                        onChange={(e) => handleCurrencyChange(e.target.value as any)}
+                                        className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold py-0.5 px-2 rounded-full border border-slate-200 dark:border-slate-700 cursor-pointer outline-none focus:ring-2 focus:ring-slate-300"
+                                    >
+                                        <option value="CLP">CLP</option>
+                                        <option value="USD">USD</option>
+                                        <option value="EUR">EUR</option>
+                                        <option value="UF">UF</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 3. Main Bento Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                            {/* Card: Basic Info */}
+                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className={formLabelClasses}>{t('form.name', 'Nombre')}</label>
+                                    <input
+                                        type="text"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        className={formInputClasses}
+                                        placeholder="Ej: Netflix, Arriendo..."
                                         required
                                     />
-
-                                    <div className="w-px h-5 bg-slate-300 dark:bg-slate-700 mx-0" />
-
-                                    <div className="relative flex-shrink-0">
+                                </div>
+                                <div>
+                                    <label className={formLabelClasses}>{t('form.category', 'Categoría')}</label>
+                                    <div className="relative">
                                         <select
-                                            value={currency}
-                                            onChange={(e) => handleCurrencyChange(e.target.value as 'CLP' | 'USD' | 'EUR' | 'UF' | 'UTM')}
-                                            className="appearance-none bg-transparent border-none pl-3 pr-7 py-3 sm:py-2.5 text-slate-900 dark:text-white font-bold text-sm focus:ring-0 cursor-pointer outline-none hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                                            style={{ backgroundImage: 'none' }} // Remove native arrow
+                                            value={categoryId || ''}
+                                            onChange={(e) => setCategoryId(e.target.value || null)}
+                                            className={formSelectClasses}
                                         >
-                                            <option value="CLP">CLP</option>
-                                            <option value="USD">USD</option>
-                                            <option value="EUR">EUR</option>
-                                            <option value="UF">UF</option>
-                                            <option value="UTM">UTM</option>
+                                            {categories.map((cat) => (
+                                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                            ))}
                                         </select>
-                                        {/* Custom chevron for select */}
-                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                            </svg>
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <ChevronDown className="w-4 h-4" />
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Frecuencia */}
-                            <div className="col-span-1 md:col-span-3">
-                                <label className={formLabelClasses}>{t('form.frequency', 'Frecuencia')}</label>
-                                <select
-                                    value={frequency}
-                                    onChange={(e) => setFrequency(e.target.value as Frequency)}
-                                    className={formSelectClasses}
-                                >
-                                    <option value="ONCE">{t('frequency.once', 'Una vez')}</option>
-                                    <option value="MONTHLY">{t('frequency.monthly', 'Mensual')}</option>
-                                    <option value="BIMONTHLY">{t('frequency.bimonthly', 'Bimestral')}</option>
-                                    <option value="QUARTERLY">{t('frequency.quarterly', 'Trimestral')}</option>
-                                    <option value="SEMIANNUALLY">{t('frequency.semiannually', 'Semestral')}</option>
-                                    <option value="ANNUALLY">{t('frequency.annually', 'Anual')}</option>
-                                </select>
-                            </div>
-
-                            {/* 1er Vencimiento */}
-                            <div className="col-span-1 md:col-span-4">
-                                <label className={formLabelClasses}>{t('form.firstDueDate', '1er Vencimiento')} *</label>
-                                <input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => {
-                                        const newDate = e.target.value;
-                                        setStartDate(newDate);
-                                        if (newDate) {
-                                            // Extract day directly from YYYY-MM-DD string to avoid timezone issues
-                                            const dayPart = parseInt(newDate.split('-')[2], 10);
-                                            setDueDay(dayPart.toString());
-                                        }
-                                    }}
-                                    className={formInputClasses}
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        {/* Link commitment (for offsetting income/expense pairs like rent vs mortgage) */}
-
-
-                        {/* Duration Row: Selector (2/3) + Input (1/3) */}
-                        {!isTerminated && frequency !== 'ONCE' && (
-                            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
-                                {/* Duration Type Selector - col-span-8 (2/3) */}
-                                <div className="md:col-span-8 space-y-2">
-                                    <label className={formLabelClasses}>{t('form.durationType', 'Duration')}</label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setDurationType('recurring');
-                                                setEndDate('');
-                                                setInstallments('');
-                                            }}
-                                            className={`flex flex-row items-center justify-center gap-2 p-2 rounded-xl border transition-all h-[38px] ${durationType === 'recurring'
-                                                ? (flowType === FlowType.INCOME
-                                                    ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/20'
-                                                    : 'bg-rose-50 dark:bg-rose-900/30 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300 ring-2 ring-rose-500/20')
-                                                : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                                }`}
-                                        >
-                                            <Infinity className="w-5 h-5 shrink-0" />
-                                            <span className="text-xs font-bold uppercase tracking-tight">{t('form.durationType.indefinite', 'Indefinido')}</span>
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setDurationType('endsOn');
-                                                setInstallments('');
-                                            }}
-                                            className={`flex flex-row items-center justify-center gap-2 p-2 rounded-xl border transition-all h-[38px] ${durationType === 'endsOn'
-                                                ? (flowType === FlowType.INCOME
-                                                    ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/20'
-                                                    : 'bg-rose-50 dark:bg-rose-900/30 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300 ring-2 ring-rose-500/20')
-                                                : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                                }`}
-                                        >
-                                            <CalendarCheck className="w-5 h-5 shrink-0" />
-                                            <span className="text-xs font-bold uppercase tracking-tight">{t('form.durationType.defined', 'Vencimiento')}</span>
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setDurationType('installments');
-                                            }}
-                                            className={`flex flex-row items-center justify-center gap-2 p-2 rounded-xl border transition-all h-[38px] ${durationType === 'installments'
-                                                ? (flowType === FlowType.INCOME
-                                                    ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/20'
-                                                    : 'bg-rose-50 dark:bg-rose-900/30 border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300 ring-2 ring-rose-500/20')
-                                                : 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                                }`}
-                                        >
-                                            <Hash className="w-5 h-5 shrink-0" />
-                                            <span className="text-xs font-bold uppercase tracking-tight">{t('form.durationType.installments', 'Cuotas')}</span>
-                                        </button>
+                            {/* Compensación Helper */}
+                            {effectiveLinkedCommitment && (
+                                <div className={`md:col-span-2 flex items-center gap-3 p-3 rounded-xl border ${themeClasses.lightBg} ${themeClasses.border}`}>
+                                    <div className={`p-1.5 rounded-full bg-white dark:bg-slate-900 shrink-0`}>
+                                        <LinkIcon className={`w-4 h-4 ${themeClasses.text}`} />
                                     </div>
-                                    <p className="text-xs text-slate-400 dark:text-slate-500 pl-1">
-                                        {durationType === 'recurring' && t('form.durationType.indefiniteDesc', 'Se repite sin fecha de término')}
-                                        {durationType === 'endsOn' && t('form.durationType.definedDesc', 'Termina en fecha específica')}
-                                        {durationType === 'installments' && t('form.durationType.installmentsDesc', 'Monto total dividido en cuotas')}
-                                    </p>
-                                </div>
-
-                                {/* Dynamic Input Space - col-span-4 (1/3) */}
-                                <div className="md:col-span-4">
-                                    {durationType === 'endsOn' && (
-                                        <>
-                                            <label className={formLabelClasses}>N° de ocurrencias *</label>
-                                            <input
-                                                type="number"
-                                                value={installments}
-                                                placeholder="12"
-                                                onChange={(e) => {
-                                                    setInstallments(e.target.value);
-                                                    setLastEditedField('installments');
-                                                }}
-                                                className={formInputClasses}
-                                                min="1"
-                                                required
-                                            />
-                                        </>
-                                    )}
-                                    {durationType === 'installments' && (
-                                        <>
-                                            <label className={formLabelClasses}>{t('form.numberOfInstallments', 'Nº Cuotas')} *</label>
-                                            <input
-                                                type="number"
-                                                value={installments}
-                                                placeholder="12"
-                                                onChange={(e) => {
-                                                    setInstallments(e.target.value);
-                                                    setLastEditedField('installments');
-                                                }}
-                                                className={formInputClasses}
-                                                min="1"
-                                                required
-                                            />
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Notes & Link Row: Notes (2/3) + Link (1/3) */}
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                            {/* Notes - col-span-8 (2/3) */}
-                            <div className="md:col-span-8">
-                                <label className={formLabelClasses}>{t('form.notes', 'Notas')}</label>
-                                <input
-                                    type="text"
-                                    value={notes}
-                                    onChange={(e) => setNotes(e.target.value)}
-                                    className={formInputClasses}
-                                    placeholder={t('form.addNotes', 'Agregar notas...')}
-                                />
-                            </div>
-
-                            {/* Link Commitment - col-span-4 (1/3) */}
-                            <div className="md:col-span-4">
-                                {existingCommitments && existingCommitments.length > 0 ? (
-                                    <div>
-                                        <label className={formLabelClasses}>
-                                            {t('form.linkCommitment', 'Compensar')} <span className="text-xs font-normal lowercase opacity-75">({t('form.optional', 'opc')})</span>
-                                        </label>
-                                        {/* If linked FROM, show pill */}
-                                        {linkedFromCommitment && !linkedCommitmentId ? (
-                                            <div className="flex items-center gap-2 px-3 py-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl min-h-[38px] w-full">
-                                                <span className="text-sky-700 dark:text-sky-300 font-bold">
-                                                    {linkedFromCommitment.flow_type === FlowType.INCOME ? '↑' : '↓'}
-                                                </span>
-                                                <span className="flex-1 text-xs text-sky-800 dark:text-sky-200 truncate">
-                                                    {linkedFromCommitment.name}
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setLinkedCommitmentId('__UNLINK__')}
-                                                    className="text-[10px] text-rose-600 dark:text-rose-400 hover:underline shrink-0"
-                                                >
-                                                    X
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="relative">
-                                                <select
-                                                    value={linkedCommitmentId === '__UNLINK__' ? '' : (linkedCommitmentId || '')}
-                                                    onChange={(e) => setLinkedCommitmentId(e.target.value || null)}
-                                                    className={formSelectClasses}
-                                                >
-                                                    <option value="">{t('form.noLink', 'Ninguno')}</option>
-                                                    {existingCommitments
-                                                        .filter(c => c.id !== commitmentToEdit?.id)
-                                                        .filter(c => c.flow_type !== flowType)
-                                                        .filter(c => !c.linked_commitment_id || c.linked_commitment_id === commitmentToEdit?.id)
-                                                        .map(commitment => (
-                                                            <option key={commitment.id} value={commitment.id}>
-                                                                {commitment.flow_type === FlowType.INCOME ? '↑' : '↓'} {commitment.name}
-                                                            </option>
-                                                        ))}
-                                                </select>
-                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                    </svg>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    /* Spacer/Placeholder if no commitments to link, to maintain grid structure if needed, or just standard Notes full width?
-                                       User asked for 2 columns specifically. If empty, maybe Notes takes full?
-                                       Logic: existingCommitments check wraps this.
-                                       Wait, if no existingCommitments, this whole col-span-4 is empty.
-                                       I should logic check: if !existingCommitments, Notes should probably be col-span-12.
-                                       Let's stick to the user's request for split, but be smart.
-                                     */
-                                    null
-                                )}
-                            </div>
-                        </div>
-                        {/* Helper text for Link moved outside to avoid breaking grid or added below?
-                             Actually, let's keep it simple. If effectiveLinkedCommitment exists, show text below the row.
-                         */}
-                        {effectiveLinkedCommitment && (
-                            <p className="text-xs text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 px-2 py-1 rounded mt-1 mx-1">
-                                Compensación activa con "{effectiveLinkedCommitment.name}".
-                            </p>
-                        )}
-
-
-
-                        {/* Actions */}
-                        <div className="fixed sm:static bottom-0 left-0 right-0 p-5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 z-20 sm:p-0 sm:border-t-0 sm:bg-transparent">
-                            <div className="flex flex-col gap-3">
-                                {/* Terminated Commitment Banner - No reactivation, just info */}
-                                {isTerminated && (
-                                    <div className="p-3 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="text-lg">⏹️</span>
-                                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                {t('form.commitmentEnded', 'Este compromiso ha terminado')}
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                                            {t('form.commitmentEndedDesc', 'Terminó el')} {commitmentToEdit?.active_term?.effective_until}.
-                                            {' '}{t('form.commitmentEndedInfo', 'Para reactivarlo, crea uno nuevo.')}
+                                    <div className="flex-1">
+                                        <p className={`text-xs font-bold ${themeClasses.text}`}>Compensación Activa</p>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                            Este compromiso se compensa con <strong>"{effectiveLinkedCommitment.name}"</strong>
                                         </p>
                                     </div>
-                                )}
+                                </div>
+                            )}
 
-                                <div className="flex gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={handleClose}
-                                        className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all font-bold active:scale-95"
-                                        disabled={saving}
-                                    >
-                                        {t('form.cancel', 'Cancelar')}
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className={`flex-[1.5] px-4 py-3 text-white rounded-xl transition-all disabled:opacity-50 font-bold shadow-xl active:scale-95 ${flowType === 'EXPENSE'
-                                            ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/25'
-                                            : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25'}`}
-                                        disabled={saving || (isTerminated && !isActive)}
-                                    >
-                                        {saving ? t('form.saving', 'Guardando...') :
-                                            (isTerminated && !isActive) ? t('form.closed', 'Cerrado') :
-                                                (commitmentToEdit ? t('form.saveButton', 'Guardar') : t('form.create', 'Crear compromiso'))}
-                                    </button>
+                            {/* Separator - Edit Mode Logic */}
+                            {termFieldsDisabled ? (
+                                !showTermsHistory && (
+                                    <div className={`md:col-span-2 p-4 rounded-2xl border ${themeClasses.lightBg} ${themeClasses.border} flex items-center justify-between`}>
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-xl ${themeClasses.iconBg}`}>
+                                                <History className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className={`font-bold text-sm ${themeClasses.text}`}>Historial de Términos</p>
+                                                <p className="text-xs text-slate-500">Edita condiciones anteriores aquí</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowTermsHistory(true)}
+                                            className="px-4 py-2 bg-white dark:bg-slate-800 rounded-xl text-sm font-bold shadow-sm hover:shadow-md transition-all"
+                                        >
+                                            Ver Historial
+                                        </button>
+                                    </div>
+                                )
+                            ) : (
+                                <>
+                                    {/* Card: Timing */}
+                                    <div className="p-4 rounded-3xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 space-y-3 h-full">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <CalendarCheck className={`w-4 h-4 ${themeClasses.text}`} />
+                                            <h3 className="text-[11px] font-extrabold uppercase text-slate-400">Tiempo</h3>
+                                        </div>
+                                        <div>
+                                            <label className={formLabelClasses}>{t('form.frequency', 'Frecuencia')}</label>
+                                            <div className="relative">
+                                                <select
+                                                    value={frequency}
+                                                    onChange={(e) => setFrequency(e.target.value as Frequency)}
+                                                    className={formSelectClasses}
+                                                >
+                                                    <option value="MONTHLY">{t('frequency.monthly', 'Mensual')}</option>
+                                                    <option value="ONCE">{t('frequency.once', 'Una vez')}</option>
+                                                    <option value="BIMONTHLY">{t('frequency.bimonthly', 'Bimestral')}</option>
+                                                    <option value="QUARTERLY">{t('frequency.quarterly', 'Trimestral')}</option>
+                                                    <option value="ANNUALLY">{t('frequency.annually', 'Anual')}</option>
+                                                </select>
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                                    <ChevronDown className="w-4 h-4" />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className={formLabelClasses}>1er Vencimiento</label>
+                                            <input
+                                                type="date"
+                                                value={startDate}
+                                                onChange={(e) => {
+                                                    const newDate = e.target.value;
+                                                    setStartDate(newDate);
+                                                    if (newDate) {
+                                                        const dayPart = parseInt(newDate.split('-')[2], 10);
+                                                        setDueDay(dayPart.toString());
+                                                    }
+                                                }}
+                                                className={formInputClasses}
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Card: Duration */}
+                                    {!isTerminated && frequency !== 'ONCE' && (
+                                        <div className="p-4 rounded-3xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 space-y-3 h-full flex flex-col">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Infinity className={`w-4 h-4 ${themeClasses.text}`} />
+                                                <h3 className="text-[11px] font-extrabold uppercase text-slate-400">Duración</h3>
+                                            </div>
+
+                                            {/* Compact Horizontal Buttons to save space and align with Tempo card */}
+                                            <div className="flex flex-col gap-2 flex-1">
+                                                {[
+                                                    { id: 'recurring', label: 'Indefinido', icon: Infinity },
+                                                    { id: 'endsOn', label: 'Definido', icon: CalendarCheck },
+                                                    { id: 'installments', label: 'Cuotas', icon: Hash },
+                                                ].map((type) => (
+                                                    <button
+                                                        key={type.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setDurationType(type.id as any);
+                                                            if (type.id === 'recurring') { setEndDate(''); setInstallments(''); }
+                                                            // Auto-focus input if defined/installments selected? 
+                                                            // Logic handled by rendering below
+                                                        }}
+                                                        className={`
+                                                            flex items-center px-3 py-2.5 rounded-xl border transition-all text-left gap-3
+                                                            ${durationType === type.id
+                                                                ? `${themeClasses.lightBg} ${themeClasses.border} ${themeClasses.text} ring-1 ${themeClasses.ring.replace('focus:', '')}`
+                                                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                                                            }
+                                                        `}
+                                                    >
+                                                        <type.icon className="w-4 h-4 shrink-0" />
+                                                        <span className="text-xs font-bold leading-none">{type.label}</span>
+                                                        {/* Optional Checkmark for active state */}
+                                                        {durationType === type.id && (
+                                                            <span className="ml-auto w-1.5 h-1.5 rounded-full bg-current opacity-50" />
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            {/* Conditional Input embedded at bottom of card */}
+                                            {durationType !== 'recurring' && (
+                                                <div className="animate-in fade-in slide-in-from-top-2 pt-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="number"
+                                                            value={installments}
+                                                            onChange={(e) => {
+                                                                setInstallments(e.target.value);
+                                                                setLastEditedField('installments');
+                                                            }}
+                                                            className={`${formInputClasses} !h-[40px]`}
+                                                            placeholder={durationType === 'endsOn' ? "N° Ocurrencias" : "N° de Cuotas"}
+                                                            min="1"
+                                                            autoFocus
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Duration Legend */}
+                                            <div className="mt-1 min-h-[20px]">
+                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
+                                                    {durationType === 'recurring' && "Se repite indefinidamente hasta que decidas terminarlo."}
+                                                    {durationType === 'endsOn' && "Se repite la cantidad de veces especificada."}
+                                                    {durationType === 'installments' && "El monto total ingresado se divide equitativamente."}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+
+                            {/* Row 4: Link & Notes */}
+                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Link Commitment Selector */}
+                                <div>
+                                    <label className={formLabelClasses}>
+                                        {t('form.linkTo', 'Compensar con')} <span className="text-slate-300 font-normal normal-case">(Opcional)</span>
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            value={linkedCommitmentId || ''}
+                                            onChange={(e) => setLinkedCommitmentId(e.target.value || null)}
+                                            className={`${formSelectClasses} ${linkedCommitmentId ? 'font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/10' : ''}`}
+                                        >
+                                            <option value="">{t('form.noLink', 'Sin compensación')}</option>
+
+                                            {/* Opción para desvincular explícitamente si ya venía vinculado de BD */}
+                                            {commitmentToEdit?.linked_commitment_id && (
+                                                <option value="__UNLINK__" className="text-rose-500 font-bold">
+                                                    -- Desvincular --
+                                                </option>
+                                            )}
+
+                                            {existingCommitments
+                                                .filter(c => c.id !== commitmentToEdit?.id) // No self-link
+                                                .map((c) => (
+                                                    <option key={c.id} value={c.id}>
+                                                        {c.name} ({c.flow_type === 'EXPENSE' ? 'Gasto' : 'Ingreso'})
+                                                    </option>
+                                                ))}
+                                        </select>
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <ChevronDown className="w-4 h-4" />
+                                        </div>
+                                    </div>
+                                    {linkedCommitmentId && linkedCommitmentId !== '__UNLINK__' && (
+                                        <p className="text-[10px] text-sky-500 mt-1.5 ml-1 flex items-center gap-1">
+                                            <LinkIcon className="w-3 h-3" />
+                                            Este compromiso se pagará usando fondos de la selección.
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Notes */}
+                                <div>
+                                    <label className={formLabelClasses}>{t('form.notes', 'Notas')}</label>
+                                    <input
+                                        type="text"
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                        className={`${formInputClasses} bg-white/50 dark:bg-slate-800/50`}
+                                        placeholder="Agregar nota..."
+                                    />
                                 </div>
                             </div>
                         </div>
+
+                        {/* Terms History Section */}
+                        {shouldShowTermsSection && (
+                            <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden mt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowTermsHistory(!showTermsHistory)}
+                                    className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <History className="w-4 h-4 text-slate-500" />
+                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                            {t('form.termsHistory', 'Historial de Términos')}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-full">
+                                            {commitmentToEdit.all_terms?.length || (commitmentToEdit.active_term ? 1 : 0)}
+                                        </span>
+                                    </div>
+                                    {showTermsHistory ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                                </button>
+
+                                {showTermsHistory && (
+                                    <div className="p-0 bg-slate-50/30 dark:bg-slate-900/30">
+                                        <TermsListView
+                                            commitment={effectiveCommitment!}
+                                            payments={termPayments}
+                                            onTermUpdate={handleTermUpdate}
+                                            onTermCreate={handleTermCreate}
+                                            onTermDelete={handleTermDelete}
+                                            onRefresh={handleRefresh}
+                                            openWithPauseForm={openWithPauseForm}
+                                            openWithResumeForm={openWithResumeForm}
+                                            hideTitle={true}
+                                            isLoading={loadingPayments}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </form>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-10 flex gap-3">
+                    {/* Cancel Button */}
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-6 py-3.5 rounded-xl font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-all"
+                    >
+                        Cancelar
+                    </button>
+
+                    {/* Main Action */}
+                    <button
+                        type="button"
+                        onClick={handleSmartClose} // Keep the smart validation logic here
+                        disabled={saving}
+                        className={`
+                            flex-1 py-3.5 rounded-xl text-white font-bold text-base tracking-wide
+                            transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
+                            shadow-lg ${themeClasses.saveBtn}
+                        `}
+                    >
+                        {saving ? t('form.saving', 'Guardando...') :
+                            (isTerminated && !isActive) ? t('form.closed', 'Cerrado') :
+                                (isTerminated && isActive) ? 'Reanudar Compromiso' :
+                                    hasChanges ? t('form.saveAndClose', 'Guardar y Cerrar') : t('form.close', 'Cerrar')}
+                    </button>
+                    {/* Secondary Actions (Link) could go here if needed, but keeping it clean for now */}
                 </div>
             </div>
         </div>

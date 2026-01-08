@@ -81,7 +81,6 @@ const CalendarView = React.lazy(() => import('./components/CalendarView'));
 const DashboardFullV2 = React.lazy(() => import('./components/DashboardFull.v2'));
 const PaymentRecorderV2 = React.lazy(() => import('./components/PaymentRecorder.v2'));
 const PauseCommitmentModal = React.lazy(() => import('./components/PauseCommitmentModal'));
-const ResumeCommitmentModal = React.lazy(() => import('./components/ResumeCommitmentModal'));
 import CategoryManager from './components/CategoryManager';
 import ConfirmationModal from './components/ConfirmationModal';
 import { Expense, PaymentStatus, ExpenseType, View, PaymentDetails, PaymentFrequency, PaymentUnit } from './types';
@@ -121,6 +120,8 @@ const App: React.FC = () => {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
     const [editingCommitment, setEditingCommitment] = useState<CommitmentWithTerm | null>(null);
+    const [openWithPauseForm, setOpenWithPauseForm] = useState(false); // When true, opens edit modal with pause form expanded
+    const [openWithResumeForm, setOpenWithResumeForm] = useState(false); // When true, opens edit modal with resume (new term) form expanded
     // V2 data (preloaded at app startup for instant tab switching)
     const [commitmentsV2, setCommitmentsV2] = useState<CommitmentWithTerm[]>([]);
     const [paymentsV2, setPaymentsV2] = useState<Map<string, Payment[]>>(new Map());
@@ -153,12 +154,6 @@ const App: React.FC = () => {
         isOpen: boolean;
         commitment: CommitmentWithTerm | null;
     }>({ isOpen: false, commitment: null });
-    // Resume modal state
-    const [resumeModalState, setResumeModalState] = useState<{
-        isOpen: boolean;
-        commitment: CommitmentWithTerm | null;
-    }>({ isOpen: false, commitment: null });
-
     useEffect(() => {
         const root = window.document.documentElement;
         if (theme === 'dark') {
@@ -862,13 +857,19 @@ const App: React.FC = () => {
         setEditingCell({ expenseId, year, month });
     };
 
-    // Handler to open resume modal
+    // Handler to open edit form for resuming a terminated commitment
     const handleResumeCommitment = useCallback((commitment: CommitmentWithTerm) => {
-        setResumeModalState({ isOpen: true, commitment });
+        setEditingCommitment(commitment);
+        setOpenWithResumeForm(true); // Pre-expand the resume (new term) form
+        setOpenWithPauseForm(false); // Ensure pause form is closed
+        setIsFormOpen(true);
     }, []);
 
     const handleOpenPaymentRecorder = useCallback((commitmentId: string, year: number, month: number) => {
-        const commitment = commitmentsV2.find(c => c.id === commitmentId);
+        // FIX: Use contextCommitments instead of commitmentsV2
+        // contextCommitments is updated by refreshCommitments() which is called after form save
+        // commitmentsV2 is only updated by refreshV2Data() which is NOT called after form save
+        const commitment = contextCommitments.find(c => c.id === commitmentId);
         if (commitment) {
             setPaymentRecorderState({
                 isOpen: true,
@@ -877,7 +878,7 @@ const App: React.FC = () => {
                 month,
             });
         }
-    }, [commitmentsV2]);
+    }, [contextCommitments]);
 
     const handleSavePaymentDetails = useCallback(async (expenseId: string, year: number, month: number, details: Partial<PaymentDetails>) => {
         const date_key = `${year}-${month}`;
@@ -1077,6 +1078,8 @@ const App: React.FC = () => {
                                         preloadedPayments={contextPayments}
                                         onEditCommitment={(c) => {
                                             setEditingCommitment(c);
+                                            setOpenWithPauseForm(false);
+                                            setOpenWithResumeForm(false);
                                             setIsFormOpen(true);
                                         }}
                                         onDeleteCommitment={(id) => {
@@ -1084,7 +1087,11 @@ const App: React.FC = () => {
                                             setCommitmentToDelete(id);
                                         }}
                                         onPauseCommitment={(c) => {
-                                            setPauseModalState({ isOpen: true, commitment: c });
+                                            // Open edit modal with pause form pre-expanded
+                                            setEditingCommitment(c);
+                                            setOpenWithPauseForm(true);
+                                            setOpenWithResumeForm(false); // Ensure resume form is closed
+                                            setIsFormOpen(true);
                                         }}
                                         onResumeCommitment={handleResumeCommitment}
                                         onRecordPayment={handleOpenPaymentRecorder}
@@ -1131,6 +1138,8 @@ const App: React.FC = () => {
                     setIsFormOpen(false);
                     setEditingExpense(null);
                     setEditingCommitment(null);
+                    setOpenWithPauseForm(false); // Reset pause form flag
+                    setOpenWithResumeForm(false); // Reset resume form flag
                 }}
                 onSave={handleSaveExpense}
                 expenseToEdit={editingExpense}
@@ -1146,6 +1155,8 @@ const App: React.FC = () => {
                         showToast('Error al actualizar', 'error');
                     }
                 }}
+                openWithPauseForm={openWithPauseForm}
+                openWithResumeForm={openWithResumeForm}
             />
             {editingCell && (() => {
                 const expense = expenses.find(e => e.id === editingCell.expenseId);
@@ -1203,7 +1214,8 @@ const App: React.FC = () => {
                 title={'Eliminar compromiso'}
                 message={(function () {
                     if (!commitmentToDelete) return '¿Seguro que deseas eliminar este compromiso?';
-                    const commitment = commitmentsV2.find(c => c.id === commitmentToDelete);
+                    // Use contextCommitments for consistency with handleOpenPaymentRecorder
+                    const commitment = contextCommitments.find(c => c.id === commitmentToDelete);
                     const name = commitment ? `"${commitment.name}"` : 'este compromiso';
                     return `Vas a eliminar ${name} y todos sus pagos asociados.\n\nEsta acción no se puede deshacer.`;
                 })()}
@@ -1282,20 +1294,6 @@ const App: React.FC = () => {
                 </React.Suspense>
             )}
 
-            {/* Resume Commitment Modal */}
-            {resumeModalState.isOpen && resumeModalState.commitment && (
-                <React.Suspense fallback={null}>
-                    <ResumeCommitmentModal
-                        isOpen={resumeModalState.isOpen}
-                        onClose={() => setResumeModalState({ isOpen: false, commitment: null })}
-                        onSuccess={async () => {
-                            showToast('Compromiso reanudado', 'success');
-                            await refreshCommitments(true);
-                        }}
-                        commitment={resumeModalState.commitment}
-                    />
-                </React.Suspense>
-            )}
         </div>
     );
 };

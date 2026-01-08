@@ -18,118 +18,16 @@ import { CommitmentFormV2 } from './CommitmentForm.v2';
 import { CommitmentService, TermService, PaymentService, getCurrentUserId } from '../services/dataService.v2';
 import { getUserCategories } from '../services/categoryService.v2';
 import type { Category } from '../services/categoryService.v2';
-import type { CommitmentFormData, TermFormData, CommitmentWithTerm, Payment } from '../types.v2';
+import type { CommitmentFormData, TermFormData, CommitmentWithTerm } from '../types.v2';
 import type { Expense } from '../types';
-import { AlertTriangle, ArrowRight } from 'lucide-react';
 
-// Modal for confirming payment reassignment
-interface ReassignPaymentsModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    onConfirm: (reassign: boolean) => void;
-    payments: Payment[];
-    oldEffectiveFrom: string;
-    newEffectiveFrom: string;
+/**
+ * Options passed from CommitmentForm.v2 to control save behavior
+ */
+interface SaveOptions {
+    skipTermProcessing?: boolean; // When true, wrapper should only update commitment metadata
+    currentActiveTermId?: string; // The actual current active term ID (may differ from props)
 }
-
-const ReassignPaymentsModal: React.FC<ReassignPaymentsModalProps> = ({
-    isOpen,
-    onClose,
-    onConfirm,
-    payments,
-    oldEffectiveFrom,
-    newEffectiveFrom
-}) => {
-    if (!isOpen) return null;
-
-    // Calculate month shift
-    const [oldYear, oldMonth] = oldEffectiveFrom.split('-').map(Number);
-    const [newYear, newMonth] = newEffectiveFrom.split('-').map(Number);
-    const monthShift = (newYear - oldYear) * 12 + (newMonth - oldMonth);
-
-    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-
-    const formatPeriod = (dateStr: string) => {
-        const [year, month] = dateStr.split('-').map(Number);
-        return `${monthNames[month - 1]} ${year}`;
-    };
-
-    const getNewPeriodDate = (oldPeriodDate: string) => {
-        const [pYear, pMonth, pDay] = oldPeriodDate.split('-').map(Number);
-        const newDate = new Date(pYear, pMonth - 1 + monthShift, pDay);
-        return `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-${String(newDate.getDate()).padStart(2, '0')}`;
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-md p-6 shadow-xl border border-slate-200 dark:border-slate-800">
-                <div className="flex items-start gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-                        <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                            Pagos registrados encontrados
-                        </h3>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                            Este compromiso tiene <strong>{payments.length} pagos</strong> registrados en el término anterior.
-                        </p>
-                    </div>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 mb-4 max-h-48 overflow-y-auto">
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
-                        Los pagos se reasignarán así:
-                    </p>
-                    <div className="space-y-1.5">
-                        {payments.slice(0, 6).map((payment, idx) => {
-                            const oldPeriod = formatPeriod(payment.period_date);
-                            const newPeriod = formatPeriod(getNewPeriodDate(payment.period_date));
-                            return (
-                                <div key={payment.id} className="flex items-center gap-2 text-sm">
-                                    <span className="text-slate-600 dark:text-slate-300 font-mono">
-                                        Cuota {idx + 1}:
-                                    </span>
-                                    <span className="text-slate-500 dark:text-slate-400">
-                                        {oldPeriod}
-                                    </span>
-                                    <ArrowRight className="w-3 h-3 text-slate-400" />
-                                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                                        {newPeriod}
-                                    </span>
-                                </div>
-                            );
-                        })}
-                        {payments.length > 6 && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-                                ... y {payments.length - 6} pagos más
-                            </p>
-                        )}
-                    </div>
-                </div>
-
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                    ¿Deseas reasignar los pagos al nuevo término?
-                </p>
-
-                <div className="flex gap-3">
-                    <button
-                        onClick={() => onConfirm(false)}
-                        className="flex-1 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                    >
-                        No, mantener
-                    </button>
-                    <button
-                        onClick={() => onConfirm(true)}
-                        className="flex-1 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
-                    >
-                        Sí, reasignar
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 interface ExpenseCommitmentFormWrapperProps {
     isOpen: boolean;
@@ -140,20 +38,8 @@ interface ExpenseCommitmentFormWrapperProps {
     categories: string[] | Category[]; // v1 categories (string array) or v2 Category[]
     expenses: Expense[]; // v1 expenses
     onRefresh?: () => void; // Callback to refresh data after v2 save
-}
-
-// State for pending save operation (when waiting for user confirmation)
-interface PendingSaveState {
-    commitmentId: string; // Store the commitment ID to avoid depending on props
-    commitment: CommitmentFormData;
-    term: TermFormData;
-    userId: string;
-    termWithPayments: CommitmentWithTerm['active_term']; // The term that has the payments (may be closed)
-    currentActiveTerm: CommitmentWithTerm['active_term']; // The current active term (may be different)
-    payments: Payment[];
-    oldEffectiveFrom: string;
-    newEffectiveFrom: string;
-    linkingInfo?: { newLinkedId: string | null; previousLinkedFromId: string | null; isUnlinking: boolean };
+    openWithPauseForm?: boolean; // When true, opens with pause form expanded in TermsListView
+    openWithResumeForm?: boolean; // When true, opens with resume (new term) form expanded in TermsListView
 }
 
 export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapperProps> = (props) => {
@@ -162,11 +48,6 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
     const { commitments: existingCommitments } = useCommitments(); // Get existing commitments for linking
     const { showToast } = useToast();
     const [v2Categories, setV2Categories] = React.useState<Category[]>([]);
-    const [loading, setLoading] = React.useState(false);
-
-    // State for reassignment confirmation modal
-    const [showReassignModal, setShowReassignModal] = React.useState(false);
-    const [pendingSave, setPendingSave] = React.useState<PendingSaveState | null>(null);
 
     // Load v2 categories when v2 is enabled OR when form opens
     React.useEffect(() => {
@@ -185,94 +66,6 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
         } catch (error) {
             console.error('Error loading v2 categories:', error);
         }
-    };
-
-    // Complete the save operation (called after user confirms or skips reassignment)
-    const completeSave = async (shouldReassign: boolean) => {
-        if (!pendingSave) return;
-
-        const { commitmentId, commitment, term, userId, termWithPayments, currentActiveTerm, payments, oldEffectiveFrom, newEffectiveFrom, linkingInfo } = pendingSave;
-
-        setLoading(true);
-        try {
-            // Update commitment
-            await CommitmentService.updateCommitment(commitmentId, commitment);
-
-            // Determine the target term for the update
-            // If currentActiveTerm exists and is different from termWithPayments, update it
-            // Otherwise, we need to create a new term
-            let targetTermId: string;
-
-            if (currentActiveTerm && currentActiveTerm.id !== termWithPayments?.id) {
-                // There's already a separate active term (v2) - update it
-                console.log('Updating existing active term:', currentActiveTerm.id);
-                await TermService.updateTerm(currentActiveTerm.id, term);
-                targetTermId = currentActiveTerm.id;
-            } else {
-                // No separate active term exists, or active term IS the term with payments
-                // Close the old term and create a new one
-                console.log('Creating new term (closing old term with payments)');
-
-                // Close the old term (set effective_until to day before new term starts)
-                const [year, month, day] = newEffectiveFrom.split('-').map(Number);
-                const closeDateObj = new Date(year, month - 1, day - 1);
-                const closeDate = `${closeDateObj.getFullYear()}-${String(closeDateObj.getMonth() + 1).padStart(2, '0')}-${String(closeDateObj.getDate()).padStart(2, '0')}`;
-
-                if (termWithPayments) {
-                    await TermService.updateTerm(termWithPayments.id, {
-                        effective_until: closeDate
-                    });
-                }
-
-                // Create new term with updated values
-                const newTerm = await TermService.createTerm(commitmentId, term);
-                if (!newTerm) {
-                    throw new Error('Failed to create new term');
-                }
-                targetTermId = newTerm.id;
-            }
-
-            // Reassign payments only if user confirmed
-            if (shouldReassign && payments.length > 0) {
-                // Pass ALL commitment payments to be reassigned (not just from one term)
-                const reassignedCount = await PaymentService.reassignPaymentsToNewTerm(
-                    payments, // Pass the payments array directly
-                    targetTermId,
-                    oldEffectiveFrom,
-                    newEffectiveFrom,
-                    userId
-                );
-                console.log(`Reassigned ${reassignedCount} payments to term ${targetTermId} (with audit trail)`);
-            } else if (!shouldReassign) {
-                // User chose not to reassign - payments stay with old term
-                console.log('User chose not to reassign payments - keeping original period dates');
-            }
-
-            // Handle bidirectional linking
-            if (linkingInfo) {
-                await handleBidirectionalLinking(commitmentId, linkingInfo);
-            }
-
-            // Notify parent to refresh data
-            if (props.onRefresh) {
-                props.onRefresh();
-            }
-
-            showToast(t('save.commitmentSuccess', 'Compromiso guardado exitosamente'), 'success');
-            props.onClose();
-        } catch (error) {
-            console.error('Error completing v2 commitment save:', error);
-            showToast(t('save.commitmentError', 'Error al guardar el compromiso'), 'error');
-            throw error;
-        } finally {
-            setLoading(false);
-            setPendingSave(null);
-            setShowReassignModal(false);
-        }
-    };
-
-    const handleReassignConfirm = (shouldReassign: boolean) => {
-        completeSave(shouldReassign);
     };
 
     // Handle bidirectional linking updates
@@ -311,15 +104,40 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
         }
     };
 
-    const handleV2Save = async (commitment: CommitmentFormData, term: TermFormData) => {
-        setLoading(true);
+    const handleV2Save = async (commitment: CommitmentFormData, term: TermFormData, options?: SaveOptions) => {
         try {
+            console.log('[handleV2Save] Called with options:', options);
+
             const userId = await getCurrentUserId();
             if (!userId) {
                 throw new Error('User not authenticated');
             }
 
             if (props.commitmentToEdit) {
+                // FAST PATH: If skipTermProcessing is true, terms were already handled by TermsListView
+                // Just update commitment metadata and exit
+                if (options?.skipTermProcessing) {
+                    console.log('[handleV2Save] skipTermProcessing=true - updating commitment metadata only');
+
+                    // Extract linking info for bidirectional updates
+                    const linkingInfo = (commitment as any).__linkingInfo;
+                    delete (commitment as any).__linkingInfo;
+
+                    await CommitmentService.updateCommitment(props.commitmentToEdit.id, commitment);
+
+                    // Handle bidirectional linking
+                    if (linkingInfo) {
+                        await handleBidirectionalLinking(props.commitmentToEdit.id, linkingInfo);
+                    }
+
+                    if (props.onRefresh) {
+                        props.onRefresh();
+                    }
+                    showToast(t('save.commitmentSuccess', 'Compromiso guardado exitosamente'), 'success');
+                    props.onClose();
+                    return;
+                }
+
                 // Update existing commitment
                 const activeTerm = props.commitmentToEdit.active_term;
                 const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
@@ -328,9 +146,14 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
                 // Term was ENDED = had an effective_until in the past
                 const wasTermEnded = originalEffectiveUntil && originalEffectiveUntil < today;
 
-                // New term starts today or future, AND has no end date (or future end date)
+                // Extract year-month from dates for comparison (ignore day)
+                const todayYearMonth = today.substring(0, 7); // "2026-01"
+                const newEffectiveFromYearMonth = term.effective_from.substring(0, 7);
+
+                // New term starts in current month or future, AND has no end date (or future end date)
+                // Use year-month comparison to allow starting on day 1 of current month
                 const isCreatingNewActiveTerm =
-                    term.effective_from >= today &&
+                    newEffectiveFromYearMonth >= todayYearMonth &&
                     (!term.effective_until || term.effective_until >= today);
 
                 // REACTIVATION = term was ended AND we're creating a new active term
@@ -344,32 +167,73 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
                     ? await PaymentService.getPayments(props.commitmentToEdit.id)
                     : [];
 
-                // Find the term that has the payments (may differ from activeTerm if user already edited once)
-                let termWithPayments = activeTerm;
-                if (allPayments.length > 0 && allPayments[0].term_id !== activeTerm?.id) {
-                    // Payments are on a different term - get that term's info
-                    const foundTerm = await TermService.getTerm(allPayments[0].term_id);
-                    if (foundTerm) {
-                        termWithPayments = foundTerm;
+                // IMPORTANT: Only consider payments from the ACTIVE term
+                // Payments in closed terms (from pauses/previous edits) are history - don't touch them
+                const activeTermPayments = allPayments.filter(p => p.term_id === activeTerm?.id);
+
+                // DEBUG: Log payment information to diagnose term creation issues
+                console.log('[handleV2Save] Payment analysis:', {
+                    hasPayments,
+                    totalPayments: allPayments.length,
+                    activeTermId: activeTerm?.id,
+                    activeTermPaymentsCount: activeTermPayments.length,
+                    allPaymentTermIds: allPayments.map(p => ({ period: p.period_date, term_id: p.term_id })),
+                });
+
+                // Check if effective_from changed relative to the ACTIVE term
+                const effectiveFromChanged = activeTerm && activeTerm.effective_from !== term.effective_from;
+
+                // Check for closed terms (terms with effective_until that are NOT the active term)
+                // These act as "barriers" - we can't overlap with them
+                const allTerms = await TermService.getTerms(props.commitmentToEdit.id);
+                const closedTerms = allTerms.filter(t => t.id !== activeTerm?.id && t.effective_until);
+                const hasClosedTerms = closedTerms.length > 0;
+
+                // VALIDATION: "Pausa como Barrera" - prevent term overlap
+                // If there are closed terms, new effective_from must be > most recent closed term's effective_until
+                if (hasClosedTerms && effectiveFromChanged) {
+                    // Get the most recent closed term (highest version)
+                    const sortedClosedTerms = [...closedTerms].sort((a, b) => b.version - a.version);
+                    const mostRecentClosed = sortedClosedTerms[0];
+
+                    if (mostRecentClosed.effective_until && term.effective_from <= mostRecentClosed.effective_until) {
+                        // Format the date for error message
+                        const [year, month] = mostRecentClosed.effective_until.split('-').map(Number);
+                        const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                        const formattedDate = `${monthNames[month - 1]} ${year}`;
+
+                        showToast(
+                            `La fecha de inicio no puede ser anterior o igual a ${formattedDate}. Existe un término cerrado (pausa) hasta esa fecha.`,
+                            'error'
+                        );
+                        return;
                     }
                 }
 
-                // Check if effective_from changed relative to the term that HAS the payments
-                const effectiveFromChanged = termWithPayments && termWithPayments.effective_from !== term.effective_from;
+                // NEW SIMPLIFIED LOGIC: No modal for date changes
+                // - Backward (Mar→Ene): Simply extend the existing term's effective_from
+                // - Forward (Ene→Mar): Close current term, create new term
+                // - Payments NEVER change period - they stay where they are
 
                 console.log('Action check:', {
                     originalEffectiveUntil,
                     newEffectiveFrom: term.effective_from,
                     newEffectiveUntil: term.effective_until,
                     today,
-                    wasTermEnded,
-                    isCreatingNewActiveTerm,
-                    isReactivation,
+                    todayYearMonth,
+                    newEffectiveFromYearMonth,
+                    'wasTermEnded (effectiveUntil < today)': wasTermEnded,
+                    'isCreatingNewActiveTerm (newYM >= todayYM && no end)': isCreatingNewActiveTerm,
+                    '>>> isReactivation': isReactivation,
                     hasPayments,
+                    allPaymentsCount: allPayments.length,
+                    activeTermPaymentsCount: activeTermPayments.length,
                     effectiveFromChanged,
                     activeTermId: activeTerm?.id,
-                    termWithPaymentsId: termWithPayments?.id,
-                    termWithPaymentsEffectiveFrom: termWithPayments?.effective_from
+                    activeTermEffectiveFrom: activeTerm?.effective_from,
+                    hasClosedTerms,
+                    closedTermsCount: closedTerms.length,
                 });
 
                 // Extract linking info for bidirectional updates
@@ -393,31 +257,62 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
                     }
                     showToast(t('save.commitmentReactivated', 'Compromiso reactivado exitosamente'), 'success');
                     props.onClose();
-                } else if (hasPayments && effectiveFromChanged) {
-                    // Commitment has payments AND effective_from changed - ask user about reassignment
-                    console.log('Commitment has payments and effective_from changed - showing confirmation modal', {
-                        oldEffectiveFrom: termWithPayments!.effective_from,
-                        newEffectiveFrom: term.effective_from,
-                        paymentsCount: allPayments.length
+                } else if (effectiveFromChanged && activeTerm && activeTermPayments.length > 0) {
+                    // Date changed AND there are payments in the active term
+                    // Need to handle carefully to preserve payment history
+                    const oldEffectiveFrom = activeTerm.effective_from;
+                    const newEffectiveFrom = term.effective_from;
+                    const isMovingBackward = newEffectiveFrom < oldEffectiveFrom;
+
+                    console.log('Date change detected WITH payments:', {
+                        direction: isMovingBackward ? 'BACKWARD' : 'FORWARD',
+                        oldEffectiveFrom,
+                        newEffectiveFrom,
+                        activeTermPaymentsCount: activeTermPayments.length
                     });
 
-                    // Store pending save state and show modal
-                    setPendingSave({
-                        commitmentId: props.commitmentToEdit.id,
-                        commitment,
-                        term,
-                        userId,
-                        termWithPayments: termWithPayments, // The term that has payments (may be closed v1)
-                        currentActiveTerm: activeTerm, // The current active term (may be v2)
-                        payments: allPayments,
-                        oldEffectiveFrom: termWithPayments!.effective_from,
-                        newEffectiveFrom: term.effective_from,
-                        linkingInfo, // Include linking info for bidirectional updates
-                    });
-                    setShowReassignModal(true);
-                    setLoading(false);
-                    return; // Don't close yet - wait for user confirmation
-                } else if (hasPayments) {
+                    // Update commitment first
+                    await CommitmentService.updateCommitment(props.commitmentToEdit.id, commitment);
+
+                    if (isMovingBackward) {
+                        // BACKWARD (Mar→Ene): Simply extend the term's effective_from
+                        // Payments stay valid because the extended range now covers them
+                        console.log('Moving backward: extending term effective_from');
+                        await TermService.updateTerm(activeTerm.id, term);
+                    } else {
+                        // FORWARD (Ene→Mar): Close current term, create new term
+                        // Payments stay with closed term (their original periods)
+                        // IMPORTANT: Close at the last day of the PREVIOUS month to avoid overlap
+                        // Validation compares at month level, so closing on Mar 14 when new starts Mar 15
+                        // would still be considered March = overlap
+                        const [year, month] = newEffectiveFrom.split('-').map(Number);
+                        // Get last day of previous month (month-1 in JS is previous month, day 0 gives last day)
+                        const lastDayPrevMonth = new Date(year, month - 1, 0);
+                        const closeDate = `${lastDayPrevMonth.getFullYear()}-${String(lastDayPrevMonth.getMonth() + 1).padStart(2, '0')}-${String(lastDayPrevMonth.getDate()).padStart(2, '0')}`;
+
+                        console.log('Moving forward: closing term at', closeDate, '(last day of prev month), creating new from', newEffectiveFrom);
+
+                        // Close current term
+                        await TermService.updateTerm(activeTerm.id, {
+                            effective_until: closeDate
+                        });
+
+                        // Create new term with updated values
+                        await TermService.createTerm(props.commitmentToEdit.id, term);
+                    }
+
+                    // Handle bidirectional linking
+                    if (linkingInfo) {
+                        await handleBidirectionalLinking(props.commitmentToEdit.id, linkingInfo);
+                    }
+
+                    // Notify parent to refresh data
+                    if (props.onRefresh) {
+                        props.onRefresh();
+                    }
+                    showToast(t('save.commitmentSuccess', 'Compromiso guardado exitosamente'), 'success');
+                    props.onClose();
+                } else if (activeTermPayments.length > 0 && activeTerm) {
                     // Term has payments but effective_from didn't change
                     // Just update the term in place (other fields changed)
                     console.log('Term has payments but effective_from unchanged - updating term');
@@ -434,9 +329,56 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
                     }
                     showToast(t('save.commitmentSuccess', 'Compromiso guardado exitosamente'), 'success');
                     props.onClose();
+                } else if (effectiveFromChanged && activeTerm) {
+                    // Date changed but NO payments in active term
+                    // Still need to handle forward/backward differently to maintain history
+                    const oldEffectiveFrom = activeTerm.effective_from;
+                    const newEffectiveFrom = term.effective_from;
+                    const isMovingBackward = newEffectiveFrom < oldEffectiveFrom;
+
+                    console.log('Date change detected WITHOUT payments:', {
+                        direction: isMovingBackward ? 'BACKWARD' : 'FORWARD',
+                        oldEffectiveFrom,
+                        newEffectiveFrom
+                    });
+
+                    await CommitmentService.updateCommitment(props.commitmentToEdit.id, commitment);
+
+                    if (isMovingBackward) {
+                        // BACKWARD: Simply extend term's effective_from (no history needed)
+                        console.log('Moving backward (no payments): extending term');
+                        await TermService.updateTerm(activeTerm.id, term);
+                    } else {
+                        // FORWARD: Close current term, create new term (maintain history)
+                        // IMPORTANT: Close at the last day of the PREVIOUS month to avoid overlap
+                        const [year, month] = newEffectiveFrom.split('-').map(Number);
+                        const lastDayPrevMonth = new Date(year, month - 1, 0);
+                        const closeDate = `${lastDayPrevMonth.getFullYear()}-${String(lastDayPrevMonth.getMonth() + 1).padStart(2, '0')}-${String(lastDayPrevMonth.getDate()).padStart(2, '0')}`;
+
+                        console.log('Moving forward (no payments): closing term at', closeDate, '(last day of prev month), creating new from', newEffectiveFrom);
+
+                        // Close current term
+                        await TermService.updateTerm(activeTerm.id, {
+                            effective_until: closeDate
+                        });
+
+                        // Create new term
+                        await TermService.createTerm(props.commitmentToEdit.id, term);
+                    }
+
+                    // Handle bidirectional linking
+                    if (linkingInfo) {
+                        await handleBidirectionalLinking(props.commitmentToEdit.id, linkingInfo);
+                    }
+
+                    if (props.onRefresh) {
+                        props.onRefresh();
+                    }
+                    showToast(t('save.commitmentSuccess', 'Compromiso guardado exitosamente'), 'success');
+                    props.onClose();
                 } else if (activeTerm) {
-                    // No payments - safe to update existing term
-                    console.log('Updating existing term (no payments):', {
+                    // No date change, no payments - just update term in place
+                    console.log('Updating existing term (no date change, no payments):', {
                         termId: activeTerm.id,
                         due_day_of_month: term.due_day_of_month,
                         effective_from: term.effective_from,
@@ -444,6 +386,22 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
                     });
                     await CommitmentService.updateCommitment(props.commitmentToEdit.id, commitment);
                     await TermService.updateTerm(activeTerm.id, term);
+
+                    // Handle bidirectional linking
+                    if (linkingInfo) {
+                        await handleBidirectionalLinking(props.commitmentToEdit.id, linkingInfo);
+                    }
+
+                    if (props.onRefresh) {
+                        props.onRefresh();
+                    }
+                    showToast(t('save.commitmentSuccess', 'Compromiso guardado exitosamente'), 'success');
+                    props.onClose();
+                } else {
+                    // No active term - all terms are closed
+                    // Just update commitment metadata
+                    console.log('No active term found - updating commitment only');
+                    await CommitmentService.updateCommitment(props.commitmentToEdit.id, commitment);
 
                     // Handle bidirectional linking
                     if (linkingInfo) {
@@ -485,8 +443,6 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
             console.error('Error saving v2 commitment:', error);
             showToast(t('save.commitmentError', 'Error al guardar el compromiso'), 'error');
             throw error;
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -502,21 +458,10 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
                     commitmentToEdit={props.commitmentToEdit ?? null}
                     existingCommitments={existingCommitments}
                     onCategoriesChange={loadV2Categories}
+                    openWithPauseForm={props.openWithPauseForm}
+                    openWithResumeForm={props.openWithResumeForm}
+                    onCommitmentUpdated={props.onRefresh}
                 />
-                {/* Reassignment confirmation modal */}
-                {pendingSave && (
-                    <ReassignPaymentsModal
-                        isOpen={showReassignModal}
-                        onClose={() => {
-                            setShowReassignModal(false);
-                            setPendingSave(null);
-                        }}
-                        onConfirm={handleReassignConfirm}
-                        payments={pendingSave.payments}
-                        oldEffectiveFrom={pendingSave.oldEffectiveFrom}
-                        newEffectiveFrom={pendingSave.newEffectiveFrom}
-                    />
-                )}
             </>
         );
     }

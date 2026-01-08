@@ -376,10 +376,51 @@ export const TermService = {
     },
 
     /**
+     * Validate that a term's date range doesn't overlap with ANY other terms
+     * Uses year-month comparison (not exact day) for consistency with period logic
+     * @throws Error if overlap detected
+     */
+    async validateNoOverlap(
+        commitmentId: string,
+        termId: string | null,
+        effectiveFrom: string,
+        effectiveUntil: string | null = null
+    ): Promise<void> {
+        const terms = await this.getTerms(commitmentId);
+        // Find all other terms (not the one being updated)
+        const otherTerms = terms.filter(t => t.id !== termId);
+
+        // Extract year-month for comparison
+        const newFromYM = effectiveFrom.substring(0, 7);
+        const newUntilYM = effectiveUntil?.substring(0, 7) || '9999-12'; // Infinity for open terms
+
+        for (const term of otherTerms) {
+            const termFromYM = term.effective_from.substring(0, 7);
+            const termUntilYM = term.effective_until?.substring(0, 7) || '9999-12';
+
+            // Check for overlap: ranges overlap if !(newEnd < termStart || newStart > termEnd)
+            const overlaps = !(newUntilYM < termFromYM || newFromYM > termUntilYM);
+
+            if (overlaps) {
+                const termRange = term.effective_until
+                    ? `${termFromYM} a ${termUntilYM}`
+                    : `${termFromYM} en adelante`;
+                throw new Error(
+                    `El rango ${newFromYM} a ${newUntilYM === '9999-12' ? '∞' : newUntilYM} ` +
+                    `se superpone con V${term.version} (${termRange}).`
+                );
+            }
+        }
+    },
+
+    /**
      * Create a new term (version)
      */
     async createTerm(commitmentId: string, termData: TermFormData): Promise<Term | null> {
         if (!supabase) throw new Error('Supabase not configured');
+
+        // Validate no overlap with any existing terms
+        await this.validateNoOverlap(commitmentId, null, termData.effective_from, termData.effective_until);
 
         // Get next version number
         const { data: existingTerms } = await supabase
@@ -417,6 +458,16 @@ export const TermService = {
 
         console.log('[TermService.updateTerm] Updating term:', id, 'with:', updates);
 
+        // If effective_from or effective_until is being updated, validate no overlap
+        if (updates.effective_from !== undefined || updates.effective_until !== undefined) {
+            const currentTerm = await this.getTerm(id);
+            if (currentTerm) {
+                const newFrom = updates.effective_from ?? currentTerm.effective_from;
+                const newUntil = updates.effective_until !== undefined ? updates.effective_until : currentTerm.effective_until;
+                await this.validateNoOverlap(currentTerm.commitment_id, id, newFrom, newUntil);
+            }
+        }
+
         const { data, error } = await supabase
             .from('terms')
             .update(updates)
@@ -431,6 +482,88 @@ export const TermService = {
 
         console.log('[TermService.updateTerm] Result:', data);
         return data;
+    },
+
+    /**
+     * Delete a term (only if it has no payments)
+     * @throws Error if term has payments
+     */
+    async deleteTerm(termId: string): Promise<void> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        // First check if term has payments
+        const { count, error: countError } = await supabase
+            .from('payments')
+            .select('*', { count: 'exact', head: true })
+            .eq('term_id', termId);
+
+        if (countError) {
+            console.error('Error checking payments for term:', countError);
+            throw countError;
+        }
+
+        if (count && count > 0) {
+            throw new Error(`No se puede eliminar el término porque tiene ${count} pago(s) asociado(s).`);
+        }
+
+        const { error } = await supabase
+            .from('terms')
+            .delete()
+            .eq('id', termId);
+
+        if (error) {
+            console.error('Error deleting term:', error);
+            throw error;
+        }
+
+        console.log('[TermService.deleteTerm] Deleted term:', termId);
+    },
+
+    /**
+     * Delete all empty terms (terms with no payments) for a commitment
+     * Preserves the active term even if empty
+     * @returns Number of terms deleted
+     */
+    async deleteEmptyTerms(commitmentId: string, preserveTermId?: string): Promise<number> {
+        if (!supabase) throw new Error('Supabase not configured');
+
+        // Get all terms
+        const terms = await this.getTerms(commitmentId);
+
+        // For each term, check if it has payments
+        let deletedCount = 0;
+        for (const term of terms) {
+            // Skip the term to preserve (usually the active one)
+            if (preserveTermId && term.id === preserveTermId) {
+                continue;
+            }
+
+            // Check for payments
+            const { count, error } = await supabase
+                .from('payments')
+                .select('*', { count: 'exact', head: true })
+                .eq('term_id', term.id);
+
+            if (error) {
+                console.error('Error checking payments for term:', term.id, error);
+                continue;
+            }
+
+            // Delete if no payments
+            if (!count || count === 0) {
+                const { error: deleteError } = await supabase
+                    .from('terms')
+                    .delete()
+                    .eq('id', term.id);
+
+                if (!deleteError) {
+                    console.log('[TermService.deleteEmptyTerms] Deleted empty term:', term.id, 'V' + term.version);
+                    deletedCount++;
+                }
+            }
+        }
+
+        return deletedCount;
     },
 
     /**
@@ -505,6 +638,18 @@ export const TermService = {
         const [year, month] = lastMonth.split('-').map(Number);
         const lastDayOfMonth = new Date(year, month, 0).getDate();
         const effectiveUntil = `${lastMonth}-${String(lastDayOfMonth).padStart(2, '0')}`;
+
+        // CRITICAL: Validate that effective_until >= effective_from (year-month level)
+        // This prevents creating inverted date ranges like "Mar 2026 → Jan 2026"
+        const effectiveFromYM = activeTerm.effective_from.substring(0, 7);
+        const effectiveUntilYM = effectiveUntil.substring(0, 7);
+
+        if (effectiveUntilYM < effectiveFromYM) {
+            throw new Error(
+                `No se puede pausar en ${lastMonth} porque el término activo comienza en ${effectiveFromYM}. ` +
+                `Selecciona un mes igual o posterior a ${effectiveFromYM}.`
+            );
+        }
 
         // Update the term
         return await this.updateTerm(activeTerm.id, {

@@ -22,10 +22,11 @@ import {
     SubscriptionIcon, MiscIcon, CategoryIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
     StarIcon, IconProps, PauseIcon, PlusIcon, EyeIcon, EyeSlashIcon
 } from './icons';
-import type { CommitmentWithTerm, Payment, FlowType, Term } from '../types.v2';
+import type { CommitmentWithTerm, Payment, FlowType } from '../types.v2';
 import { periodToString } from '../types.v2';
 import { parseDateString, extractYearMonth, getPerPeriodAmount } from '../utils/financialUtils.v2';
-import { Sparkles, Link2, MoreVertical, Home } from 'lucide-react';
+import { findTermForPeriod } from '../utils/termUtils';
+import { Sparkles, Link2, MoreVertical, Home, Minus } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 
@@ -37,7 +38,7 @@ const CompactTooltip = ({ children, content, triggerClassName, sideOffset = 5 }:
         <Tooltip.Root disableHoverableContent={true}>
             <Tooltip.Trigger asChild>
                 {/* Wrap in span to ensure ref passing if child is composite */}
-                <span className={`h-full w-full block outline-none cursor-default ${triggerClassName || ''}`}>{children}</span>
+                <span className={`h-full w-full block outline-none ${triggerClassName || ''}`}>{children}</span>
             </Tooltip.Trigger>
             <Tooltip.Portal>
                 <Tooltip.Content
@@ -92,38 +93,9 @@ const getCategoryIcon = (category: string) => {
     return React.cloneElement(icon, { className: 'w-5 h-5' });
 };
 
-/**
- * Get the active term for a commitment in a specific period/month
- * Supports multi-term commitments (paused/resumed, changed amounts, etc.)
- *
- * FIX: Compares only year-month, ignoring day to avoid off-by-one month errors
- * when effective_from has day > 1 (e.g., "2025-12-09" should match Dec 2025)
- *
- * FIX: Sort by version DESC to get most recent term when multiple match
- */
-const getTermForPeriod = (commitment: CommitmentWithTerm, monthDate: Date): Term | null => {
-    const all_terms = commitment.all_terms || [];
-    if (all_terms.length === 0) return commitment.active_term; // Fallback
-
-    // Extract year-month from target period (ignore day)
-    const periodYearMonth = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
-
-    // Sort by version DESC to prefer most recent term when multiple match
-    const term = all_terms
-        .slice() // Don't mutate original
-        .sort((a, b) => b.version - a.version) // Most recent first
-        .find(t => {
-            const termStartYearMonth = t.effective_from.substring(0, 7); // "2025-12"
-            const termEndYearMonth = t.effective_until?.substring(0, 7) || null; // "2026-06" or null
-
-            const startMatches = termStartYearMonth <= periodYearMonth;
-            const endMatches = termEndYearMonth === null || termEndYearMonth >= periodYearMonth;
-
-            return startMatches && endMatches;
-        });
-
-    return term || null;
-};
+// NOTE: getTermForPeriod has been extracted to utils/termUtils.ts as findTermForPeriod
+// It is imported at the top of this file. This alias maintains backward compatibility.
+const getTermForPeriod = findTermForPeriod;
 
 
 // =============================================================================
@@ -483,22 +455,15 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     }, [getCommitmentSortData, language]);
 
     // Check if commitment is active in a given month based on frequency
+    // IMPORTANT: Uses getTermForPeriod to check ALL terms (not just active_term)
+    // This ensures historical periods covered by closed terms are still shown
     const isActiveInMonth = useCallback((commitment: CommitmentWithTerm, monthDate: Date): boolean => {
-        const term = commitment.active_term;
+        // Use getTermForPeriod to find ANY term that covers this month (including closed terms)
+        const term = getTermForPeriod(commitment, monthDate);
         if (!term) return false;
 
         // Use extractYearMonth to avoid timezone issues
         const { year: startYear, month: startMonth } = extractYearMonth(term.effective_from);
-        const startDate = new Date(startYear, startMonth - 1, 1);
-        const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-
-        if (startDate > monthEnd) return false;
-        if (term.effective_until) {
-            const { year: endYear, month: endMonth } = extractYearMonth(term.effective_until);
-            const endDate = new Date(endYear, endMonth - 1, 1);
-            if (endDate < monthStart) return false;
-        }
 
         // Check frequency - use extracted year/month for correct calculation
         const monthsDiff = (monthDate.getFullYear() - startYear) * 12 +
@@ -666,6 +631,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     /**
      * Get the termination reason for a commitment
      * Used to display differentiated badges: PAUSADO, COMPLETADO, TERMINADO
+     * 
+     * PAUSED = Ended by manual pause (effective_until passed, no installments)
+     * COMPLETED_INSTALLMENTS = Completed all installments
+     * TERMINATED = Generic ended state
+     * ACTIVE = Currently running (even if has future end date)
      */
     const getTerminationReason = useCallback((commitment: CommitmentWithTerm): TerminationReason => {
         // Use the most recent term, not just active_term
@@ -676,39 +646,29 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
         if (!latestTerm) return 'TERMINATED';
 
-        // No end date = active
+        // No end date = active (indefinite)
         if (!latestTerm.effective_until) return 'ACTIVE';
 
         // Use extractYearMonth to avoid timezone issues with date parsing
         const { year: endYear, month: endMonth } = extractYearMonth(latestTerm.effective_until);
-        const endDate = new Date(endYear, endMonth - 1, 28); // Use day 28 to be safe (end of month)
+        const endOfMonth = new Date(endYear, endMonth, 0); // Last day of end month
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // End date hasn't passed yet (compare by month end)
-        // A commitment ending in Dec 2025 is still "active" during Dec 2025
-        const endOfMonth = new Date(endYear, endMonth, 0); // Last day of end month
-
+        // If end date hasn't passed yet → commitment is still ACTIVE
+        // (even if it has a scheduled end date)
         if (endOfMonth >= today) {
-            // Has installments = will end by installments (not paused)
-            if (latestTerm.installments_count && latestTerm.installments_count > 1) {
-                return 'ACTIVE'; // Still active, will end when date arrives
-            }
-            // One-time payment is not "paused"
-            if (latestTerm.frequency === 'ONCE') {
-                return 'ACTIVE';
-            }
-            // No installments = manually paused
-            return 'PAUSED';
+            return 'ACTIVE';
         }
 
-        // End date has passed (we're past the end month)
+        // End date HAS PASSED - now determine why it ended
         if (latestTerm.installments_count && latestTerm.installments_count > 1) {
             return 'COMPLETED_INSTALLMENTS'; // Completed all installments
         }
 
-        return 'TERMINATED'; // Ended by pause that already passed
+        // Ended manually (pause that already passed)
+        return 'PAUSED';
     }, []);
 
     // Check if commitment is terminated (has effective_until in the past)
@@ -879,70 +839,78 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                     </div>
                 </div>
 
-                {/* Row 2: KPIs Mobile Redesign (< lg) - Pendiente como héroe */}
+                {/* Row 2: KPIs Mobile Redesign (< lg) - Bento Style */}
                 {(() => {
                     const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
                     return (
-                        <div className="lg:hidden px-4 py-4 bg-gradient-to-b from-slate-50/80 to-white/60 dark:from-slate-800/80 dark:to-slate-900/60 border-t border-slate-200/50 dark:border-slate-700/50">
-                            {/* KPI Héroe: Pendiente */}
-                            <div className="text-center mb-4">
-                                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">
-                                    Pendiente
+                        <div className="lg:hidden px-6 py-6 space-y-6">
+                            {/* KPI Héroe: Pendiente - Glass Card */}
+                            <div className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 to-orange-500/5 dark:from-amber-900/40 dark:to-orange-900/10 rounded-3xl border border-amber-100/50 dark:border-amber-500/20 p-6 text-center shadow-lg backdrop-blur-xl">
+                                <div className="absolute top-0 right-0 p-4 opacity-10">
+                                    <ClockIcon className="w-24 h-24 text-amber-500" />
+                                </div>
+                                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-2">
+                                    Pendiente por pagar
                                 </p>
-                                <p className="text-2xl font-bold font-mono tabular-nums text-amber-600 dark:text-amber-400">
+                                <p className="text-4xl font-black font-mono tracking-tighter text-amber-600 dark:text-amber-300 drop-shadow-sm">
                                     {formatClp(totals.pendiente)}
                                 </p>
                             </div>
 
-                            {/* KPIs Secundarios */}
-                            <div className="flex items-center justify-center gap-3 mb-4">
-                                <div className="flex-1 bg-white/60 dark:bg-slate-800/60 rounded-xl px-3 py-2 text-center border border-slate-200/50 dark:border-slate-700/50">
-                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Comprometido</p>
-                                    <p className="text-sm font-bold font-mono tabular-nums text-slate-700 dark:text-slate-200">
+                            {/* KPIs Secundarios - Bento Grid */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white/60 dark:bg-slate-800/40 backdrop-blur-md rounded-2xl p-4 text-center border border-white/50 dark:border-white/10 shadow-sm">
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Comprometido</p>
+                                    <p className="text-lg font-bold font-mono text-slate-700 dark:text-slate-200">
                                         {formatClp(totals.comprometido)}
                                     </p>
                                 </div>
-                                <div className="flex-1 bg-white/60 dark:bg-slate-800/60 rounded-xl px-3 py-2 text-center border border-slate-200/50 dark:border-slate-700/50">
-                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Pagado</p>
-                                    <p className="text-sm font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                                <div className="bg-emerald-50/50 dark:bg-emerald-900/10 backdrop-blur-md rounded-2xl p-4 text-center border border-emerald-100/50 dark:border-emerald-500/10 shadow-sm">
+                                    <p className="text-[10px] font-bold text-emerald-600/70 dark:text-emerald-400/70 uppercase tracking-wider mb-1">Pagado</p>
+                                    <p className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">
                                         {formatClp(totals.pagado)}
                                     </p>
                                 </div>
                             </div>
 
-                            {/* Filtros de categoría con scroll horizontal */}
-                            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 pb-1">
-                                {availableCategories.map(cat => (
-                                    <button
-                                        key={cat}
-                                        onClick={() => setSelectedCategory(cat)}
-                                        className={`
-                                            flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap
-                                            transition-all duration-200
-                                            ${selectedCategory === cat
-                                                ? 'bg-sky-500 text-white shadow-sm'
-                                                : 'bg-white/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200/50 dark:ring-slate-600/50'
-                                            }
-                                        `}
-                                    >
-                                        {cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? 'Importantes' : cat}
-                                        <span className={`ml-1 ${selectedCategory === cat ? 'opacity-80' : 'opacity-50'}`}>
-                                            ({cat === 'all'
-                                                ? commitments.filter(c => showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
-                                                : cat === 'FILTER_IMPORTANT'
-                                                    ? commitments.filter(c => {
-                                                        const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
-                                                        return isActive && c.is_important;
-                                                    }).length
-                                                    : commitments.filter(c => {
-                                                        const categoryName = getTranslatedCategoryName(c);
-                                                        const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
-                                                        return isActive && categoryName === cat;
-                                                    }).length
-                                            })
-                                        </span>
-                                    </button>
-                                ))}
+                            {/* Filtros de categoría con scroll horizontal mejorado */}
+                            <div className="-mx-6 px-6">
+                                <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
+                                    {availableCategories.map(cat => (
+                                        <button
+                                            key={cat}
+                                            onClick={() => setSelectedCategory(cat)}
+                                            className={`
+                                                flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap
+                                                transition-all duration-300 ease-out border
+                                                ${selectedCategory === cat
+                                                    ? 'bg-slate-800 text-white border-slate-800 shadow-md transform scale-105'
+                                                    : 'bg-white/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-white/20 dark:border-white/5 hover:bg-white hover:shadow-sm'
+                                                }
+                                                backdrop-blur-sm
+                                            `}
+                                        >
+                                            {cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? 'Importantes' : cat}
+                                            {selectedCategory === cat && (
+                                                <span className="ml-1.5 opacity-70 font-normal">
+                                                    ({cat === 'all'
+                                                        ? commitments.filter(c => showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
+                                                        : cat === 'FILTER_IMPORTANT'
+                                                            ? commitments.filter(c => {
+                                                                const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
+                                                                return isActive && c.is_important;
+                                                            }).length
+                                                            : commitments.filter(c => {
+                                                                const categoryName = getTranslatedCategoryName(c);
+                                                                const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
+                                                                return isActive && categoryName === cat;
+                                                            }).length
+                                                    })
+                                                </span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     );
@@ -976,6 +944,13 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         // Sync logic with desktop cells
                         const monthDate = focusedDate;
                         const term = getTermForPeriod(c, monthDate);
+
+                        // Strict validation: Ensure term covers the current month
+                        const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+                        const termEnds = term?.effective_until ? new Date(term.effective_until) : null;
+                        // Check if term exists AND (no end date OR end date is after start of this month)
+                        const isTermActiveInMonth = !!term && (!termEnds || termEnds >= monthStart);
+
                         const dueDay = term?.due_day_of_month ?? 1;
                         const { isPaid, amount: paidAmount } = getPaymentStatus(c.id, monthDate, dueDay);
 
@@ -994,13 +969,14 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                         const today = new Date();
                         const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
-                        const isOverdue = !isPaid && dueDate < today && monthDate <= today;
+                        // Validation: Must have active term to be overdue
+                        const isOverdue = isTermActiveInMonth && !isPaid && dueDate < today && monthDate <= today;
 
                         // Cálculos consistentes con tooltip desktop
                         const daysOverdue = isOverdue
                             ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
                             : 0;
-                        const daysRemaining = !isOverdue
+                        const daysRemaining = !isOverdue && isTermActiveInMonth
                             ? Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
                             : 0;
 
@@ -1017,13 +993,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         }
 
                         // Determinar si se debe mostrar como tachado (terminated)
-                        // Solo tachar si: está terminado globalmente, ESTABA activo en este mes, Y YA FUE PAGADO
                         const isGloballyTerminated = isCommitmentTerminated(c);
                         const wasActiveInMonth = getTermForPeriod(c, monthDate) !== null;
                         const terminated = isGloballyTerminated && wasActiveInMonth && isPaid;
 
                         const terminationReason = getTerminationReason(c);
-                        const paused = terminationReason === 'PAUSED';
 
                         // Payment record para fecha de pago
                         const currentPayment = commitmentPayments.find(p => p.period_date.substring(0, 7) === periodStr);
@@ -1031,60 +1005,60 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         return (
                             <div
                                 key={c.id}
-                                onClick={() => !isPaid && onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth())}
+                                onClick={() => isTermActiveInMonth && onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth())}
                                 className={`
-                                    relative overflow-hidden rounded-2xl
-                                    transition-all duration-300
-                                    ${!isPaid ? 'active:scale-[0.98] cursor-pointer' : ''}
-
-                                    /* Finance Premium: Base "Liquid Glass" */
-                                    bg-white/90 dark:bg-slate-800/80
-                                    backdrop-blur-md
-                                    border border-white/50 dark:border-white/10
-                                    shadow-sm dark:shadow-lg dark:shadow-slate-900/20
-
-                                    /* Flujo via borde izquierdo (3px) */
-                                    border-l-[3px]
-                                    ${c.flow_type === 'INCOME' ? 'border-l-emerald-500' : 'border-l-rose-500'}
-
-                                    hover:shadow-md hover:-translate-y-0.5
+                                    relative overflow-hidden rounded-3xl
+                                    transition-all duration-300 ease-out
+                                    border
+                                    ${isPaid
+                                        ? 'bg-emerald-50/60 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-500/20 shadow-sm'
+                                        : isOverdue
+                                            ? 'bg-white/80 dark:bg-slate-900/60 border-red-200 dark:border-red-900/30'
+                                            : !isTermActiveInMonth
+                                                ? 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800'
+                                                : 'bg-white/80 dark:bg-slate-900/60 border-white/50 dark:border-white/5 shadow-sm'
+                                    }
+                                    backdrop-blur-xl
+                                    ${isTermActiveInMonth && !isPaid ? 'active:scale-[0.98] cursor-pointer' : 'cursor-default opacity-80'}
                                 `}
                             >
-                                <div className="p-4 pl-3.5">
-                                    {/* Header: Nombre + Categoría + Menu */}
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="min-w-0 flex-1">
+                                {/* Flow Indicator */}
+                                {isTermActiveInMonth && (
+                                    <div className={`absolute top-4 left-0 w-1 h-8 rounded-r-full ${c.flow_type === 'INCOME' ? 'bg-emerald-400' : 'bg-rose-400'} opacity-80`} />
+                                )}
+
+                                <div className="p-5 pl-6">
+                                    {/* Top Row: Name & Menu */}
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex-1 pr-2">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className={`font-bold truncate ${terminated ? 'line-through text-slate-500' : 'text-slate-900 dark:text-white'}`}>
+                                                <h3 className={`text-base font-bold leading-tight ${terminated || !isTermActiveInMonth ? 'text-slate-500 dark:text-slate-500' : 'text-slate-900 dark:text-white'}`}>
                                                     {c.name}
-                                                    {/* New Item Badge Mobile */}
-                                                    {((new Date().getTime() - new Date(c.created_at).getTime()) < 5 * 60 * 1000) && (
-                                                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 animate-pulse">
-                                                            NUEVO
-                                                        </span>
-                                                    )}
-                                                </span>
-                                                {c.is_important && <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />}
+                                                </h3>
+                                                {c.is_important && <StarIcon className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />}
+                                                {!isTermActiveInMonth && (
+                                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 uppercase font-bold">Inactivo</span>
+                                                )}
                                             </div>
-                                            {/* Categoría + Cuota info */}
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[10px] text-slate-800 dark:text-slate-200 font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-700/80 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-600/50">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                                     {getTranslatedCategoryName(c)}
                                                 </span>
-                                                {cuotaNumber && installmentsCount && installmentsCount > 1 && (
-                                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                                                        {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
-                                                    </span>
+                                                {/* Status Badges */}
+                                                {terminationReason === 'PAUSED' && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-600">PAUSADO</span>
+                                                )}
+                                                {((new Date().getTime() - new Date(c.created_at).getTime()) < 5 * 60 * 1000) && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-600 animate-pulse">NUEVO</span>
                                                 )}
                                             </div>
                                         </div>
 
-                                        {/* Mobile Actions Menu */}
-                                        <div className="ml-2 shrink-0">
+                                        <div className="shrink-0 -mr-2 -mt-2">
                                             <DropdownMenu.Root>
                                                 <DropdownMenu.Trigger asChild>
                                                     <button
-                                                        className="p-2 -mr-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                                        className="p-3 text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-full active:bg-slate-100 dark:active:bg-slate-800"
                                                         onClick={(e) => e.stopPropagation()}
                                                     >
                                                         <MoreVertical className="w-5 h-5" />
@@ -1092,49 +1066,33 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                 </DropdownMenu.Trigger>
                                                 <DropdownMenu.Portal>
                                                     <DropdownMenu.Content
-                                                        className="z-[100] min-w-[160px] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-1.5 animate-in fade-in zoom-in duration-200"
-                                                        align="end"
+                                                        className="min-w-[180px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200"
                                                         sideOffset={5}
+                                                        align="end"
                                                     >
                                                         <DropdownMenu.Item
-                                                            className="group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors"
+                                                            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer outline-none"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 onEditCommitment(c);
                                                             }}
                                                         >
-                                                            <EditIcon className="w-4 h-4 text-slate-400 group-hover:text-sky-500" />
-                                                            Editar compromiso
+                                                            <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-500">
+                                                                <EditIcon className="w-4 h-4" />
+                                                            </div>
+                                                            Editar
                                                         </DropdownMenu.Item>
-
+                                                        <DropdownMenu.Separator className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
                                                         <DropdownMenu.Item
-                                                            className={`group flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer outline-none transition-colors ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                            disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
-                                                                    onResumeCommitment(c);
-                                                                } else if (terminationReason === 'ACTIVE') {
-                                                                    onPauseCommitment(c);
-                                                                }
-                                                            }}
-                                                        >
-                                                            <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
-                                                            {terminationReason === 'PAUSED' || terminationReason === 'TERMINATED' ? 'Reanudar' :
-                                                             terminationReason === 'COMPLETED_INSTALLMENTS' ? 'Completado' :
-                                                             'Pausar / Terminar'}
-                                                        </DropdownMenu.Item>
-
-                                                        <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1.5" />
-
-                                                        <DropdownMenu.Item
-                                                            className="group flex items-center gap-2 px-3 py-2.5 text-sm text-rose-600 dark:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 cursor-pointer outline-none transition-colors"
+                                                            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 cursor-pointer outline-none"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 onDeleteCommitment(c.id);
                                                             }}
                                                         >
-                                                            <TrashIcon className="w-4 h-4 text-rose-400 group-hover:text-rose-600" />
+                                                            <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-500">
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </div>
                                                             Eliminar
                                                         </DropdownMenu.Item>
                                                     </DropdownMenu.Content>
@@ -1143,58 +1101,71 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                         </div>
                                     </div>
 
-                                    {/* Centro: Badge prominente + Monto (consistente con Dashboard/Grid) */}
-                                    <div className="flex items-center justify-between">
-                                        {/* Badge de estado - estilo Grid Full View: text-xs font-medium, rounded-full */}
-                                        <div
-                                            className={`
-                                                flex items-center gap-1 px-2 py-0.5 rounded-full
-                                                ${isPaid
-                                                    ? 'bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
-                                                    : isOverdue
-                                                        ? 'bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                                                        : 'bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'}
-                                            `}
-                                            aria-label={isPaid ? 'Pagado' : isOverdue ? 'Vencido' : 'Pendiente'}
-                                            role="status"
-                                        >
-                                            {isPaid ? <CheckCircleIcon className="w-3.5 h-3.5" />
-                                                : isOverdue ? <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-                                                    : <ClockIcon className="w-3.5 h-3.5" />}
-                                            <span className="text-xs font-medium">
-                                                {isPaid ? 'Pagado' : isOverdue ? 'Vencido' : 'Pendiente'}
-                                            </span>
+                                    {/* Middle Row: Amount & Status */}
+                                    <div className="flex items-end justify-between mb-4">
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-xs text-slate-400 font-medium">Monto</span>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className={`text-2xl font-bold font-mono tracking-tighter ${!isTermActiveInMonth ? 'text-slate-400 dark:text-slate-600' : 'text-slate-900 dark:text-white'}`}>
+                                                    {isTermActiveInMonth ? formatClp(amount ?? 0) : '—'}
+                                                </span>
+                                            </div>
                                         </div>
 
-                                        {/* Monto - protagonista, más grande que grid */}
-                                        <div className="text-right">
-                                            <p className="text-lg font-bold font-mono tabular-nums text-slate-800 dark:text-slate-100">
-                                                {formatClp(amount ?? 0)}
-                                            </p>
+                                        {/* Status Pill */}
+                                        <div
+                                            className={`
+                                                flex items-center gap-1.5 px-3 py-1.5 rounded-full ring-1 ring-inset
+                                                ${isPaid
+                                                    ? 'bg-emerald-100/50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-emerald-500/20'
+                                                    : isOverdue
+                                                        ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 ring-red-500/20 animate-pulse'
+                                                        : !isTermActiveInMonth
+                                                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 ring-slate-200 dark:ring-slate-700'
+                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 ring-slate-200 dark:ring-slate-700'}
+                                            `}
+                                            aria-label={isPaid ? 'Pagado' : isOverdue ? 'Vencido' : !isTermActiveInMonth ? 'Inactivo' : 'Pendiente'}
+                                            role="status"
+                                        >
+                                            {isPaid ? <CheckCircleIcon className="w-4 h-4" />
+                                                : isOverdue ? <ExclamationTriangleIcon className="w-4 h-4" />
+                                                    : !isTermActiveInMonth ? <Minus className="w-4 h-4" />
+                                                        : <ClockIcon className="w-4 h-4" />}
+                                            <span className="text-xs font-bold leading-none">
+                                                {isPaid ? 'Pagado' : isOverdue ? 'Vencido' : !isTermActiveInMonth ? 'No aplica' : 'Pendiente'}
+                                            </span>
                                         </div>
                                     </div>
 
-                                    {/* Footer: Fecha relativa + CTA corto */}
-                                    <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                    {/* Footer: Date & Context */}
+                                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800/50 flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                            <CalendarIcon className="w-3.5 h-3.5 opacity-70" />
                                             {isPaid && currentPayment?.payment_date ? (
-                                                `Pagado: ${new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                                                <span>Pagado el <span className="font-medium text-slate-700 dark:text-slate-300">{new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}</span></span>
                                             ) : isOverdue ? (
-                                                `Venció hace ${daysOverdue} días`
-                                            ) : daysRemaining === 0 ? (
-                                                'Vence hoy'
+                                                <span className="text-red-500 font-medium">Venció hace {daysOverdue} días</span>
+                                            ) : !isTermActiveInMonth ? (
+                                                <span>Sin vigencia este mes</span>
                                             ) : (
-                                                `Vence en ${daysRemaining} días`
+                                                <span>Vence el {new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}</span>
                                             )}
-                                        </span>
-                                        {!isPaid && (
-                                            <span className="text-xs text-sky-500 dark:text-sky-400 font-medium">
-                                                Registrar →
+                                        </div>
+
+                                        {/* Cuota Info or Recurrence */}
+                                        {cuotaNumber && installmentsCount && installmentsCount > 1 ? (
+                                            <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500">
+                                                {cuotaNumber}/{installmentsCount}
                                             </span>
+                                        ) : (
+                                            <div className="text-[10px] text-sky-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                                {isTermActiveInMonth && !isPaid && "Toca para pagar"}
+                                            </div>
                                         )}
                                     </div>
                                 </div>
                             </div>
+
                         );
                     }) : (
                         <div className="text-center py-20 px-6 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
@@ -1228,10 +1199,10 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         </div>
                     )
                 })()}
-            </div>
+            </div >
 
             {/* Desktop View Content */}
-            <div className="hidden lg:block px-4">
+            < div className="hidden lg:block px-4" >
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-xl shadow-slate-200/50 dark:shadow-black/30 overflow-x-hidden mt-2">
                     {/* Simplified Header - Only Tabs */}
                     <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30">
@@ -1284,7 +1255,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             style={{ height: `${availableHeight}px` }}
                         >
                             <table className="w-full border-collapse">
-                                <thead className="sticky top-0 z-40 bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-sm border-b-2 border-slate-200 dark:border-slate-700">
+                                <thead className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm">
                                     <tr>
                                         <th className={`sticky left-0 z-50 bg-slate-50 dark:bg-slate-800 text-left font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 ${density === 'compact' ? 'px-3 py-2 min-w-[140px] max-w-[300px] w-auto text-sm' : 'p-3 min-w-[220px]'}`}>
                                             Compromiso
@@ -1365,31 +1336,35 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                 const terminated = isGloballyTerminated && wasActiveInMonth && isPaid;
                                                 const terminationReason = getTerminationReason(commitment);
                                                 const paused = terminationReason === 'PAUSED';
-                                                const flowColor = commitment.flow_type === 'INCOME' ? 'border-l-emerald-500' : 'border-l-red-500';
                                                 return (
                                                     <tr
                                                         key={commitment.id}
                                                         className={`
                                                             group
-                                                            border-b border-slate-200/80 dark:border-slate-700/50 
+                                                            border-b border-slate-100 dark:border-slate-800
                                                             transition-all duration-200 ease-out
-                                                            
-                                                            ${terminated ? 'bg-slate-50/50 dark:bg-slate-800/30 opacity-60' : ''}
+                                                            bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800
+                                                            hover:bg-slate-50/80 dark:hover:bg-slate-800/50
+                                                            ${terminated ? 'opacity-60 grayscale-[0.5]' : ''}
                                                         `}
                                                     >
                                                         {/* Name cell with flow-type accent - Merged with Category for Compact */}
-                                                        <td className={`
-                                                            sticky left-0 z-20 border-l-3 ${flowColor}
-                                                            ${terminated ? 'bg-slate-50 dark:bg-slate-800/50' : 'bg-white dark:bg-slate-900'} 
-                                                            group-hover:bg-blue-50 dark:group-hover:bg-slate-800 cursor-pointer
-                                                            border-r border-slate-200 dark:border-slate-700/50
-                                                            ${density === 'compact' ? 'px-3 py-2 min-w-[140px] max-w-[300px] w-auto' : pad}
+                                                        <td
+                                                            onClick={() => onEditCommitment(commitment)}
+                                                            className={`
+                                                            sticky left-0 z-20 
+                                                            ${terminated ? 'bg-slate-50/95 dark:bg-slate-900/95' : 'bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm'} 
+                                                            group-hover:bg-slate-50 dark:group-hover:bg-slate-800
+                                                            border-r border-slate-100 dark:border-slate-800
+                                                            cursor-pointer
+                                                            ${density === 'compact' ? 'px-3 py-3 min-w-[140px] max-w-[300px] w-auto' : pad}
                                                         `}>
+                                                            {/* Flow Type Pill Indicator */}
+                                                            <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full ${commitment.flow_type === 'INCOME' ? 'bg-emerald-400' : 'bg-rose-400'} opacity-80`} />
                                                             {density === 'compact' ? (
                                                                 /* Compact: Single Line Layout -> Name (Left) ... Details (Right) + ACTIONS */
                                                                 <div
                                                                     className="flex items-center justify-between gap-3 relative pr-8 cursor-pointer group/compact h-full min-h-[32px]"
-                                                                    onClick={() => onEditCommitment(commitment)}
                                                                 >
                                                                     {/* Left: Name */}
                                                                     <div className="min-w-0 flex-1 flex items-center">
@@ -1414,13 +1389,13 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                             )}
                                                                             {/* Status Badges - Differentiated by termination reason */}
                                                                             {terminationReason === 'PAUSED' && (
-                                                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
+                                                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100/50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 ring-1 ring-inset ring-amber-500/20">
                                                                                     <PauseIcon className="w-2.5 h-2.5" />
                                                                                     PAUSADO
                                                                                 </span>
                                                                             )}
                                                                             {terminationReason === 'COMPLETED_INSTALLMENTS' && (
-                                                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">
+                                                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 ring-1 ring-inset ring-emerald-500/20">
                                                                                     <CheckCircleIcon className="w-2.5 h-2.5" />
                                                                                     COMPLETADO
                                                                                 </span>
@@ -1489,16 +1464,21 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
-                                                                                            if (terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
+                                                                                            const hasEndDate = !!commitment.active_term?.effective_until;
+                                                                                            if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
                                                                                                 onResumeCommitment(commitment);
-                                                                                            } else if (terminationReason === 'ACTIVE') {
+                                                                                            } else {
                                                                                                 onPauseCommitment(commitment);
                                                                                             }
                                                                                         }}
                                                                                     >
                                                                                         <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
-                                                                                        {terminationReason === 'PAUSED' || terminationReason === 'TERMINATED' ? 'Reanudar' :
-                                                                                         terminationReason === 'COMPLETED_INSTALLMENTS' ? 'Completado' : 'Pausar'}
+                                                                                        {(() => {
+                                                                                            const hasEndDate = !!commitment.active_term?.effective_until;
+                                                                                            if (terminationReason === 'COMPLETED_INSTALLMENTS') return 'Completado';
+                                                                                            if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') return 'Reanudar';
+                                                                                            return 'Pausar';
+                                                                                        })()}
                                                                                     </DropdownMenu.Item>
 
                                                                                     <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
@@ -1523,7 +1503,6 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                 <div className="flex items-start justify-between gap-2">
                                                                     <div
                                                                         className="flex-grow cursor-pointer"
-                                                                        onClick={() => onEditCommitment(commitment)}
                                                                     >
                                                                         <div className="flex items-center gap-2">
                                                                             {commitment.flow_type === 'INCOME' ? (
@@ -1594,7 +1573,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                             {(commitment.active_term?.frequency === 'ONCE' || (commitment.active_term?.installments_count && commitment.active_term?.installments_count > 1))
                                                                                 ? <CalendarIcon className="w-4 h-4" />
                                                                                 : commitment.active_term?.frequency === 'MONTHLY'
-                                                                                    ? <InfinityIcon className="w-4 h-4" />
+                                                                                    ? (commitment.active_term.effective_until ? <ClockIcon className="w-4 h-4 text-amber-500" /> : <InfinityIcon className="w-4 h-4" />)
                                                                                     : null
                                                                             }
 
@@ -1607,7 +1586,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         {commitment.active_term.installments_count && commitment.active_term.installments_count > 1
                                                                                             ? (commitment.active_term.is_divided_amount ? 'En cuotas' : 'Definido')
                                                                                             : commitment.active_term.frequency === 'MONTHLY'
-                                                                                                ? 'Indefinido'
+                                                                                                ? (commitment.active_term.effective_until ? (() => {
+                                                                                                    const [y, m] = commitment.active_term.effective_until.substring(0, 7).split('-');
+                                                                                                    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                                                                                                    return `Hasta ${months[parseInt(m) - 1]} ${y}`;
+                                                                                                })() : 'Indefinido')
                                                                                                 : commitment.active_term.frequency}
                                                                                     </span>
                                                                                     <span className="text-slate-300 dark:text-slate-600">•</span>
@@ -1651,16 +1634,21 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
-                                                                                            if (terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
+                                                                                            const hasEndDate = !!commitment.active_term?.effective_until;
+                                                                                            if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
                                                                                                 onResumeCommitment(commitment);
-                                                                                            } else if (terminationReason === 'ACTIVE') {
+                                                                                            } else {
                                                                                                 onPauseCommitment(commitment);
                                                                                             }
                                                                                         }}
                                                                                     >
                                                                                         <PauseIcon className="w-4 h-4 text-slate-400 group-hover:text-amber-500" />
-                                                                                        {terminationReason === 'PAUSED' || terminationReason === 'TERMINATED' ? 'Reanudar' :
-                                                                                         terminationReason === 'COMPLETED_INSTALLMENTS' ? 'Completado' : 'Pausar'}
+                                                                                        {(() => {
+                                                                                            const hasEndDate = !!commitment.active_term?.effective_until;
+                                                                                            if (terminationReason === 'COMPLETED_INSTALLMENTS') return 'Completado';
+                                                                                            if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') return 'Reanudar';
+                                                                                            return 'Pausar';
+                                                                                        })()}
                                                                                     </DropdownMenu.Item>
 
                                                                                     <DropdownMenu.Separator className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
@@ -1673,7 +1661,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         }}
                                                                                     >
                                                                                         <TrashIcon className="w-4 h-4 group-hover:text-red-600" />
-                                                                                        Eliminar {commitment.flow_type === 'INCOME' ? 'Ingreso' : 'Gasto'}
+                                                                                        Eliminar
                                                                                     </DropdownMenu.Item>
                                                                                 </DropdownMenu.Content>
                                                                             </DropdownMenu.Portal>
@@ -1735,8 +1723,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                                                             const today = new Date();
                                                             const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
-                                                            const isOverdue = !isPaid && dueDate < today && monthDate <= today;
-                                                            const isPending = !isPaid && !isOverdue && isCurrentMonth(monthDate);
+                                                            const isOverdue = !!term && !isPaid && dueDate < today && monthDate <= today;
+                                                            const isPending = !!term && !isPaid && !isOverdue && isCurrentMonth(monthDate);
+                                                            const isGap = !term && !isPaid;
 
                                                             // Check if this is a future month (after current month)
                                                             // BUT don't dim if there's a payment record (pre-registered amount)
@@ -1754,21 +1743,22 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                 <td
                                                                     key={mi}
                                                                     className={`
-                                                                        text-right border-r border-slate-200/80 dark:border-slate-700/50 last:border-r-0 
+                                                                        text-right border-r border-slate-100 dark:border-slate-800 last:border-r-0 
                                                                         cursor-pointer transition-all duration-150 ease-out group/cell
                                                                         hover:ring-2 hover:ring-inset hover:ring-indigo-500/50 dark:hover:ring-indigo-400/50
-                                                                        ${isCurrentMonth(monthDate) ? 'bg-blue-50/50 dark:bg-blue-900/10 ring-1 ring-inset ring-blue-500/10' : ''}
-                                                                        ${isDisabled ? 'opacity-25 grayscale hover:opacity-100 hover:grayscale-0' : ''}
-                                                                        ${isOverdue ? 'bg-red-50/50 dark:bg-red-950/20' : ''}
-                                                                        ${isPending ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}
-                                                                        ${isPaid ? 'bg-emerald-50/30 dark:bg-emerald-950/10' : ''}
+                                                                        ${isCurrentMonth(monthDate) ? 'bg-blue-50/30 dark:bg-blue-900/10 ring-1 ring-inset ring-blue-500/10' : ''}
+                                                                        ${isDisabled ? 'opacity-50 grayscale hover:opacity-100 hover:grayscale-0' : ''}
+                                                                        ${isGap ? 'bg-slate-50/50 dark:bg-slate-900/30' : ''}
+                                                                        ${isOverdue ? 'bg-red-50/30 dark:bg-red-950/20' : ''}
+                                                                        ${isPending ? 'bg-amber-50/20 dark:bg-amber-950/10' : ''}
+                                                                        ${isPaid ? 'bg-emerald-50/20 dark:bg-emerald-950/10' : ''}
                                                                     `}
                                                                     onClick={() => onRecordPayment(commitment.id, monthDate.getFullYear(), monthDate.getMonth())}
                                                                 >
                                                                     {/* GAP: No term for this period */}
                                                                     {!term && !isPaid ? (
-                                                                        <div className="text-slate-400 dark:text-slate-600 font-mono tabular-nums text-base" title="Sin término activo en este período">
-                                                                            —
+                                                                        <div className="flex items-center justify-center h-full w-full text-slate-300 dark:text-slate-700 select-none" title="Sin término activo en este período">
+                                                                            <Minus className="w-4 h-4 opacity-50" />
                                                                         </div>
                                                                     ) : !term && isPaid ? (
                                                                         /* ORPHAN: Payment without term */
@@ -1801,12 +1791,12 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                             </div>
                                                                                             {/* Badge de estado compacto */}
                                                                                             {isPaid ? (
-                                                                                                <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-100/80 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full">
+                                                                                                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-inset ring-emerald-500/20 px-2 py-0.5 rounded-full">
                                                                                                     <CheckCircleIcon className="w-3 h-3" />
                                                                                                     Pagado
                                                                                                 </span>
                                                                                             ) : isOverdue ? (
-                                                                                                <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 dark:text-red-400 bg-red-100/80 dark:bg-red-900/30 px-1.5 py-0.5 rounded-full">
+                                                                                                <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 ring-1 ring-inset ring-red-500/20 px-2 py-0.5 rounded-full">
                                                                                                     <ExclamationTriangleIcon className="w-3 h-3" />
                                                                                                     Vencido
                                                                                                 </span>

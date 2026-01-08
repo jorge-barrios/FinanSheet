@@ -40,6 +40,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Function: Get active term for a commitment on a given date
+-- NOTE: Compares at MONTH level, not exact day.
+-- This ensures that period_date (always 1st of month) matches
+-- terms that start on any day of that month (e.g., due_day = 15).
+-- Fixed in 017_fix_date_comparison.sql
 CREATE OR REPLACE FUNCTION get_active_term(
   p_commitment_id UUID,
   p_date DATE
@@ -51,11 +55,15 @@ BEGIN
   SELECT id INTO v_term_id
   FROM terms
   WHERE commitment_id = p_commitment_id
-    AND effective_from <= p_date
-    AND (effective_until IS NULL OR effective_until >= p_date)
+    -- Compare at MONTH level, not exact day
+    AND DATE_TRUNC('month', effective_from) <= DATE_TRUNC('month', p_date)
+    AND (
+      effective_until IS NULL
+      OR DATE_TRUNC('month', effective_until) >= DATE_TRUNC('month', p_date)
+    )
   ORDER BY version DESC
   LIMIT 1;
-  
+
   RETURN v_term_id;
 END;
 $$ LANGUAGE plpgsql;

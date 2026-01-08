@@ -10,8 +10,10 @@ import { useLocalization } from '../hooks/useLocalization';
 import { useCurrency } from '../hooks/useCurrency';
 import { PaymentService } from '../services/dataService.v2';
 import { getPerPeriodAmount } from '../utils/financialUtils.v2';
-import type { CommitmentWithTerm, Payment, PaymentFormData } from '../types.v2';
-import { XMarkIcon, CheckCircleIcon, TrashIcon, CalendarIcon, ExclamationTriangleIcon } from './icons';
+import { findTermForPeriod } from '../utils/termUtils';
+import type { CommitmentWithTerm, Payment, PaymentFormData, Term } from '../types.v2';
+import { XMarkIcon, CheckCircleIcon, TrashIcon, ExclamationTriangleIcon } from './icons';
+import { Calendar, Wallet, Coins, Banknote } from 'lucide-react';
 
 // =============================================================================
 // TYPES
@@ -39,8 +41,13 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     month,
 }) => {
     const { formatClp } = useLocalization();
-    const { fromUnit, convertAmount, getFxRateToBase, refresh, loading, lastUpdated } = useCurrency();
-    const term = commitment.active_term;
+    const { fromUnit, convertAmount, getFxRateToBase } = useCurrency();
+
+    // CRITICAL: Find the term that covers THIS specific period, not just active_term
+    // This ensures payments for historical months are associated with the correct term
+    // Example: If V1 covers Jan-Jun and V2 covers Jul-∞, paying for April should use V1
+    const monthDate = new Date(year, month, 1);
+    const term: Term | null = findTermForPeriod(commitment, monthDate);
 
     // Currency type
     // Currency type - updated to include EUR and UTM
@@ -127,7 +134,53 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
         return () => document.removeEventListener('keydown', handleEsc, { capture: true } as any);
     }, [isOpen, onClose, showDeleteConfirm]);
 
-    if (!isOpen || !term) return null;
+    if (!isOpen) return null;
+
+    // If there's no term for this period, show a message that payments are blocked
+    // This happens when the month falls in a "paused" period (between closed terms)
+    if (!term) {
+        return (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
+                <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/50 dark:border-white/10 rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+                    <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                                <ExclamationTriangleIcon className="w-5 h-5" />
+                            </div>
+                            <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
+                                Período Pausado
+                            </h2>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                            <XMarkIcon className="w-5 h-5" />
+                        </button>
+                    </div>
+                    <div className="p-6">
+                        <div className="mb-4">
+                            <p className="text-slate-900 dark:text-white font-medium text-lg mb-1">
+                                No se puede registrar pago
+                            </p>
+                            <p className="text-slate-500 dark:text-slate-400">
+                                {monthNames[month]} {year} está fuera de los términos activos del compromiso.
+                            </p>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            Esto ocurre cuando el compromiso ha sido pausado o terminado antes de este mes.
+                        </p>
+                        <button
+                            onClick={onClose}
+                            className="w-full py-3.5 px-6 rounded-xl font-bold text-white bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 transition-colors shadow-lg shadow-slate-900/20"
+                        >
+                            Entendido
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const handleSave = async () => {
         setIsLoading(true);
@@ -196,243 +249,226 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     }
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all duration-300">
             {/* Delete Confirmation Dialog */}
             {showDeleteConfirm && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+                    <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/50 dark:border-white/10 rounded-3xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full shrink-0">
                                 <ExclamationTriangleIcon className="w-6 h-6 text-red-600 dark:text-red-400" />
                             </div>
-                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                                Confirmar eliminación
-                            </h3>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
+                                    Eliminar pago
+                                </h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                    Esta acción no se puede deshacer.
+                                </p>
+                            </div>
                         </div>
-                        <p className="text-slate-600 dark:text-slate-300 mb-6">
-                            ¿Estás seguro de que deseas eliminar este registro de pago de {monthNames[month]} {year}?
-                        </p>
                         <div className="flex gap-3 justify-end">
                             <button
                                 onClick={() => setShowDeleteConfirm(false)}
-                                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                className="px-5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
                             >
                                 Cancelar
                             </button>
                             <button
                                 onClick={handleDelete}
                                 disabled={isLoading}
-                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
+                                className="px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-xl transition-colors shadow-lg shadow-red-600/20"
                             >
-                                {isLoading ? 'Eliminando...' : 'Eliminar'}
+                                {isLoading ? 'Eliminando...' : 'Sí, eliminar'}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
-                {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-                    <div>
-                        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                            {existingPayment ? 'Editar Pago' : 'Registrar Pago (v2.1)'}
-                        </h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                            {commitment.name} · {monthNames[month]} {year}
-                        </p>
+            <div className="relative bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/50 dark:border-white/10 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+
+                {/* Header Compacto con Glassmorphism */}
+                <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-xl bg-gradient-to-br ${isPaid ? 'from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400' : 'from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 text-slate-500 dark:text-slate-400'}`}>
+                            {isPaid ? <CheckCircleIcon className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
+                                {existingPayment ? 'Editar Pago' : 'Registrar Pago'}
+                            </h2>
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                {year} · {monthNames[month]}
+                            </p>
+                        </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+                        className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     >
                         <XMarkIcon className="w-5 h-5" />
                     </button>
                 </div>
 
-                {/* Body */}
-                <div className="p-4 space-y-4">
+                {/* Body Scrollable */}
+                <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar">
+
                     {/* Error message */}
                     {error && (
-                        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
+                        <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/50 rounded-2xl text-red-600 dark:text-red-300 text-sm flex gap-3 items-center animate-in fade-in slide-in-from-top-2">
+                            <ExclamationTriangleIcon className="w-5 h-5 shrink-0" />
                             {error}
                         </div>
                     )}
 
-                    {/* Existing payment indicator */}
-                    {existingPayment && (
-                        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-sm">
-                                <CheckCircleIcon className="w-4 h-4" />
-                                <span>Ya existe un registro de pago para este período</span>
+                    {/* BENTO GRID LAYOUT */}
+                    <div className="grid grid-cols-2 gap-4">
+
+                        {/* 1. HERO CARD (Full Width) - Monto Esperado */}
+                        <div className="col-span-2 relative overflow-hidden group rounded-2xl bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 border border-slate-200 dark:border-slate-700/50 p-6 text-center shadow-sm">
+                            <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <Coins className="w-24 h-24 rotate-12" />
                             </div>
-                        </div>
-                    )}
 
-                    {/* Expected amount info */}
-                    <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-slate-600 dark:text-slate-300">
-                                Monto esperado ({expectedCurrency}):
-                            </span>
-                            <span className="font-semibold font-mono tabular-nums text-slate-900 dark:text-white">
-                                {expectedCurrency} ${expectedCurrency === 'CLP'
-                                    ? formatClp(expectedAmount).replace('$', '')
-                                    : expectedAmount.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+                                Monto Esperado
+                            </p>
+                            <div className="flex items-center justify-center gap-2 text-slate-900 dark:text-white">
+                                <span className="text-lg font-medium text-slate-400">{expectedCurrency}</span>
+                                <span className={`text-4xl font-extrabold tracking-tight ${!isPaid ? 'text-slate-900 dark:text-white' : 'text-emerald-500 dark:text-emerald-400'}`}>
+                                    {expectedCurrency === 'CLP'
+                                        ? formatClp(expectedAmount).replace('$', '')
+                                        : expectedAmount.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-2 font-medium">
+                                {commitment.name}
+                            </p>
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Puedes registrar el pago en cualquier moneda
-                        </div>
-                    </div>
 
-                    {/* Paid toggle */}
-                    <div className="flex items-center gap-3">
+                        {/* 2. ACTIONS ROW */}
+
+                        {/* Toggle Status Card */}
                         <button
                             type="button"
                             onClick={() => setIsPaid(!isPaid)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isPaid ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
+                            className={`col-span-1 p-4 rounded-2xl border transition-all duration-200 flex flex-col items-center justify-center gap-2 group relative overflow-hidden outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 dark:focus:ring-offset-slate-900 ${isPaid
+                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg shadow-emerald-500/25'
+                                : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                                 }`}
                         >
-                            <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isPaid ? 'translate-x-6' : 'translate-x-1'
-                                    }`}
-                            />
+                            <div className={`p-2 rounded-full transition-transform duration-300 group-hover:scale-110 ${isPaid ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-700'}`}>
+                                <CheckCircleIcon className="w-6 h-6" />
+                            </div>
+                            <span className="font-bold text-sm">
+                                {isPaid ? 'Pagado' : 'Pendiente'}
+                            </span>
+                            {/* Ripple effect hint */}
+                            {isPaid && <div className="absolute inset-0 bg-white/10 animate-pulse rounded-2xl" />}
                         </button>
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                            {isPaid ? (
-                                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                                    <CheckCircleIcon className="w-4 h-4" /> Pagado
-                                </span>
-                            ) : (
-                                'Marcar como pagado'
-                            )}
-                        </label>
-                    </div>
 
-                    {/* Payment date (only if paid) */}
-                    {isPaid && (
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
-                                <CalendarIcon className="w-4 h-4 inline mr-1" />
-                                Fecha de pago
+                        {/* Date Picker Card */}
+                        <div className={`col-span-1 p-4 rounded-2xl border flex flex-col justify-center gap-1 transition-all duration-300 ${isPaid
+                            ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-100'
+                            : 'bg-slate-50 dark:bg-slate-800/50 border-transparent opacity-50 grayscale cursor-not-allowed'
+                            }`}>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                                <Calendar className="w-3 h-3" /> Fecha
                             </label>
                             <input
                                 type="date"
                                 value={paymentDate}
                                 onChange={(e) => setPaymentDate(e.target.value)}
-                                className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                                onFocus={() => !isPaid && setIsPaid(true)}
+                                className="w-full bg-transparent p-0 border-none text-sm font-bold text-slate-900 dark:text-white focus:ring-0 focus:outline-none cursor-pointer"
                             />
                         </div>
+
+                        {/* 3. AMOUNT INPUT ROW (Full Width, Animated) */}
+                        <div className={`col-span-2 transition-all duration-500 ease-out ${isPaid ? 'opacity-100 translate-y-0' : 'opacity-80 translate-y-0'}`}>
+                            <div className="relative group">
+                                <label className="absolute -top-2.5 left-4 px-2 bg-white dark:bg-slate-900 text-xs font-bold text-blue-600 dark:text-blue-400 z-10 transition-colors">
+                                    Monto Real
+                                </label>
+                                <div className="flex rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all overflow-hidden">
+                                    {/* Currency Select */}
+                                    <div className="relative border-r border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
+                                        <select
+                                            value={amountCurrency}
+                                            onChange={(e) => {
+                                                const newCurrency = e.target.value as CurrencyType;
+                                                if (amount && parseFloat(amount) > 0 && newCurrency !== amountCurrency) {
+                                                    const converted = convertAmount(parseFloat(amount), amountCurrency as any, newCurrency as any);
+                                                    if (converted > 0) setAmount(converted.toString());
+                                                }
+                                                setAmountCurrency(newCurrency);
+                                            }}
+                                            className="h-full pl-3 pr-8 py-3 bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none appearance-none cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                                        >
+                                            <option value="CLP">CLP</option>
+                                            <option value="USD">USD</option>
+                                            <option value="EUR">EUR</option>
+                                            <option value="UF">UF</option>
+                                        </select>
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                        </div>
+                                    </div>
+
+                                    {/* Amount Input */}
+                                    <input
+                                        type="number"
+                                        value={amount}
+                                        onChange={(e) => setAmount(e.target.value)}
+                                        onFocus={() => !isPaid && setIsPaid(true)}
+                                        placeholder={String(expectedAmount)}
+                                        className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 text-lg font-mono font-bold text-slate-900 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 focus:outline-none"
+                                    />
+                                </div>
+
+                                {/* Conversion Hint */}
+                                {amountCurrency !== 'CLP' && amount && parseFloat(amount) > 0 && (
+                                    <div className="absolute right-2 -bottom-6 text-xs font-mono text-slate-400">
+                                        ≈ {formatClp(fromUnit(parseFloat(amount), amountCurrency as any))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="p-6 pt-2 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+                    {existingPayment && (
+                        <button
+                            onClick={() => setShowDeleteConfirm(true)}
+                            className="px-4 py-3 rounded-xl border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 active:bg-red-100 transition-colors"
+                            title="Eliminar Pago"
+                        >
+                            <TrashIcon className="w-5 h-5" />
+                        </button>
                     )}
 
-                    {/* Amount - integrated currency selector like CommitmentForm */}
-                    <div>
-                        <div className="flex items-center justify-between mb-1">
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-                                Monto pagado
-                            </label>
-                            {lastUpdated && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                                        Tasas: {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                    <button
-                                        onClick={refresh}
-                                        disabled={loading}
-                                        className={`p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 transition-all ${loading ? 'animate-spin' : ''}`}
-                                        title="Refrescar tasas"
-                                    >
-                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex">
-                            <select
-                                value={amountCurrency}
-                                onChange={(e) => {
-                                    const newCurrency = e.target.value as CurrencyType;
-                                    // Hot conversion: convert amount when changing currency
-                                    if (amount && parseFloat(amount) > 0 && newCurrency !== amountCurrency) {
-                                        const converted = convertAmount(
-                                            parseFloat(amount),
-                                            amountCurrency as any,
-                                            newCurrency as any
-                                        );
-                                        if (converted > 0) {
-                                            setAmount(converted.toString());
-                                        }
-                                    }
-                                    setAmountCurrency(newCurrency);
-                                }}
-                                className="px-2 py-2 text-sm bg-slate-100 dark:bg-slate-700 border border-r-0 border-slate-300 dark:border-slate-600 rounded-l-md text-slate-700 dark:text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500"
-                            >
-                                <option value="CLP">CLP</option>
-                                <option value="USD">USD</option>
-                                <option value="EUR">EUR</option>
-                                <option value="UF">UF</option>
-                                <option value="UTM">UTM</option>
-                            </select>
-                            <input
-                                type="number"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                placeholder={String(expectedAmount)}
-                                className="flex-1 px-3 py-2 text-sm font-mono tabular-nums bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-r-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 dark:text-white placeholder-slate-400"
-                            />
-                        </div>
-                        {/* Show conversion to CLP */}
-                        {amountCurrency !== 'CLP' && amount && parseFloat(amount) > 0 && (
-                            <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                ≈ {formatClp(fromUnit(parseFloat(amount), amountCurrency as any))}
-                            </div>
+                    <button
+                        onClick={handleSave}
+                        disabled={isLoading}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-bold text-white shadow-xl transition-all active:scale-[0.98] ${isPaid
+                            ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/25 ring-2 ring-emerald-600/20'
+                            : 'bg-slate-800 hover:bg-slate-700 shadow-slate-900/20 dark:bg-blue-600 dark:hover:bg-blue-500 dark:shadow-blue-600/25'
+                            }`}
+                    >
+                        {isLoading ? (
+                            <span className="animate-spin">⏳</span>
+                        ) : (
+                            isPaid ? <CheckCircleIcon className="w-5 h-5" /> : <Banknote className="w-5 h-5" />
                         )}
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="flex items-center justify-between p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-                    <div>
-                        {existingPayment && (
-                            <button
-                                onClick={() => setShowDeleteConfirm(true)}
-                                disabled={isLoading}
-                                className="flex items-center gap-1 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
-                            >
-                                <TrashIcon className="w-4 h-4" />
-                                Eliminar
-                            </button>
-                        )}
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={onClose}
-                            disabled={isLoading}
-                            className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={isLoading}
-                            className="px-4 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-                        >
-                            {isLoading ? (
-                                <>
-                                    <span className="animate-spin">⏳</span>
-                                    Guardando...
-                                </>
-                            ) : (
-                                existingPayment ? 'Actualizar' : 'Guardar'
-                            )}
-                        </button>
-                    </div>
+                        <span>{existingPayment ? 'Actualizar Registro' : isPaid ? 'Confirmar Pago' : 'Guardar Pendiente'}</span>
+                    </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

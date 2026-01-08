@@ -1,7 +1,7 @@
 # FinanSheet - Especificaciones Backend (Supabase)
 
 > Documento de referencia para la lógica del backend. Basado en consultas reales a la base de datos.
-> Última actualización: 2025-12-27
+> Última actualización: 2026-01-07
 
 ---
 
@@ -532,6 +532,167 @@ VALUES (:commitment_id, :next_version, CURRENT_DATE, ...);
 
 ---
 
+## Lógica de Términos Múltiples y Traslado de Pagos
+
+### Estructura de Términos por Versión
+
+Cada vez que un commitment se pausa/reanuda o se edita con cambios significativos, se crea un nuevo término con `version` incrementada:
+
+```
+Commitment "Netflix"
+├── Término V1: 2025-01-01 → 2025-06-30 (cerrado por pausa)
+│   └── Pagos: Ene, Feb, Mar, Abr, May, Jun 2025
+├── Término V2: 2025-08-01 → 2025-12-31 (cerrado por pausa)
+│   └── Pagos: Ago, Sep, Oct, Nov, Dic 2025
+└── Término V3: 2026-01-01 → NULL (activo)
+    └── Pagos: Ene 2026
+```
+
+### Término Activo
+
+El término activo es siempre el de **mayor versión** (`ORDER BY version DESC LIMIT 1`).
+
+```sql
+-- Obtener término activo
+SELECT * FROM terms
+WHERE commitment_id = :id
+ORDER BY version DESC
+LIMIT 1;
+```
+
+### Traslado de Pagos al Editar
+
+**Principio:** Los pagos de términos cerrados son historia - NO se modifican automáticamente.
+
+| Escenario | Acción |
+|-----------|--------|
+| Editar término activo con pagos, cambiar `effective_from` | Preguntar si trasladar pagos |
+| Editar término activo SIN pagos, cambiar `effective_from` | No preguntar (nada que trasladar) |
+| Editar término activo con pagos, NO cambiar `effective_from` | No preguntar (fechas no cambian) |
+| Términos cerrados (V1, V2) tienen pagos | NUNCA se tocan automáticamente |
+
+**Diagrama de decisión (frontend):**
+```
+¿El término ACTIVO tiene pagos? ───NO───► Guardar sin preguntar
+         │
+        YES
+         │
+         ▼
+¿Cambió effective_from? ───NO───► Guardar sin preguntar
+         │
+        YES
+         │
+         ▼
+    Mostrar modal:
+    "¿Trasladar X pagos?"
+         │
+    ┌────┴────┐
+    │         │
+   SÍ        NO
+    │         │
+    ▼         ▼
+Reasignar   Pagos quedan
+pagos con   en término
+audit trail cerrado (se crea nuevo término)
+```
+
+### Reactivación (Resume)
+
+Cuando se reactiva un commitment terminado:
+1. Se crea un NUEVO término (no se modifica el anterior)
+2. Los pagos del término cerrado quedan intactos
+3. NO se pregunta por traslado (es una operación distinta)
+
+**Detección de reactivación en frontend:**
+```typescript
+const wasTermEnded = originalEffectiveUntil && originalEffectiveUntil < today;
+const isCreatingNewActiveTerm = newEffectiveFromYearMonth >= todayYearMonth;
+const isReactivation = wasTermEnded && isCreatingNewActiveTerm;
+```
+
+### Audit Trail
+
+Cuando se reasignan pagos, se registra en `payment_adjustments`:
+
+```sql
+INSERT INTO payment_adjustments (
+    payment_id,
+    original_period_date,
+    new_period_date,
+    original_term_id,
+    new_term_id,
+    reason,
+    adjusted_by
+) VALUES (
+    :payment_id,
+    :old_date,
+    :new_date,
+    :old_term_id,
+    :new_term_id,
+    'term_effective_from_change',
+    auth.uid()
+);
+```
+
+### Trigger `calculate_effective_until`
+
+**IMPORTANTE**: El trigger calcula `effective_until` automáticamente cuando hay `installments_count`.
+
+**Comportamiento actualizado (v2):**
+- Solo recalcula en INSERT
+- En UPDATE, solo recalcula si cambiaron: `installments_count`, `frequency`, o `effective_from`
+- NO sobrescribe si solo cambió `effective_until` (pausa manual)
+
+Esto permite cerrar términos manualmente sin que el trigger sobrescriba la fecha.
+
+### Pausa como Barrera (Validación de No Superposición)
+
+**Principio fundamental:** Los términos cerrados actúan como barreras históricas inmutables. Un término nuevo o editado **NUNCA** puede tener un `effective_from` que se superponga con un término cerrado.
+
+**Diagrama de estructura válida:**
+```
+VÁLIDO:
+V1: 2025-01-01 → 2025-06-30 (cerrado)
+V2: 2025-07-01 → NULL (activo)
+         ↑
+         Empieza DESPUÉS del cierre de V1
+
+INVÁLIDO (la validación lo bloquea):
+V1: 2025-01-01 → 2025-06-30 (cerrado)
+V2: 2025-05-15 → NULL ← ERROR: se superpone con V1
+```
+
+**Implementación (Backend - `TermService`):**
+```typescript
+async validateNoOverlap(commitmentId: string, termId: string | null, effectiveFrom: string): Promise<void> {
+    const terms = await this.getTerms(commitmentId);
+    const closedTerms = terms.filter(t => t.id !== termId && t.effective_until);
+
+    if (closedTerms.length > 0) {
+        const mostRecentClosed = closedTerms.sort((a, b) => b.version - a.version)[0];
+        if (effectiveFrom <= mostRecentClosed.effective_until) {
+            throw new Error(`effective_from no puede ser ≤ ${mostRecentClosed.effective_until}`);
+        }
+    }
+}
+```
+
+**Puntos de validación:**
+| Operación | Validación |
+|-----------|------------|
+| `createTerm()` | Valida ANTES de insertar |
+| `updateTerm()` con cambio en `effective_from` | Valida ANTES de actualizar |
+| Frontend `handleV2Save()` | Valida ANTES de llamar al backend |
+| `resumeCommitment()` | Ya tiene su propia validación similar |
+
+**Modal de Reasignación con Términos Cerrados:**
+
+Cuando el usuario edita el `effective_from` de un término activo que tiene pagos:
+- **Sin términos cerrados:** Se muestran Opción A (mover pagos) y Opción B (mantener en fecha), más Cancelar
+- **Con términos cerrados:** Solo se muestra Opción A (mover pagos) + Cancelar. La Opción B se oculta porque crearía un término que necesita `effective_until` antes de la pausa, lo cual crearía superposición.
+
+---
+
 ## Queries Útiles
 
 ### Ver todos los commitments con su term activo
@@ -602,6 +763,7 @@ ORDER BY c.name;
 | `010_add_is_divided_amount.sql` | Campo is_divided_amount en terms |
 | `011_add_goals.sql` | Tabla goals para Smart Buckets |
 | `012_add_payment_adjustments.sql` | Tabla payment_adjustments para audit trail |
+| `013_fix_effective_until_trigger_v2.sql` | Fix: trigger no sobrescribe effective_until manual |
 
 ---
 
