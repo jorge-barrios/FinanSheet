@@ -933,7 +933,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
             </div>
 
             {/* Mobile View */}
-            <div className="lg:hidden p-4 space-y-4">
+            <div className="lg:hidden p-4 space-y-4 min-h-screen pb-32">
                 {(() => {
                     const filteredCommitments = commitments.filter(c => {
                         // 1. Siempre mostrar si "Ver terminados" está activo
