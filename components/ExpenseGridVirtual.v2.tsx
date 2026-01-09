@@ -678,23 +678,24 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 {/* Single Row Layout: Navigation | Totals (lg only) | Actions */}
                 <div className="flex flex-wrap items-center justify-between gap-2 p-3 md:p-4">
                     {/* Left: Navigation Group */}
-                    <div className="flex items-center gap-2">
-                        {/* Today button - Visible en mobile también */}
-                        <button
-                            onClick={() => onFocusedDateChange && onFocusedDateChange(new Date())}
-                            disabled={isCurrentMonth(focusedDate)}
-                            className={`h-9 flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium transition-all ${isCurrentMonth(focusedDate)
-                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50'
-                                : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 ring-1 ring-slate-200 dark:ring-slate-600 shadow-sm active:scale-95'
-                                }`}
-                            title="Ir a hoy"
-                        >
-                            <Home className="w-4 h-4" />
-                            <span className="hidden sm:inline ml-2">Hoy</span>
-                        </button>
-
-                        {/* Unified Month + Year Navigator */}
+                    <div className="flex items-center gap-1.5">
+                        {/* Unified Navigation Group: Home + Date in one visual container */}
                         <div className="h-9 flex items-center bg-white dark:bg-slate-700 rounded-lg ring-1 ring-slate-200 dark:ring-slate-600 shadow-sm">
+                            {/* Today button integrated */}
+                            <button
+                                onClick={() => onFocusedDateChange && onFocusedDateChange(new Date())}
+                                disabled={isCurrentMonth(focusedDate)}
+                                className={`h-full px-2.5 flex items-center justify-center rounded-l-lg transition-colors ${isCurrentMonth(focusedDate)
+                                    ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 active:scale-95'
+                                    }`}
+                                title="Ir a hoy"
+                            >
+                                <Home className="w-4 h-4" />
+                            </button>
+                            <div className="w-px h-5 bg-slate-200 dark:bg-slate-600"></div>
+
+                            {/* Month navigation buttons */}
                             <button
                                 onClick={() => {
                                     const newDate = new Date(focusedDate);
@@ -901,7 +902,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                             {/* Category Filter Pills - Mutually exclusive with status */}
                             <div className="px-3 pb-3">
-                                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+                                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
                                     {availableCategories.map(cat => (
                                         <button
                                             key={cat}
@@ -914,15 +915,15 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                 }
                                             }}
                                             className={`
-                                                flex-shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap
-                                                backdrop-blur-lg transition-all duration-200
+                                                flex-shrink-0 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap
+                                                backdrop-blur-lg transition-all duration-200 min-h-[36px]
                                                 ${selectedCategory === cat
                                                     ? 'bg-slate-800/90 dark:bg-white/90 text-white dark:text-slate-900 shadow-md'
-                                                    : 'bg-white/50 dark:bg-white/5 text-slate-600 dark:text-slate-400 border border-white/40 dark:border-white/10 hover:bg-white/70 dark:hover:bg-white/10'
+                                                    : 'bg-white/60 dark:bg-white/5 text-slate-600 dark:text-slate-400 border border-white/40 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/10'
                                                 }
                                             `}
                                         >
-                                            {cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? <StarIcon className="w-3.5 h-3.5 fill-current" /> : cat}
+                                            {cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? <><StarIcon className="w-4 h-4 fill-current inline mr-1" />Imp.</> : cat}
                                         </button>
                                     ))}
                                 </div>
@@ -933,7 +934,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
             </div>
 
             {/* Mobile View */}
-            <div className="lg:hidden p-4 space-y-4 min-h-screen pb-32">
+            <div className="lg:hidden p-4 space-y-4 pb-32">
                 {(() => {
                     const filteredCommitments = commitments.filter(c => {
                         // 1. Siempre mostrar si "Ver terminados" está activo
@@ -1078,7 +1079,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                             <DropdownMenu.Root>
                                                 <DropdownMenu.Trigger asChild>
                                                     <button
-                                                        className="p-3 text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-full active:bg-slate-100 dark:active:bg-slate-800"
+                                                        className="p-3 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700"
                                                         onClick={(e) => e.stopPropagation()}
                                                     >
                                                         <MoreVertical className="w-5 h-5" />
@@ -1146,9 +1147,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     </div>
 
                                     {/* Middle Row: Amount & Status */}
-                                    <div className="flex items-end justify-between mb-4">
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-xs text-slate-400 font-medium">Monto</span>
+                                    <div className="flex items-end justify-between mb-3">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold tracking-wide">CLP</span>
                                             <div className="flex items-baseline gap-1">
                                                 <span className={`text-2xl font-bold font-mono tracking-tighter ${!isTermActiveInMonth ? 'text-slate-400 dark:text-slate-600' : 'text-slate-900 dark:text-white'}`}>
                                                     {isTermActiveInMonth ? formatClp(amount ?? 0) : '—'}
@@ -1188,7 +1189,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                             {isPaid && currentPayment?.payment_date ? (
                                                 <span>Pagado el <span className="font-medium text-slate-700 dark:text-slate-300">{new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}</span></span>
                                             ) : isOverdue ? (
-                                                <span className="text-red-500 font-medium">Venció hace {daysOverdue} días</span>
+                                                <span className="text-red-500 font-medium">Venció hace {daysOverdue} {daysOverdue === 1 ? 'día' : 'días'}</span>
                                             ) : !isTermActiveInMonth ? (
                                                 <span>Sin vigencia este mes</span>
                                             ) : (
@@ -1904,11 +1905,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                                 {isPaid && currentPayment?.payment_date ? (
                                                                                                     `Pagado: ${new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
                                                                                                 ) : isOverdue ? (
-                                                                                                    `Venció hace ${daysOverdue} días`
+                                                                                                    `Venció hace ${daysOverdue} ${daysOverdue === 1 ? 'día' : 'días'}`
                                                                                                 ) : daysRemaining === 0 ? (
                                                                                                     'Vence hoy'
                                                                                                 ) : isCurrentMonth(monthDate) ? (
-                                                                                                    `Vence en ${daysRemaining} días`
+                                                                                                    `Vence en ${daysRemaining} ${daysRemaining === 1 ? 'día' : 'días'}`
                                                                                                 ) : (
                                                                                                     `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
                                                                                                 )}

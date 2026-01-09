@@ -69,7 +69,11 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
     }, [isMenuOpen]);
 
     return (
-        <header className="px-3 py-2 bg-white/80 dark:bg-slate-900/75 backdrop-blur-xl sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700/60 shadow-sm" data-app-header>
+        <header
+            className="px-3 py-2 bg-white/80 dark:bg-slate-900/75 backdrop-blur-xl sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700/60 shadow-sm"
+            style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
+            data-app-header
+        >
             <div className="w-full mx-auto flex items-center justify-between">
                 <div className="flex items-center gap-3 sm:gap-4">
                     <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight hidden md:block">FinanSheet</h1>
@@ -151,8 +155,8 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors"
                                 >
                                     <span className={`w-7 h-7 rounded-lg flex-shrink-0 transition-all shadow-sm ${colorTheme === 'identidad'
-                                            ? 'bg-gradient-to-br from-[#00555A] to-[#FF6F61]'
-                                            : 'bg-gradient-to-br from-teal-500 to-cyan-500'
+                                        ? 'bg-gradient-to-br from-[#00555A] to-[#FF6F61]'
+                                        : 'bg-gradient-to-br from-teal-500 to-cyan-500'
                                         }`} />
                                     <div className="flex flex-col items-start flex-1">
                                         <span className="leading-tight">Tema de Color</span>
