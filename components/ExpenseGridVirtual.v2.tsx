@@ -165,6 +165,10 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     // Category filter state
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
+    // Status filter state for mobile KPI cards (pendiente, pagado, all)
+    type StatusFilter = 'all' | 'pendiente' | 'pagado';
+    const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all');
+
     const pad = useMemo(() =>
         density === 'compact' ? 'p-1' : 'p-3',
         [density]
@@ -823,33 +827,67 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                     const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
                     return (
                         <div className="lg:hidden px-6 py-6 space-y-6">
-                            {/* KPI Héroe: Pendiente - Glass Card */}
-                            <div className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 to-orange-500/5 dark:from-amber-900/40 dark:to-orange-900/10 rounded-3xl border border-amber-100/50 dark:border-amber-500/20 p-6 text-center shadow-lg backdrop-blur-xl">
+                            {/* KPI Héroe: Pendiente - Glass Card (Clickable Filter) */}
+                            <button
+                                onClick={() => setSelectedStatus(selectedStatus === 'pendiente' ? 'all' : 'pendiente')}
+                                className={`relative w-full overflow-hidden rounded-3xl p-6 text-center shadow-lg backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${
+                                    selectedStatus === 'pendiente'
+                                        ? 'bg-gradient-to-br from-amber-500/20 to-orange-500/15 dark:from-amber-800/50 dark:to-orange-900/30 border-2 border-amber-400 dark:border-amber-500 ring-4 ring-amber-400/20'
+                                        : 'bg-gradient-to-br from-amber-500/10 to-orange-500/5 dark:from-amber-900/40 dark:to-orange-900/10 border border-amber-100/50 dark:border-amber-500/20'
+                                }`}
+                            >
                                 <div className="absolute top-0 right-0 p-4 opacity-10">
                                     <ClockIcon className="w-24 h-24 text-amber-500" />
                                 </div>
-                                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-2">
+                                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-2">
                                     Pendiente por pagar
+                                    {selectedStatus === 'pendiente' && (
+                                        <span className="text-[9px] bg-amber-500 text-white px-2 py-0.5 rounded-full">FILTRO ACTIVO</span>
+                                    )}
                                 </p>
                                 <p className="text-4xl font-black font-mono tracking-tighter text-amber-600 dark:text-amber-300 drop-shadow-sm">
                                     {formatClp(totals.pendiente)}
                                 </p>
-                            </div>
+                            </button>
 
-                            {/* KPIs Secundarios - Bento Grid */}
+                            {/* KPIs Secundarios - Bento Grid (Clickable Filters) */}
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-white/60 dark:bg-slate-800/40 backdrop-blur-md rounded-2xl p-4 text-center border border-white/50 dark:border-white/10 shadow-sm">
-                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Comprometido</p>
+                                {/* Comprometido - Click to clear filters */}
+                                <button
+                                    onClick={() => setSelectedStatus('all')}
+                                    className={`backdrop-blur-md rounded-2xl p-4 text-center shadow-sm transition-all duration-300 active:scale-[0.98] ${
+                                        selectedStatus === 'all'
+                                            ? 'bg-slate-200/80 dark:bg-slate-700/60 border-2 border-slate-400 dark:border-slate-500'
+                                            : 'bg-white/60 dark:bg-slate-800/40 border border-white/50 dark:border-white/10 hover:bg-white/80 dark:hover:bg-slate-800/60'
+                                    }`}
+                                >
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">
+                                        {selectedStatus === 'all' ? 'Mostrando Todos' : 'Comprometido'}
+                                    </p>
                                     <p className="text-lg font-bold font-mono text-slate-700 dark:text-slate-200">
                                         {formatClp(totals.comprometido)}
                                     </p>
-                                </div>
-                                <div className="bg-emerald-50/50 dark:bg-emerald-900/10 backdrop-blur-md rounded-2xl p-4 text-center border border-emerald-100/50 dark:border-emerald-500/10 shadow-sm">
-                                    <p className="text-[10px] font-bold text-emerald-600/70 dark:text-emerald-400/70 uppercase tracking-wider mb-1">Pagado</p>
+                                </button>
+
+                                {/* Pagado - Clickable Filter */}
+                                <button
+                                    onClick={() => setSelectedStatus(selectedStatus === 'pagado' ? 'all' : 'pagado')}
+                                    className={`backdrop-blur-md rounded-2xl p-4 text-center shadow-sm transition-all duration-300 active:scale-[0.98] ${
+                                        selectedStatus === 'pagado'
+                                            ? 'bg-emerald-100/80 dark:bg-emerald-800/40 border-2 border-emerald-400 dark:border-emerald-500 ring-4 ring-emerald-400/20'
+                                            : 'bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100/50 dark:border-emerald-500/10 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/20'
+                                    }`}
+                                >
+                                    <p className="text-[10px] font-bold text-emerald-600/70 dark:text-emerald-400/70 uppercase tracking-wider mb-1 flex items-center justify-center gap-1">
+                                        Pagado
+                                        {selectedStatus === 'pagado' && (
+                                            <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">ACTIVO</span>
+                                        )}
+                                    </p>
                                     <p className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">
                                         {formatClp(totals.pagado)}
                                     </p>
-                                </div>
+                                </button>
                             </div>
 
                             {/* Filtros de categoría con scroll horizontal mejorado */}
@@ -918,6 +956,17 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         if (selectedCategory === 'all') return true;
                         if (selectedCategory === 'FILTER_IMPORTANT') return c.is_important;
                         return getTranslatedCategoryName(c) === selectedCategory;
+                    }).filter(c => {
+                        // Aplicar filtro de status (pendiente/pagado)
+                        if (selectedStatus === 'all') return true;
+
+                        const activeTerm = getTermForPeriod(c, focusedDate);
+                        const dueDay = activeTerm?.due_day_of_month ?? 1;
+                        const { isPaid } = getPaymentStatus(c.id, focusedDate, dueDay);
+
+                        if (selectedStatus === 'pagado') return isPaid;
+                        if (selectedStatus === 'pendiente') return !isPaid;
+                        return true;
                     }).sort(performSmartSort);
 
                     return filteredCommitments.length > 0 ? filteredCommitments.map(c => {

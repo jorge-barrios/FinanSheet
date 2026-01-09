@@ -195,28 +195,42 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
         setError(null);
 
         try {
-            const amountValue = parseFloat(amount) || expectedAmount;
+            // Allow 0 as a valid amount (e.g., waived payment)
+            const parsed = parseFloat(amount);
+            const amountValue = !isNaN(parsed) ? parsed : expectedAmount;
 
             const paymentData: PaymentFormData = {
                 period_date: periodDate,
                 payment_date: isPaid ? paymentDate : null,
                 amount_original: amountValue,
                 currency_original: amountCurrency,
-                fx_rate_to_base: getFxRateToBase(amountCurrency),  // ✅ Using centralized function
+                fx_rate_to_base: getFxRateToBase(amountCurrency),
             };
+
+            console.log('[PaymentRecorder] Saving payment:', {
+                existingPayment: existingPayment?.id,
+                commitmentId: commitment.id,
+                termId: term?.id,
+                paymentData,
+            });
 
             if (existingPayment) {
                 // Update existing payment
-                await PaymentService.updatePayment(existingPayment.id, paymentData);
+                const result = await PaymentService.updatePayment(existingPayment.id, paymentData);
+                console.log('[PaymentRecorder] Update result:', result);
                 onSave('updated');
             } else {
-                // Create new payment
-                await PaymentService.recordPayment(commitment.id, term.id, paymentData);
+                // Create new payment (even if pending - stores the expected amount)
+                if (!term) {
+                    throw new Error('No hay término activo para este período');
+                }
+                const result = await PaymentService.recordPayment(commitment.id, term.id, paymentData);
+                console.log('[PaymentRecorder] Create result:', result);
                 onSave('created');
             }
             onClose();
         } catch (err) {
-            console.error('Error saving payment:', err);
+            console.error('[PaymentRecorder] Error saving payment:', err);
             setError(err instanceof Error ? err.message : 'Error al guardar el pago');
         } finally {
             setIsLoading(false);
@@ -298,25 +312,37 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
 
                 {/* Header Compacto con Glassmorphism */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-xl bg-gradient-to-br ${isPaid ? 'from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400' : 'from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 text-slate-500 dark:text-slate-400'}`}>
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className={`p-2 rounded-xl bg-gradient-to-br shrink-0 ${isPaid ? 'from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400' : 'from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 text-slate-500 dark:text-slate-400'}`}>
                             {isPaid ? <CheckCircleIcon className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
                         </div>
-                        <div>
-                            <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
-                                {existingPayment ? 'Editar Pago' : 'Registrar Pago'}
+                        <div className="min-w-0 flex-1">
+                            <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight truncate" title={commitment.name}>
+                                {commitment.name}
                             </h2>
                             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                                {year} · {monthNames[month]}
+                                {monthNames[month]} {year} · {existingPayment ? 'Editar' : 'Nuevo'}
                             </p>
                         </div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    >
-                        <XMarkIcon className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        {/* Delete Button - Only shown when editing existing payment */}
+                        {existingPayment && (
+                            <button
+                                onClick={() => setShowDeleteConfirm(true)}
+                                className="p-2 text-slate-400 hover:text-red-500 dark:hover:text-red-400 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                title="Eliminar registro de pago"
+                            >
+                                <TrashIcon className="w-5 h-5" />
+                            </button>
+                        )}
+                        <button
+                            onClick={onClose}
+                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                            <XMarkIcon className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Body Scrollable */}
@@ -350,59 +376,74 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                         : expectedAmount.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                             </div>
-                            <p className="text-[10px] text-slate-400 mt-2 font-medium">
-                                {commitment.name}
-                            </p>
                         </div>
 
-                        {/* 2. ACTIONS ROW */}
+                        {/* 2. TOGGLE STATUS - Dual Button Design */}
+                        <div className="col-span-2 flex gap-2 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
+                            {/* Pendiente Option */}
+                            <button
+                                type="button"
+                                onClick={() => setIsPaid(false)}
+                                className={`flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${!isPaid
+                                    ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-md ring-1 ring-amber-200/50 dark:ring-amber-500/20'
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50'
+                                    }`}
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="10" strokeWidth="2" />
+                                    <path strokeLinecap="round" strokeWidth="2" d="M12 6v6l4 2" />
+                                </svg>
+                                <span>Pendiente</span>
+                            </button>
 
-                        {/* Toggle Status Card */}
-                        <button
-                            type="button"
-                            onClick={() => setIsPaid(!isPaid)}
-                            className={`col-span-1 p-4 rounded-2xl border transition-all duration-200 flex flex-col items-center justify-center gap-2 group relative overflow-hidden outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 dark:focus:ring-offset-slate-900 ${isPaid
-                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-lg shadow-emerald-500/25'
-                                : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                                }`}
-                        >
-                            <div className={`p-2 rounded-full transition-transform duration-300 group-hover:scale-110 ${isPaid ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-700'}`}>
-                                <CheckCircleIcon className="w-6 h-6" />
-                            </div>
-                            <span className="font-bold text-sm">
-                                {isPaid ? 'Pagado' : 'Pendiente'}
-                            </span>
-                            {/* Ripple effect hint */}
-                            {isPaid && <div className="absolute inset-0 bg-white/10 animate-pulse rounded-2xl" />}
-                        </button>
+                            {/* Pagado Option */}
+                            <button
+                                type="button"
+                                onClick={() => setIsPaid(true)}
+                                className={`flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${isPaid
+                                    ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/25'
+                                    : 'text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20'
+                                    }`}
+                            >
+                                <CheckCircleIcon className="w-4 h-4" />
+                                <span>Marcar Pagado</span>
+                            </button>
+                        </div>
 
-                        {/* Date Picker Card */}
+                        {/* Date Picker Card - Always visible, disabled when pending */}
                         <div
                             onClick={() => {
-                                if (datePickerRef.current) {
+                                if (isPaid && datePickerRef.current) {
                                     datePickerRef.current.setFocus();
                                 }
                             }}
-                            className={`col-span-1 p-4 rounded-2xl border flex flex-col justify-center gap-1 transition-all duration-300 cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 ${isPaid
-                                ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-100'
-                                : 'bg-slate-50 dark:bg-slate-800/50 border-transparent opacity-100'
+                            className={`col-span-2 p-4 rounded-2xl border flex items-center gap-4 transition-all duration-300 ${isPaid
+                                ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer hover:border-sky-300 dark:hover:border-sky-600'
+                                : 'bg-slate-50 dark:bg-slate-800/30 border-slate-100 dark:border-slate-800 cursor-not-allowed opacity-50'
+                                }`}
+                        >
+                            <div className={`p-2 rounded-xl transition-colors ${isPaid
+                                ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400'
+                                : 'bg-slate-100 dark:bg-slate-700/50 text-slate-400 dark:text-slate-500'
                                 }`}>
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 cursor-pointer">
-                                <Calendar className="w-3 h-3" /> Fecha
-                            </label>
-                            <div className="w-full" onClick={(e) => e.stopPropagation()}>
+                                <Calendar className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                                    Fecha de Pago
+                                </label>
                                 <DatePicker
                                     ref={datePickerRef}
                                     selected={paymentDate ? new Date(paymentDate + 'T12:00:00') : new Date()}
                                     onChange={(date: Date | null) => {
-                                        if (date) {
-                                            // Construct YYYY-MM-DD manually
+                                        if (date && isPaid) {
                                             const year = date.getFullYear();
                                             const month = String(date.getMonth() + 1).padStart(2, '0');
                                             const day = String(date.getDate()).padStart(2, '0');
                                             setPaymentDate(`${year}-${month}-${day}`);
                                         }
                                     }}
+                                    disabled={!isPaid}
                                     onFocus={undefined}
                                     dateFormat="dd/MM/yyyy"
                                     locale="es"
@@ -410,24 +451,14 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                     strictParsing
                                     placeholderText="dd/mm/aaaa"
                                     onKeyDown={(e) => {
-                                        // 1. Allow standard navigation/editing keys
+                                        if (!isPaid) return;
                                         const navKeys = ['Backspace', 'Delete', 'Tab', 'Enter', 'Escape', '/'];
-                                        if (navKeys.includes(e.key)) {
-                                            return;
-                                        }
-
-                                        // 2. Allow Arrow Keys for cursor navigation (default behavior)
-                                        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                                            return;
-                                        }
-
-                                        // 3. Prevent letters/symbols AND enforce maxLength 10 manually
+                                        if (navKeys.includes(e.key)) return;
+                                        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
                                         if (!/^\d$/.test(e.key)) {
                                             e.preventDefault();
                                             return;
                                         }
-
-                                        // Manual maxLength check
                                         const input = e.target as HTMLInputElement;
                                         if (input.value.length >= 10) {
                                             const selection = window.getSelection();
@@ -436,7 +467,10 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                             }
                                         }
                                     }}
-                                    className="w-full bg-transparent p-0 border-none text-sm font-bold text-slate-900 dark:text-white focus:ring-0 focus:outline-none cursor-pointer"
+                                    className={`w-full bg-transparent p-0 border-none text-base font-bold focus:ring-0 focus:outline-none ${isPaid
+                                        ? 'text-slate-900 dark:text-white cursor-pointer'
+                                        : 'text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                                        }`}
                                     wrapperClassName="w-full"
                                     popperClassName="z-[9999]"
                                     portalId="root"
@@ -498,24 +532,14 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                     </div>
                 </div>
 
-                {/* Footer Actions */}
-                <div className="p-6 pt-2 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
-                    {existingPayment && (
-                        <button
-                            onClick={() => setShowDeleteConfirm(true)}
-                            className="px-4 py-3 rounded-xl border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 active:bg-red-100 transition-colors"
-                            title="Eliminar Pago"
-                        >
-                            <TrashIcon className="w-5 h-5" />
-                        </button>
-                    )}
-
+                {/* Footer Actions - Simplified */}
+                <div className="p-6 pt-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800">
                     <button
                         onClick={handleSave}
                         disabled={isLoading}
-                        className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-bold text-white shadow-xl transition-all active:scale-[0.98] ${isPaid
+                        className={`w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-bold text-white shadow-xl transition-all active:scale-[0.98] ${isPaid
                             ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/25 ring-2 ring-emerald-600/20'
-                            : 'bg-slate-800 hover:bg-slate-700 shadow-slate-900/20 dark:bg-blue-600 dark:hover:bg-blue-500 dark:shadow-blue-600/25'
+                            : 'bg-sky-600 hover:bg-sky-500 shadow-sky-600/25 dark:bg-sky-600 dark:hover:bg-sky-500'
                             }`}
                     >
                         {isLoading ? (

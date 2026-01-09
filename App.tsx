@@ -174,6 +174,20 @@ const App: React.FC = () => {
         });
     }, []);
 
+    // Mobile: Prevent back navigation from closing the app
+    useEffect(() => {
+        // Push initial state to prevent immediate back navigation
+        window.history.pushState({ app: 'finansheet' }, '');
+
+        const handlePopState = () => {
+            // Re-push state to stay in app (prevents swipe-back on mobile)
+            window.history.pushState({ app: 'finansheet' }, '');
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
     const fetchData = useCallback(async () => {
         if (!isSupabaseConfigured || !supabase) {
             setLoading(false);
