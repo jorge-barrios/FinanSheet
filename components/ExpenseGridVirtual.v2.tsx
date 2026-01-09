@@ -674,7 +674,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     return (
         <div>
             {/* Header Toolbar - Unified for Mobile + Desktop */}
-            <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700/50 shadow-sm transition-all duration-200">
+            <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm lg:border-b border-slate-200 dark:border-slate-700/50 shadow-sm transition-all duration-200">
                 {/* Single Row Layout: Navigation | Totals (lg only) | Actions */}
                 <div className="flex flex-wrap items-center justify-between gap-2 p-3 md:p-4">
                     {/* Left: Navigation Group */}
@@ -822,109 +822,107 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                     </div>
                 </div>
 
-                {/* Row 2: KPIs Mobile Redesign (< lg) - Bento Style */}
+                {/* Row 2: KPIs Mobile - Bento Grid + Glassmorphism */}
                 {(() => {
                     const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
                     return (
-                        <div className="lg:hidden px-6 py-6 space-y-6">
-                            {/* KPI Héroe: Pendiente - Glass Card (Clickable Filter) */}
-                            <button
-                                onClick={() => setSelectedStatus(selectedStatus === 'pendiente' ? 'all' : 'pendiente')}
-                                className={`relative w-full overflow-hidden rounded-3xl p-6 text-center shadow-lg backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${
-                                    selectedStatus === 'pendiente'
-                                        ? 'bg-gradient-to-br from-amber-500/20 to-orange-500/15 dark:from-amber-800/50 dark:to-orange-900/30 border-2 border-amber-400 dark:border-amber-500 ring-4 ring-amber-400/20'
-                                        : 'bg-gradient-to-br from-amber-500/10 to-orange-500/5 dark:from-amber-900/40 dark:to-orange-900/10 border border-amber-100/50 dark:border-amber-500/20'
-                                }`}
-                            >
-                                <div className="absolute top-0 right-0 p-4 opacity-10">
-                                    <ClockIcon className="w-24 h-24 text-amber-500" />
-                                </div>
-                                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-2">
-                                    Pendiente por pagar
-                                    {selectedStatus === 'pendiente' && (
-                                        <span className="text-[9px] bg-amber-500 text-white px-2 py-0.5 rounded-full">FILTRO ACTIVO</span>
-                                    )}
-                                </p>
-                                <p className="text-4xl font-black font-mono tracking-tighter text-amber-600 dark:text-amber-300 drop-shadow-sm">
-                                    {formatClp(totals.pendiente)}
-                                </p>
-                            </button>
-
-                            {/* KPIs Secundarios - Bento Grid (Clickable Filters) */}
-                            <div className="grid grid-cols-2 gap-4">
-                                {/* Comprometido - Click to clear filters */}
+                        <div className="lg:hidden border-b border-slate-200/50 dark:border-white/5">
+                            {/* Hero Card: Pendiente - Full width with decorative background */}
+                            <div className="px-3 pt-3 pb-2">
                                 <button
-                                    onClick={() => setSelectedStatus('all')}
-                                    className={`backdrop-blur-md rounded-2xl p-4 text-center shadow-sm transition-all duration-300 active:scale-[0.98] ${
-                                        selectedStatus === 'all'
-                                            ? 'bg-slate-200/80 dark:bg-slate-700/60 border-2 border-slate-400 dark:border-slate-500'
-                                            : 'bg-white/60 dark:bg-slate-800/40 border border-white/50 dark:border-white/10 hover:bg-white/80 dark:hover:bg-slate-800/60'
-                                    }`}
+                                    onClick={() => {
+                                        setSelectedStatus(selectedStatus === 'pendiente' ? 'all' : 'pendiente');
+                                        setSelectedCategory('all'); // Reset category when selecting status
+                                    }}
+                                    className={`relative w-full overflow-hidden rounded-2xl p-4 text-center backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'pendiente'
+                                        ? 'bg-gradient-to-br from-amber-500/25 to-orange-500/15 dark:from-amber-600/30 dark:to-orange-600/15 border border-amber-400/50 dark:border-amber-400/40 shadow-lg shadow-amber-500/20'
+                                        : 'bg-gradient-to-br from-amber-500/10 to-orange-500/5 dark:from-amber-900/30 dark:to-orange-900/10 border border-amber-200/30 dark:border-amber-500/20 hover:from-amber-500/15 hover:to-orange-500/10'
+                                        }`}
                                 >
-                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">
-                                        {selectedStatus === 'all' ? 'Mostrando Todos' : 'Comprometido'}
-                                    </p>
-                                    <p className="text-lg font-bold font-mono text-slate-700 dark:text-slate-200">
-                                        {formatClp(totals.comprometido)}
-                                    </p>
-                                </button>
+                                    {/* Decorative Background Icon */}
+                                    <div className="absolute top-1/2 right-4 -translate-y-1/2 opacity-[0.08] pointer-events-none">
+                                        <ClockIcon className="w-24 h-24 text-amber-600 dark:text-amber-400" />
+                                    </div>
 
-                                {/* Pagado - Clickable Filter */}
-                                <button
-                                    onClick={() => setSelectedStatus(selectedStatus === 'pagado' ? 'all' : 'pagado')}
-                                    className={`backdrop-blur-md rounded-2xl p-4 text-center shadow-sm transition-all duration-300 active:scale-[0.98] ${
-                                        selectedStatus === 'pagado'
-                                            ? 'bg-emerald-100/80 dark:bg-emerald-800/40 border-2 border-emerald-400 dark:border-emerald-500 ring-4 ring-emerald-400/20'
-                                            : 'bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100/50 dark:border-emerald-500/10 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/20'
-                                    }`}
-                                >
-                                    <p className="text-[10px] font-bold text-emerald-600/70 dark:text-emerald-400/70 uppercase tracking-wider mb-1 flex items-center justify-center gap-1">
-                                        Pagado
-                                        {selectedStatus === 'pagado' && (
-                                            <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">ACTIVO</span>
-                                        )}
-                                    </p>
-                                    <p className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                                        {formatClp(totals.pagado)}
-                                    </p>
+                                    <div className="relative z-10">
+                                        <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${selectedStatus === 'pendiente'
+                                            ? 'text-amber-700 dark:text-amber-300'
+                                            : 'text-amber-600/80 dark:text-amber-400/80'
+                                            }`}>
+                                            Pendiente por pagar
+                                        </p>
+                                        <p className={`text-3xl font-black font-mono tracking-tighter ${selectedStatus === 'pendiente'
+                                            ? 'text-amber-700 dark:text-amber-200'
+                                            : 'text-amber-700/90 dark:text-amber-300/90'
+                                            }`}>
+                                            {formatClp(totals.pendiente)}
+                                        </p>
+                                    </div>
                                 </button>
                             </div>
 
-                            {/* Filtros de categoría con scroll horizontal mejorado */}
-                            <div className="-mx-6 px-6">
-                                <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
+                            {/* Secondary KPIs Row: Comprometido + Pagado */}
+                            <div className="px-3 pb-2 grid grid-cols-2 gap-2">
+                                {/* Comprometido - Shows all */}
+                                <button
+                                    onClick={() => {
+                                        setSelectedStatus('all');
+                                        setSelectedCategory('all'); // Reset category when selecting status
+                                    }}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.97] ${selectedStatus === 'all' && selectedCategory === 'all'
+                                        ? 'bg-sky-500/15 dark:bg-sky-500/10 border border-sky-400/30 dark:border-sky-400/20 shadow-md shadow-sky-500/10'
+                                        : 'bg-white/50 dark:bg-white/5 border border-white/30 dark:border-white/10 hover:bg-white/70 dark:hover:bg-white/10'
+                                        }`}
+                                >
+                                    <p className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${selectedStatus === 'all' && selectedCategory === 'all' ? 'text-sky-600 dark:text-sky-400' : 'text-slate-500 dark:text-slate-400'
+                                        }`}>Comprometido</p>
+                                    <p className={`text-lg font-extrabold font-mono tracking-tight ${selectedStatus === 'all' && selectedCategory === 'all' ? 'text-sky-700 dark:text-sky-300' : 'text-slate-700 dark:text-slate-200'
+                                        }`}>{formatClp(totals.comprometido)}</p>
+                                </button>
+
+                                {/* Pagado */}
+                                <button
+                                    onClick={() => {
+                                        setSelectedStatus(selectedStatus === 'pagado' ? 'all' : 'pagado');
+                                        setSelectedCategory('all'); // Reset category when selecting status
+                                    }}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.97] ${selectedStatus === 'pagado'
+                                        ? 'bg-teal-500/20 dark:bg-teal-500/15 border border-teal-400/40 dark:border-teal-400/30 shadow-md shadow-teal-500/10'
+                                        : 'bg-white/50 dark:bg-white/5 border border-white/30 dark:border-white/10 hover:bg-white/70 dark:hover:bg-white/10'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-1 mb-0.5">
+                                        <CheckCircleIcon className={`w-3.5 h-3.5 ${selectedStatus === 'pagado' ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400 dark:text-slate-500'}`} />
+                                        <p className={`text-[9px] font-bold uppercase tracking-wider ${selectedStatus === 'pagado' ? 'text-teal-700 dark:text-teal-300' : 'text-slate-500 dark:text-slate-400'}`}>Pagado</p>
+                                    </div>
+                                    <p className={`text-lg font-extrabold font-mono tracking-tight ${selectedStatus === 'pagado' ? 'text-teal-700 dark:text-teal-300' : 'text-slate-700 dark:text-slate-200'}`}>{formatClp(totals.pagado)}</p>
+                                </button>
+                            </div>
+
+                            {/* Category Filter Pills - Mutually exclusive with status */}
+                            <div className="px-3 pb-3">
+                                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
                                     {availableCategories.map(cat => (
                                         <button
                                             key={cat}
-                                            onClick={() => setSelectedCategory(cat)}
-                                            className={`
-                                                flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap
-                                                transition-all duration-300 ease-out border
-                                                ${selectedCategory === cat
-                                                    ? 'bg-slate-800 text-white border-slate-800 shadow-md transform scale-105'
-                                                    : 'bg-white/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-white/20 dark:border-white/5 hover:bg-white hover:shadow-sm'
+                                            onClick={() => {
+                                                if (selectedCategory === cat) {
+                                                    setSelectedCategory('all');
+                                                } else {
+                                                    setSelectedCategory(cat);
+                                                    setSelectedStatus('all'); // Reset status when selecting category
                                                 }
-                                                backdrop-blur-sm
+                                            }}
+                                            className={`
+                                                flex-shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-semibold whitespace-nowrap
+                                                backdrop-blur-lg transition-all duration-200
+                                                ${selectedCategory === cat
+                                                    ? 'bg-slate-800/90 dark:bg-white/90 text-white dark:text-slate-900 shadow-md'
+                                                    : 'bg-white/50 dark:bg-white/5 text-slate-600 dark:text-slate-400 border border-white/40 dark:border-white/10 hover:bg-white/70 dark:hover:bg-white/10'
+                                                }
                                             `}
                                         >
-                                            {cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? 'Importantes' : cat}
-                                            {selectedCategory === cat && (
-                                                <span className="ml-1.5 opacity-70 font-normal">
-                                                    ({cat === 'all'
-                                                        ? commitments.filter(c => showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
-                                                        : cat === 'FILTER_IMPORTANT'
-                                                            ? commitments.filter(c => {
-                                                                const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
-                                                                return isActive && c.is_important;
-                                                            }).length
-                                                            : commitments.filter(c => {
-                                                                const categoryName = getTranslatedCategoryName(c);
-                                                                const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
-                                                                return isActive && categoryName === cat;
-                                                            }).length
-                                                    })
-                                                </span>
-                                            )}
+                                            {cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? <StarIcon className="w-3.5 h-3.5 fill-current" /> : cat}
                                         </button>
                                     ))}
                                 </div>
