@@ -466,11 +466,31 @@ export function generateExpectedPeriods(
         }
 
         // Advance to next month
+        // Advance to next period based on frequency
         const [y, m] = currentPeriod.split('-').map(Number);
-        // m is month number (1-12). Date constructor uses 0-11 for month.
-        // So new Date(y, m, 1) gives us the FIRST day of the NEXT month (since current m is effectively m-1+1)
-        // Example: '2025-01-01' -> y=2025, m=1. new Date(2025, 1, 1) -> Feb 1st 2025. Correct.
-        const nextDate = new Date(y, m, 1);
+        // m is 1-12. Date constructor uses 0-11.
+
+        let interval = 1;
+        switch (term.frequency) {
+            case 'ONCE': interval = 0; break; // Should loop once and stop, but we handle logic below
+            case 'MONTHLY': interval = 1; break;
+            case 'BIMONTHLY': interval = 2; break;
+            case 'QUARTERLY': interval = 3; break;
+            case 'SEMIANNUALLY': interval = 6; break;
+            case 'ANNUALLY': interval = 12; break;
+            default: interval = 1;
+        }
+
+        if (interval === 0) {
+            // For ONCE, we only run one iteration. Break loop.
+            break;
+        }
+
+        // Calculate next date securely
+        // Note: m is 1-based from split, but we want to add `interval` months.
+        // new Date(y, m-1, 1) is current period start.
+        // new Date(y, (m-1) + interval, 1) is next period start.
+        const nextDate = new Date(y, (m - 1) + interval, 1);
         currentPeriod = nextDate.toISOString().slice(0, 10);
     }
 

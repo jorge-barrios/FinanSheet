@@ -13,6 +13,7 @@ interface CommitmentDetailModalProps {
     commitment: CommitmentWithTerm;
     payments: Payment[]; // All payments passed down to calculate summary/history
     onEdit: () => void;
+    onPaymentClick?: (commitment: CommitmentWithTerm, periodDate: string) => void;
 }
 
 export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
@@ -20,7 +21,8 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
     onClose,
     commitment,
     payments, // Context payments (12-month window)
-    onEdit
+    onEdit,
+    onPaymentClick
 }) => {
     const { t, formatClp } = useLocalization();
     const CategoryIcon = getCategoryIcon(commitment.category?.name || '');
@@ -155,6 +157,7 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
                                 onTermCreate={async () => { }}
                                 onTermDelete={async () => { }}
                                 onRefresh={refreshHistory}
+                                onPaymentClick={(date) => onPaymentClick?.(commitment, date)}
                             />
                         </div>
                     </div>

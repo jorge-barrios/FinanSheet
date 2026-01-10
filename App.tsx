@@ -912,6 +912,12 @@ const App: React.FC = () => {
         }
     }, [contextCommitments]);
 
+    // Wrapper for clicked payment row in TermsListView
+    const handlePaymentClick = useCallback((commitment: CommitmentWithTerm, periodDate: string) => {
+        const [year, month] = periodDate.split('-').map(Number);
+        handleOpenPaymentRecorder(commitment.id, year, month);
+    }, [handleOpenPaymentRecorder]);
+
     const handleSavePaymentDetails = useCallback(async (expenseId: string, year: number, month: number, details: Partial<PaymentDetails>) => {
         const date_key = `${year}-${month}`;
 
@@ -1167,6 +1173,7 @@ const App: React.FC = () => {
                     commitment={viewingCommitment}
                     payments={contextPayments.get(viewingCommitment.id) || []} // Pass specific payments for this commitment
                     onEdit={() => handleEditCommitment(viewingCommitment)}
+                    onPaymentClick={handlePaymentClick}
                 />
             )}
             <ExpenseCommitmentFormWrapper
@@ -1194,6 +1201,7 @@ const App: React.FC = () => {
                 }}
                 openWithPauseForm={openWithPauseForm}
                 openWithResumeForm={openWithResumeForm}
+                onPaymentClick={handlePaymentClick}
             />
             {editingCell && (() => {
                 const expense = expenses.find(e => e.id === editingCell.expenseId);

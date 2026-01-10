@@ -47,6 +47,7 @@ interface CommitmentFormV2Props {
     openWithPauseForm?: boolean;
     openWithResumeForm?: boolean;
     onCommitmentUpdated?: () => void;
+    onPaymentClick?: (commitment: CommitmentWithTerm, periodDate: string) => void;
 }
 
 const formInputClasses = "w-full h-[46px] bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-2xl px-4 py-3 text-[15px] focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition-all duration-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 backdrop-blur-xl shadow-sm";
@@ -63,6 +64,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     openWithPauseForm,
     openWithResumeForm,
     onCommitmentUpdated,
+    onPaymentClick,
     commitmentToEdit
 }) => {
     const { t } = useLocalization();
@@ -1356,6 +1358,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                             openWithResumeForm={openWithResumeForm}
                                             hideTitle={true}
                                             isLoading={loadingPayments}
+                                            onPaymentClick={(date) => onPaymentClick?.(effectiveCommitment!, date)}
                                         />
                                     </div>
                                 )}

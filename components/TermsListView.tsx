@@ -30,6 +30,7 @@ interface TermsListViewProps {
     hideTitle?: boolean; // Hide header title and counter (to avoid duplication when inside accordion)
     isLoading?: boolean;
     useScrollNavigation?: boolean; // If true, filter buttons scroll to section instead of hiding items
+    onPaymentClick?: (paymentDate: string) => void; // Callback when a payment row is clicked
 }
 
 interface EditingTerm {
@@ -66,6 +67,7 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
     hideTitle = false,
     isLoading = false,
     useScrollNavigation = isReadOnly, // Default to true if read-only
+    onPaymentClick,
 }) => {
     const { t, formatClp } = useLocalization();
     const [expandedTermId, setExpandedTermId] = useState<string | null>(
@@ -1368,7 +1370,8 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                                                 <div
                                                                     key={payment.id}
                                                                     data-payment-status={isPaid ? 'paid' : 'pending'}
-                                                                    className={`flex items-center justify-between text-sm py-2 px-3 rounded-lg border shadow-sm transition-all ${isPaid
+                                                                    onClick={() => onPaymentClick?.(payment.period_date)}
+                                                                    className={`flex items-center justify-between text-sm py-2 px-3 rounded-lg border shadow-sm transition-all ${onPaymentClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]' : ''} ${isPaid
                                                                         ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-emerald-200'
                                                                         : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:border-amber-200'
                                                                         }`}

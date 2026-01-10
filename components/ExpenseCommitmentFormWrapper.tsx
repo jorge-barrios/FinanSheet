@@ -40,6 +40,7 @@ interface ExpenseCommitmentFormWrapperProps {
     onRefresh?: () => void; // Callback to refresh data after v2 save
     openWithPauseForm?: boolean; // When true, opens with pause form expanded in TermsListView
     openWithResumeForm?: boolean; // When true, opens with resume (new term) form expanded in TermsListView
+    onPaymentClick?: (commitment: CommitmentWithTerm, periodDate: string) => void;
 }
 
 export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapperProps> = (props) => {
@@ -461,6 +462,7 @@ export const ExpenseCommitmentFormWrapper: React.FC<ExpenseCommitmentFormWrapper
                     openWithPauseForm={props.openWithPauseForm}
                     openWithResumeForm={props.openWithResumeForm}
                     onCommitmentUpdated={props.onRefresh}
+                    onPaymentClick={props.onPaymentClick}
                 />
             </>
         );
