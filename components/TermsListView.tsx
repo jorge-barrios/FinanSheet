@@ -13,8 +13,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { useLocalization } from '../hooks/useLocalization';
+import { generateExpectedPeriods } from '../utils/commitmentStatusUtils';
 import { Calendar, DollarSign, Hash, ChevronDown, ChevronUp, Edit2, Check, AlertTriangle, Pause, Clock, Trash2, Plus, X } from 'lucide-react';
-import type { Term, CommitmentWithTerm, Payment, Frequency } from '../types.v2';
+import type { Term, CommitmentWithTerm, Payment, Frequency, PaymentWithDetails } from '../types.v2';
 
 interface TermsListViewProps {
     commitment: CommitmentWithTerm;
@@ -28,6 +29,7 @@ interface TermsListViewProps {
     openWithResumeForm?: boolean; // When true, auto-opens the resume (new term) form
     hideTitle?: boolean; // Hide header title and counter (to avoid duplication when inside accordion)
     isLoading?: boolean;
+    useScrollNavigation?: boolean; // If true, filter buttons scroll to section instead of hiding items
 }
 
 interface EditingTerm {
@@ -63,14 +65,18 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
     openWithResumeForm = false,
     hideTitle = false,
     isLoading = false,
+    useScrollNavigation = isReadOnly, // Default to true if read-only
 }) => {
     const { t, formatClp } = useLocalization();
-    const [expandedTermId, setExpandedTermId] = useState<string | null>(null);
+    const [expandedTermId, setExpandedTermId] = useState<string | null>(
+        // Default to active term if available
+        commitment.active_term?.id || null
+    );
     const [editingTerm, setEditingTerm] = useState<EditingTerm | null>(null);
     const [saving, setSaving] = useState(false);
-    const [deleting, setDeleting] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'pending'>('paid');
 
     // State for creating new term
     const [showNewTermForm, setShowNewTermForm] = useState(false);
@@ -92,11 +98,32 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
             const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
             // Get minimum month from active term
             const minYM = commitment.active_term?.effective_from?.substring(0, 7) || currentYM;
-            // Use current month if valid, otherwise use minimum
-            setPauseMonth(currentYM >= minYM ? currentYM : minYM);
+
+            // Only set if we haven't already
+            if (!pauseMonth) {
+                // Default to next month if current month is "paid" or currentYM if not? 
+                // For simplicity, just use currentYM or minYM whichever is greater
+                setPauseMonth(currentYM > minYM ? currentYM : minYM);
+            }
             setShowPauseForm(true);
         }
-    }, [openWithPauseForm, commitment.active_term]);
+    }, [openWithPauseForm, commitment.active_term, showPauseForm, pauseMonth]); // Correct dependencies
+
+    // Auto-scroll effect for Paid filter on initial load
+    React.useEffect(() => {
+        if (useScrollNavigation && expandedTermId && paymentFilter === 'paid') {
+            // Tiny timeout to ensure DOM is rendered (heights calculated)
+            setTimeout(() => {
+                const list = document.getElementById(`payment-list-${expandedTermId}`);
+                const firstPaid = list?.querySelector('[data-payment-status="paid"]');
+                if (firstPaid && list) {
+                    const topPos = (firstPaid as HTMLElement).offsetTop - list.offsetTop;
+                    list.scrollTo({ top: topPos, behavior: 'smooth' });
+                }
+            }, 100);
+        }
+    }, [expandedTermId, paymentFilter, useScrollNavigation]);
+
 
     // Auto-open resume form when openWithResumeForm prop is true
     React.useEffect(() => {
@@ -1058,7 +1085,7 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                             ${isEditing ? 'ring-2 ring-sky-500' : ''}
                         `}
                         >
-                            {/* Term Header */}
+                            {/* Term Header - Optimized for cleaner look */}
                             <div
                                 className={`
                                 flex items-center justify-between p-3 cursor-pointer
@@ -1069,7 +1096,7 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                 <div className="flex items-center gap-3">
                                     {/* Version badge */}
                                     <div className={`
-                                    w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold
+                                    w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0
                                     ${isActive
                                             ? 'bg-sky-500 text-white'
                                             : 'bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300'
@@ -1078,10 +1105,9 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                         V{term.version}
                                     </div>
 
-                                    {/* Date range */}
+                                    {/* Date range & Status - Compacted */}
                                     <div className="flex flex-col">
                                         <div className="flex items-center gap-1.5 text-sm font-medium text-slate-900 dark:text-white">
-                                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
                                             <span>{formatMonthYear(term.effective_from)}</span>
                                             <span className="text-slate-400">→</span>
                                             <span>
@@ -1091,42 +1117,31 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                                 }
                                             </span>
                                         </div>
-                                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                        {/* Status only, moved payment count to expanded view */}
+                                        <div className="text-xs">
                                             {(() => {
                                                 const status = getTermStatus(term);
                                                 switch (status) {
                                                     case 'active':
                                                         return (
-                                                            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                                                                <Clock className="w-3 h-3" />
-                                                                {term.effective_until
-                                                                    ? `Activo hasta ${formatMonthYear(term.effective_until)}`
-                                                                    : 'Activo'
-                                                                }
+                                                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                                                Activo actualmente
                                                             </span>
                                                         );
                                                     case 'scheduled':
-                                                        // Show more informative label for scheduled terms
-                                                        const schedLabel = term.effective_until
-                                                            ? `Empieza ${formatMonthYear(term.effective_from)}`
-                                                            : `Empieza ${formatMonthYear(term.effective_from)}`;
                                                         return (
-                                                            <span className="flex items-center gap-1 text-sky-600 dark:text-sky-400">
-                                                                <Calendar className="w-3 h-3" />
-                                                                {schedLabel}
+                                                            <span className="text-sky-600 dark:text-sky-400 font-medium">
+                                                                Programado
                                                             </span>
                                                         );
-                                                    case 'historic':
                                                     default:
                                                         return (
-                                                            <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                                                                <Clock className="w-3 h-3" />
+                                                            <span className="text-slate-400">
                                                                 Histórico
                                                             </span>
                                                         );
                                                 }
                                             })()}
-                                            <span>{termPayments.length} pago{termPayments.length !== 1 ? 's' : ''}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1135,53 +1150,48 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                 <div className="flex items-center gap-3">
                                     <div className="text-right">
                                         <div className="text-sm font-bold text-slate-900 dark:text-white">
-                                            {term.currency_original === 'CLP'
-                                                ? formatClp(term.amount_original)
-                                                : `${term.currency_original} ${term.amount_original.toLocaleString()}`
-                                            }
+                                            {/* Logic: if is_divided_amount, calculated monthly installment. Else, show original amount */}
+                                            {(() => {
+                                                const amountToShow = (term.is_divided_amount && term.installments_count)
+                                                    ? (term.amount_original / term.installments_count)
+                                                    : term.amount_original;
+
+                                                return term.currency_original === 'CLP'
+                                                    ? formatClp(amountToShow)
+                                                    : `${term.currency_original} ${amountToShow.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+                                            })()}
                                         </div>
-                                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                                            {t(`frequency.${term.frequency.toLowerCase()}`, term.frequency)}
+                                        <div className="text-xs text-slate-500 dark:text-slate-400 flex flex-col items-end">
+                                            <span>
+                                                {term.is_divided_amount
+                                                    ? 'mensual'
+                                                    : t(`frequency.${term.frequency.toLowerCase()}`, term.frequency)
+                                                }
+                                            </span>
                                         </div>
                                     </div>
 
                                     {!isReadOnly && !isEditing && (
                                         <div className="flex items-center gap-1">
                                             <button
+                                                type="button"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleStartEdit(term);
                                                 }}
                                                 className="p-1.5 text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30 rounded-lg transition-colors"
-                                                title="Editar término"
                                             >
                                                 <Edit2 className="w-4 h-4" />
                                             </button>
-                                            {/* Delete button - only for:
-                                            1. Terms with no payments
-                                            2. Not the only term
-                                            (Active term CAN be deleted if it has no payments and there's history to fall back to)
-                                        */}
                                             {termPayments.length === 0 && allTerms.length > 1 && onTermDelete && (
                                                 <button
+                                                    type="button"
                                                     onClick={async (e) => {
                                                         e.stopPropagation();
-                                                        const confirmMsg = `¿Eliminar V${term.version} (${formatMonthYear(term.effective_from)} → ${term.effective_until ? formatMonthYear(term.effective_until) : '∞'})?\n\nEsta acción no se puede deshacer.`;
-                                                        if (confirm(confirmMsg)) {
-                                                            setDeleting(term.id);
-                                                            setError(null);
-                                                            try {
-                                                                await onTermDelete(term.id);
-                                                            } catch (err) {
-                                                                setError(err instanceof Error ? err.message : 'Error al eliminar');
-                                                            } finally {
-                                                                setDeleting(null);
-                                                            }
-                                                        }
+                                                        // Confirm before strict delete (only allowed for terms with NO payments)
+                                                        if (confirm('¿Eliminar este término histórico?')) onTermDelete(term.id);
                                                     }}
-                                                    disabled={deleting === term.id}
-                                                    className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors disabled:opacity-50"
-                                                    title="Eliminar término histórico (sin pagos)"
+                                                    className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
@@ -1200,180 +1210,210 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                             {/* Edit Form */}
                             {isEditing && editingTerm && (
                                 <div className="px-3 pb-3 border-t border-slate-200 dark:border-slate-700 pt-3 space-y-3" onClick={e => e.stopPropagation()}>
+                                    {/* ... existing form fields ... */}
+                                    {/* Re-using existing form fields exactly as they were, just wrapping in this block for structure */}
                                     <div className="grid grid-cols-2 gap-3">
-                                        {/* Effective From */}
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                                                Desde (mes)
-                                            </label>
-                                            <input
-                                                type="month"
-                                                value={editingTerm.effective_from.substring(0, 7)}
-                                                onChange={(e) => setEditingTerm(prev => prev ? { ...prev, effective_from: e.target.value + '-01' } : null)}
-                                                className={formInputClasses}
-                                            />
+                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Desde (mes)</label>
+                                            <input type="month" value={editingTerm.effective_from.substring(0, 7)} onChange={(e) => setEditingTerm(prev => prev ? { ...prev, effective_from: e.target.value + '-01' } : null)} className={formInputClasses} />
                                         </div>
-
-                                        {/* Effective Until */}
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                                                Hasta (mes)
-                                            </label>
+                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Hasta (mes)</label>
                                             <div className="flex gap-2">
-                                                <input
-                                                    type="month"
-                                                    value={editingTerm.effective_until?.substring(0, 7) || ''}
-                                                    onChange={(e) => {
-                                                        if (e.target.value) {
-                                                            // Set to last day of month
-                                                            const [year, month] = e.target.value.split('-').map(Number);
-                                                            const lastDay = new Date(year, month, 0).getDate();
-                                                            setEditingTerm(prev => prev ? { ...prev, effective_until: `${e.target.value}-${String(lastDay).padStart(2, '0')}` } : null);
-                                                        } else {
-                                                            setEditingTerm(prev => prev ? { ...prev, effective_until: null } : null);
-                                                        }
-                                                    }}
-                                                    className={`${formInputClasses} flex-1`}
-                                                    placeholder="∞"
-                                                />
-                                                {editingTerm.effective_until && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setEditingTerm(prev => prev ? { ...prev, effective_until: null } : null)}
-                                                        className="px-2 text-xs text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 rounded"
-                                                        title="Sin límite (∞)"
-                                                    >
-                                                        ∞
-                                                    </button>
-                                                )}
+                                                <input type="month" value={editingTerm.effective_until?.substring(0, 7) || ''} onChange={(e) => {
+                                                    if (e.target.value) {
+                                                        const [y, m] = e.target.value.split('-').map(Number);
+                                                        const lastDay = new Date(y, m, 0).getDate();
+                                                        setEditingTerm(prev => prev ? { ...prev, effective_until: `${e.target.value}-${String(lastDay).padStart(2, '0')}` } : null);
+                                                    } else {
+                                                        setEditingTerm(prev => prev ? { ...prev, effective_until: null } : null);
+                                                    }
+                                                }} className={`${formInputClasses} flex-1`} placeholder="∞" />
+                                                {editingTerm.effective_until && <button type="button" onClick={() => setEditingTerm(prev => prev ? { ...prev, effective_until: null } : null)} className="px-2 text-xs text-sky-600">∞</button>}
                                             </div>
                                         </div>
-
-                                        {/* Amount */}
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                                                Monto
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={editingTerm.amount_original}
-                                                onChange={(e) => setEditingTerm(prev => prev ? { ...prev, amount_original: parseFloat(e.target.value) || 0 } : null)}
-                                                className={formInputClasses}
-                                                min="0"
-                                                step="0.01"
-                                            />
+                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Monto</label>
+                                            <input type="number" value={editingTerm.amount_original} onChange={(e) => setEditingTerm(prev => prev ? { ...prev, amount_original: parseFloat(e.target.value) || 0 } : null)} className={formInputClasses} min="0" step="0.01" />
                                         </div>
-
-                                        {/* Due Day */}
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                                                Día vencimiento
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={editingTerm.due_day_of_month || ''}
-                                                onChange={(e) => setEditingTerm(prev => prev ? { ...prev, due_day_of_month: parseInt(e.target.value) || null } : null)}
-                                                className={formInputClasses}
-                                                min="1"
-                                                max="31"
-                                                placeholder="1-31"
-                                            />
+                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Día vencimiento</label>
+                                            <input type="number" value={editingTerm.due_day_of_month || ''} onChange={(e) => setEditingTerm(prev => prev ? { ...prev, due_day_of_month: parseInt(e.target.value) || null } : null)} className={formInputClasses} min="1" max="31" placeholder="1-31" />
                                         </div>
                                     </div>
-
-                                    {/* Save/Cancel buttons */}
                                     <div className="flex justify-end gap-2 pt-2">
-                                        <button
-                                            type="button"
-                                            onClick={handleCancelEdit}
-                                            className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                                            disabled={saving}
-                                        >
-                                            Cancelar
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleSaveEdit}
-                                            className="px-3 py-1.5 text-sm bg-sky-500 text-white hover:bg-sky-600 rounded-lg transition-colors flex items-center gap-1.5"
-                                            disabled={saving}
-                                        >
-                                            {saving ? (
-                                                <>Guardando...</>
-                                            ) : (
-                                                <>
-                                                    <Check className="w-4 h-4" />
-                                                    Guardar
-                                                </>
-                                            )}
-                                        </button>
+                                        <button type="button" onClick={handleCancelEdit} className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 bg-slate-100 hover:bg-slate-200 rounded-lg">Cancelar</button>
+                                        <button type="button" onClick={handleSaveEdit} className="px-3 py-1.5 text-sm bg-sky-500 text-white hover:bg-sky-600 rounded-lg flex items-center gap-1.5">{saving ? 'Guardando...' : <><Check className="w-4 h-4" /> Guardar</>}</button>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Expanded Details */}
+                            {/* Expanded Details - OPTIMIZED LAYOUT */}
                             {isExpanded && !isEditing && (
-                                <div className="px-3 pb-3 border-t border-slate-200 dark:border-slate-700 pt-3">
-                                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                <div className="bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-200 dark:border-slate-700">
+                                    {/* Info Bar - Compact row of details */}
+                                    <div className="flex items-center gap-4 px-4 py-2 border-b border-slate-100 dark:border-slate-800/50 text-sm text-slate-500 dark:text-slate-400">
+                                        <div className="flex items-center gap-1.5" title="Moneda">
                                             <DollarSign className="w-3.5 h-3.5" />
-                                            <span>Moneda: {term.currency_original}</span>
+                                            <span>{term.currency_original}</span>
                                         </div>
-                                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                                            <Hash className="w-3.5 h-3.5" />
-                                            <span>Día venc: {term.due_day_of_month || '-'}</span>
+                                        <div className="flex items-center gap-1.5" title="Día de vencimiento">
+                                            <Calendar className="w-3.5 h-3.5" />
+                                            <span>Día {term.due_day_of_month || '1'}</span>
                                         </div>
                                         {term.installments_count && (
-                                            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 col-span-2">
-                                                <span>Cuotas: {term.installments_count}</span>
+                                            <div className="flex items-center gap-1.5" title="Total de cuotas">
+                                                <Hash className="w-3.5 h-3.5" />
+                                                <span>{term.installments_count} cuotas</span>
+                                            </div>
+                                        )}
+                                        {/* Total Debt if installments (shown clearly here) */}
+                                        {!!term.is_divided_amount && (
+                                            <div className="ml-auto font-medium text-slate-600 dark:text-slate-300">
+                                                Total Deuda: {term.currency_original === 'CLP' ? formatClp(term.amount_original) : term.amount_original.toLocaleString()}
                                             </div>
                                         )}
                                     </div>
 
-                                    {/* Payment list for this term */}
-                                    {termPayments.length > 0 && (
-                                        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                                            <h4 className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
-                                                Pagos en este término
-                                            </h4>
-                                            <div className="space-y-1 max-h-32 overflow-y-auto">
-                                                {termPayments
-                                                    .sort((a, b) => a.period_date.localeCompare(b.period_date))
-                                                    .map(payment => {
-                                                        const isPaid = !!payment.payment_date;
-                                                        return (
-                                                            <div
-                                                                key={payment.id}
-                                                                className="flex items-center justify-between text-xs py-1.5 px-2 bg-slate-100 dark:bg-slate-800 rounded mb-1 last:mb-0"
-                                                            >
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-slate-600 dark:text-slate-300 font-medium">
-                                                                        {formatMonthYear(payment.period_date)}
-                                                                    </span>
-                                                                    {isPaid ? (
-                                                                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-200 dark:border-emerald-800">
-                                                                            <Check className="w-3 h-3" />
-                                                                            PAGADO {payment.payment_date}
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold border border-slate-300 dark:border-slate-600">
-                                                                            <Clock className="w-3 h-3" />
-                                                                            PENDIENTE
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <span className={`font-bold ${isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                                                                    {payment.currency_original === 'CLP'
-                                                                        ? formatClp(payment.amount_original)
-                                                                        : `${payment.currency_original} ${payment.amount_original.toLocaleString()}`
-                                                                    }
+                                    {/* Payment list */}
+                                    <div className="px-3 py-2">
+                                        {(() => {
+                                            // 1. Generate ALL expected periods for this term using CENTRALIZED logic
+                                            const expectedPeriods: PaymentWithDetails[] = generateExpectedPeriods(
+                                                term,
+                                                commitment,
+                                                termPayments
+                                            );
+
+
+
+                                            const filteredPayments = expectedPeriods.filter(p => {
+                                                if (useScrollNavigation) return true; // Always show all in scroll mode
+                                                if (paymentFilter === 'paid') return !!p.payment_date;
+                                                if (paymentFilter === 'pending') return !p.payment_date;
+                                                return true;
+                                            });
+
+                                            // 3. Sort Descending (Newest date first)
+                                            filteredPayments.sort((a, b) => b.period_date.localeCompare(a.period_date));
+
+                                            return (
+                                                <>
+                                                    <div className="flex items-center justify-between mb-2 px-1">
+                                                        <div className="flex items-center gap-3">
+                                                            <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                                                                Pagos
+                                                                <span className="flex items-center justify-center bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full w-5 h-5 text-xs ml-1">
+                                                                    {termPayments.length}
                                                                 </span>
+                                                            </h4>
+                                                            {/* Mini Filters / Navigation Anchors */}
+                                                            <div className="flex bg-slate-100 dark:bg-slate-700/50 rounded-lg p-1 gap-1">
+                                                                {(['all', 'paid', 'pending'] as const).map((filterType) => {
+                                                                    const isActive = paymentFilter === filterType;
+                                                                    const labels = { all: 'Todos', paid: 'Pagados', pending: 'Pendientes' };
+                                                                    const activeColors = {
+                                                                        all: 'text-sky-600 dark:text-sky-400',
+                                                                        paid: 'text-emerald-600 dark:text-emerald-400',
+                                                                        pending: 'text-amber-600 dark:text-amber-400'
+                                                                    };
+
+                                                                    return (
+                                                                        <button
+                                                                            key={filterType}
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setPaymentFilter(filterType);
+                                                                                if (useScrollNavigation) {
+                                                                                    const list = document.getElementById(`payment-list-${term.id}`);
+                                                                                    if (filterType === 'paid') {
+                                                                                        const firstPaid = list?.querySelector('[data-payment-status="paid"]');
+                                                                                        if (firstPaid && list) {
+                                                                                            const topPos = (firstPaid as HTMLElement).offsetTop - list.offsetTop;
+                                                                                            list.scrollTo({ top: topPos, behavior: 'smooth' });
+                                                                                        }
+                                                                                    } else {
+                                                                                        list?.scrollTo({ top: 0, behavior: 'smooth' });
+                                                                                    }
+                                                                                }
+                                                                            }}
+                                                                            className={`
+                                                                                relative px-3 py-1.5 text-xs sm:text-sm font-bold rounded-md transition-all duration-200
+                                                                                ${isActive
+                                                                                    ? `bg-white dark:bg-slate-600 shadow-sm ${activeColors[filterType]}`
+                                                                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-600/50'
+                                                                                }
+                                                                            `}
+                                                                        >
+                                                                            {labels[filterType]}
+                                                                        </button>
+                                                                    );
+                                                                })}
                                                             </div>
-                                                        );
-                                                    })
-                                                }
-                                            </div>
-                                        </div>
-                                    )}
+                                                        </div>
+                                                        {/* Show count only if NOT in scroll navigation mode (as it's redundant there) */}
+                                                        {!useScrollNavigation && (
+                                                            <span className="text-[10px] text-slate-400">Viendo {filteredPayments.length}</span>
+                                                        )}
+                                                    </div>
+
+                                                    <div
+                                                        id={`payment-list-${term.id}`}
+                                                        className="space-y-0.5 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar scroll-smooth"
+                                                    >
+                                                        {filteredPayments.length > 0 ? filteredPayments.map(payment => {
+                                                            const isPaid = !!payment.payment_date;
+                                                            return (
+                                                                <div
+                                                                    key={payment.id}
+                                                                    data-payment-status={isPaid ? 'paid' : 'pending'}
+                                                                    className={`flex items-center justify-between text-sm py-2 px-3 rounded-lg border shadow-sm transition-all ${isPaid
+                                                                        ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-emerald-200'
+                                                                        : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:border-amber-200'
+                                                                        }`}
+                                                                >
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="text-slate-500 font-medium whitespace-nowrap min-w-[70px]">
+                                                                            {formatMonthYear(payment.period_date)}
+                                                                        </span>
+                                                                        {isPaid ? (
+                                                                            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
+                                                                                <Check className="w-3 h-3" />
+                                                                                <span>
+                                                                                    {payment.payment_date?.substring(8, 10)}/
+                                                                                    {payment.payment_date?.substring(5, 7)}/
+                                                                                    {payment.payment_date?.substring(0, 4)}
+                                                                                </span>
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="flex items-center gap-1 text-slate-400">
+                                                                                <Clock className="w-3 h-3" />
+                                                                                <span>Pendiente</span>
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <span className={`font-bold ${isPaid
+                                                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                                                        : 'text-slate-400 dark:text-slate-500 opacity-75'
+                                                                        }`}>
+                                                                        {payment.currency_original === 'CLP'
+                                                                            ? formatClp(payment.amount_original)
+                                                                            : `${payment.currency_original} ${payment.amount_original.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        }) : (
+                                                            <div className="py-8 text-center text-xs text-slate-400 italic">
+                                                                No hay pagos {paymentFilter === 'all' ? '' : paymentFilter} en este período.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
                             )}
                         </div>

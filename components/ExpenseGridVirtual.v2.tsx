@@ -23,7 +23,7 @@ import {
     CheckCircleIcon, ExclamationTriangleIcon, ClockIcon,
     CalendarIcon, InfinityIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon,
     SubscriptionIcon, MiscIcon, CategoryIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
-    StarIcon, IconProps, PauseIcon, PlusIcon, EyeIcon, EyeSlashIcon, InfoIcon, MoreVertical, Link2,
+    StarIcon, IconProps, PauseIcon, PlusIcon, InfoIcon, MoreVertical, Link2,
     FunnelIcon, FolderIcon
 } from './icons';
 import type { CommitmentWithTerm, Payment } from '../types.v2';
@@ -160,10 +160,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     );
 
     // Show/hide terminated commitments (default: hidden)
-    const [showTerminated, setShowTerminated] = usePersistentState<boolean>(
-        'showTerminatedCommitments',
-        false
-    );
+
 
     // Category filter state
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -474,7 +471,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
         commitments.forEach(c => {
             // Context-aware visibility check
-            let isVisible = showTerminated;
+            let isVisible = viewMode === 'inventory';
 
             if (!isVisible) {
                 // Check if active in any of the visible months
@@ -548,13 +545,13 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 }
                 return a.category.localeCompare(b.category, language === 'es' ? 'es' : 'en');
             });
-    }, [commitments, showTerminated, selectedCategory, t, language, performSmartSort, getCommitmentSortData, density]);
+    }, [commitments, viewMode, visibleMonths, selectedCategory, t, language, performSmartSort, getCommitmentSortData, density]);
 
     // Available categories for filter tabs (derived from all non-terminated commitments)
     const availableCategories = useMemo(() => {
         const categorySet = new Set<string>();
         const visibleInContext = commitments.filter(c => {
-            if (showTerminated) return true;
+            if (viewMode === 'inventory') return true;
 
             // Same logic as groupedCommitments to keep categories consistent
             const isActiveInVisibleRange = visibleMonths.some(m => isActiveInMonth(c, m));
@@ -575,9 +572,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
             categories.splice(1, 0, 'FILTER_IMPORTANT');
         }
         return categories;
-    }, [commitments, language]);
+    }, [commitments, viewMode, visibleMonths, language]);
 
-    // Count of terminated commitments (for toggle label)
+    // Count of terminated commitments (for stats)
     const terminatedCount = useMemo(() => {
         return commitments.filter(c => {
             const term = c.active_term;
@@ -744,7 +741,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                                 {/* Inventario Button - Opens inventory mode */}
                                 <button
-                                    onClick={() => setViewMode('inventory')}
+                                    onClick={() => {
+                                        setViewMode('inventory');
+                                        setSelectedStatus('all');
+                                        setSelectedCategory('all');
+                                    }}
                                     className="h-9 flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold transition-all
                                         bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600"
                                     title="Ver todos los compromisos"
@@ -960,7 +961,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         if (viewMode === 'inventory') return true;
 
                         // 1. Siempre mostrar si "Ver terminados" está activo
-                        if (showTerminated) return true;
+
 
                         // 2. Verificar si hay un registro de pago en el mes enfocado
                         // Use robust getPaymentStatus to check for payment record
@@ -1040,7 +1041,15 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                 monthlyInfo={monthlyInfo}
                                 categoryName={getTranslatedCategoryName(c)}
                                 formatAmount={formatClp}
-                                onClick={() => isTermActiveInMonth && !isPaid && onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth())}
+                                onClick={() => {
+                                    if (viewMode === 'inventory') {
+                                        onEditCommitment(c);
+                                    } else if (isTermActiveInMonth && !isPaid) {
+                                        onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth());
+                                    } else {
+                                        onEditCommitment(c);
+                                    }
+                                }}
                                 onEdit={() => onEditCommitment(c)}
                                 onPause={() => onPauseCommitment(c)}
                                 onResume={() => onResumeCommitment(c)}
@@ -1107,15 +1116,15 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     {cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? 'Importantes' : cat}
                                     <span className={`ml-1.5 text-xs ${selectedCategory === cat ? 'opacity-80' : 'opacity-50'}`}>
                                         ({cat === 'all'
-                                            ? commitments.filter(c => showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
+                                            ? commitments.filter(c => viewMode === 'inventory' || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
                                             : cat === 'FILTER_IMPORTANT'
                                                 ? commitments.filter(c => {
-                                                    const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
+                                                    const isActive = viewMode === 'inventory' || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
                                                     return isActive && c.is_important;
                                                 }).length
                                                 : commitments.filter(c => {
                                                     const categoryName = getTranslatedCategoryName(c);
-                                                    const isActive = showTerminated || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
+                                                    const isActive = viewMode === 'inventory' || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
                                                     return isActive && categoryName === cat;
                                                 }).length
                                         })
@@ -1274,7 +1283,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                     PAUSADO
                                                                                 </span>
                                                                             )}
-                                                                            {(!showTerminated && (isGloballyTerminated || terminationReason === 'PAUSED')) && (
+                                                                            {(viewMode !== 'inventory' && (isGloballyTerminated || terminationReason === 'PAUSED')) && (
                                                                                 <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 ring-1 ring-inset ring-indigo-500/20" title="Visible por actividad en el periodo">
                                                                                     <InfoIcon className="w-2.5 h-2.5" />
                                                                                     PENDIENTE
@@ -1403,7 +1412,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                 <ArrowTrendingDownIcon className="w-4 h-4 text-red-600" />
                                                                             )}
                                                                             <span className={`font-medium ${terminated ? 'line-through text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white'}`}>{commitment.name}</span>
-                                                                            {(!showTerminated && (isGloballyTerminated || terminationReason === 'PAUSED')) && (
+                                                                            {(viewMode !== 'inventory' && (isGloballyTerminated || terminationReason === 'PAUSED')) && (
                                                                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 ring-1 ring-inset ring-indigo-500/20" title="Visible por actividad en el periodo">
                                                                                     <InfoIcon className="w-2.5 h-2.5" />
                                                                                     PENDIENTE

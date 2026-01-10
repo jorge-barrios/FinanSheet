@@ -5,7 +5,7 @@
  * Used by ExpenseGridVirtual, InventoryView, and other components.
  */
 
-import type { CommitmentWithTerm } from '../types.v2';
+import type { CommitmentWithTerm, Term, PaymentWithDetails } from '../types.v2';
 import { extractYearMonth } from './financialUtils.v2';
 
 /**
@@ -367,4 +367,113 @@ export function getCommitmentSummary(
         isInstallmentBased,
         firstOverduePeriod
     };
+}
+
+/**
+ * Generates the list of expected payment periods for a term based on its configuration.
+ * This logic is CENTRALIZED to ensure consistency between Dashboard, Grid, and Detail views.
+ * 
+ * @param term The term to generate periods for
+ * @param commitment The parent commitment (needed for context in result objects)
+ * @param payments List of ALL available payments for this commitment (to match active vs pending)
+ * @returns Array of PaymentWithDetails (some are real payments, others are virtual pending payments)
+ */
+export function generateExpectedPeriods(
+    term: Term,
+    commitment: CommitmentWithTerm,
+    payments: Payment[]
+): PaymentWithDetails[] {
+    const termPayments = payments.filter(p => p.term_id === term.id) || [];
+    const expectedPeriods: PaymentWithDetails[] = [];
+
+    // Start iterating from term start date
+    let currentPeriod = term.effective_from.slice(0, 7) + '-01'; // Ensure YYYY-MM-DD
+
+    // Determine limit date
+    // 1. If effective_until is set -> use it explicitly
+    // 2. If installments_count is set -> use it to calculate roughly end date (+buffer)
+    // 3. If indefinite (no until, no installments) -> limit to CURRENT MONTH + 1 (to see next due)
+    let limitDateStr = term.effective_until;
+
+    if (!limitDateStr) {
+        if (term.installments_count && term.installments_count > 0) {
+            // Safety buffer: active start + (installments * 2) months or +2 years max
+            // This prevents infinite loops if data is weird, but allows viewing future installments
+            const [y, m] = term.effective_from.split('-').map(Number);
+            const safetyDate = new Date(y + 2, m, 1);
+            limitDateStr = safetyDate.toISOString().slice(0, 10);
+        } else {
+            // Indefinite -> Stop at current month (to show "pending" for now)
+            // or maybe +1 month to show next upcoming payment
+            const now = new Date();
+            const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            limitDateStr = nextMonth.toISOString().slice(0, 10);
+        }
+    }
+
+    // Safety Loop Breaker
+    let iterations = 0;
+    const MAX_ITERATIONS = 600; // 50 years of monthly payments, should be enough
+
+    while (currentPeriod <= limitDateStr && iterations < MAX_ITERATIONS) {
+        iterations++;
+
+        const targetMonth = currentPeriod.slice(0, 7);
+
+        // Find REAL payment for this period (robust string matchY-M)
+        const existingPayment = termPayments.find(p => p.period_date && p.period_date.includes(targetMonth));
+
+        if (existingPayment) {
+            expectedPeriods.push({
+                ...existingPayment,
+                commitment,
+                term
+            } as PaymentWithDetails);
+        } else {
+            // VIRTUAL Pending Payment Logic
+            let shouldAddPending = true;
+
+            // Rule: Don't exceed installments count
+            if (term.installments_count) {
+                // If we already have enough items (real + pending) >= total, stop adding pending
+                // Note: we continue the loop just in case there are REAL payments logged beyond the count (edge case)
+                // but we stop generating new VIRTUAL overdue ones.
+                const currentCount = expectedPeriods.length;
+                if (currentCount >= term.installments_count) {
+                    shouldAddPending = false;
+                }
+            }
+
+            if (shouldAddPending) {
+                expectedPeriods.push({
+                    id: `virtual-${term.id}-${currentPeriod}`,
+                    period_date: currentPeriod,
+                    payment_date: null, // Marks as pending
+                    amount_original: term.is_divided_amount && term.installments_count
+                        ? (term.amount_original / term.installments_count)
+                        : term.amount_original,
+                    currency_original: term.currency_original,
+                    commitment_id: term.commitment_id,
+                    term_id: term.id,
+                    fx_rate_to_base: term.fx_rate_to_base,
+                    amount_in_base: term.amount_in_base,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    commitment: commitment,
+                    term: term
+                } as PaymentWithDetails);
+            }
+        }
+
+        // Advance to next month
+        const [y, m] = currentPeriod.split('-').map(Number);
+        // m is month number (1-12). Date constructor uses 0-11 for month.
+        // So new Date(y, m, 1) gives us the FIRST day of the NEXT month (since current m is effectively m-1+1)
+        // Example: '2025-01-01' -> y=2025, m=1. new Date(2025, 1, 1) -> Feb 1st 2025. Correct.
+        const nextDate = new Date(y, m, 1);
+        currentPeriod = nextDate.toISOString().slice(0, 10);
+    }
+
+    // Sort Newest -> Oldest
+    return expectedPeriods.sort((a, b) => b.period_date.localeCompare(a.period_date));
 }

@@ -83,6 +83,7 @@ const PaymentRecorderV2 = React.lazy(() => import('./components/PaymentRecorder.
 const PauseCommitmentModal = React.lazy(() => import('./components/PauseCommitmentModal'));
 import CategoryManager from './components/CategoryManager';
 import ConfirmationModal from './components/ConfirmationModal';
+import { CommitmentDetailModal } from './components/CommitmentDetailModal';
 import { Expense, PaymentStatus, ExpenseType, View, PaymentDetails, PaymentFrequency, PaymentUnit } from './types';
 import type { CommitmentWithTerm } from './types.v2';
 import type { Category } from './services/categoryService.v2';
@@ -133,6 +134,9 @@ const App: React.FC = () => {
         month: number;
     }>({ isOpen: false, commitment: null, year: 0, month: 0 });
     const [editingCell, setEditingCell] = useState<{ expenseId: string; year: number; month: number; } | null>(null);
+    // State for viewing commitment (read-only detail mode)
+    const [viewingCommitment, setViewingCommitment] = useState<CommitmentWithTerm | null>(null);
+
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<'all' | ExpenseType>('all');
@@ -871,8 +875,22 @@ const App: React.FC = () => {
         setEditingCell({ expenseId, year, month });
     };
 
+    // Handlers for Commitment Actions
+    const handleViewCommitment = React.useCallback((commitment: CommitmentWithTerm) => {
+        setViewingCommitment(commitment);
+    }, []);
+
+    const handleEditCommitment = React.useCallback((commitment: CommitmentWithTerm) => {
+        // If we serve a detail view, we might want to close it before opening edit
+        setViewingCommitment(null);
+        setEditingCommitment(commitment);
+        setOpenWithPauseForm(false);
+        setOpenWithResumeForm(false);
+        setIsFormOpen(true);
+    }, []);
+
     // Handler to open edit form for resuming a terminated commitment
-    const handleResumeCommitment = useCallback((commitment: CommitmentWithTerm) => {
+    const handleResumeCommitment = React.useCallback((commitment: CommitmentWithTerm) => {
         setEditingCommitment(commitment);
         setOpenWithResumeForm(true); // Pre-expand the resume (new term) form
         setOpenWithPauseForm(false); // Ensure pause form is closed
@@ -1090,12 +1108,7 @@ const App: React.FC = () => {
                                         // Use context commitments (auto-updates) instead of stale local state
                                         preloadedCommitments={contextCommitments}
                                         preloadedPayments={contextPayments}
-                                        onEditCommitment={(c) => {
-                                            setEditingCommitment(c);
-                                            setOpenWithPauseForm(false);
-                                            setOpenWithResumeForm(false);
-                                            setIsFormOpen(true);
-                                        }}
+                                        onEditCommitment={handleViewCommitment} // Clicking opens Detail View now
                                         onDeleteCommitment={(id) => {
                                             // Open confirmation modal instead of window.confirm
                                             setCommitmentToDelete(id);
@@ -1146,6 +1159,16 @@ const App: React.FC = () => {
                     </div>
                 </main>
             </div>
+            {/* Detail View Modal */}
+            {viewingCommitment && (
+                <CommitmentDetailModal
+                    isOpen={!!viewingCommitment}
+                    onClose={() => setViewingCommitment(null)}
+                    commitment={viewingCommitment}
+                    payments={contextPayments.get(viewingCommitment.id) || []} // Pass specific payments for this commitment
+                    onEdit={() => handleEditCommitment(viewingCommitment)}
+                />
+            )}
             <ExpenseCommitmentFormWrapper
                 isOpen={isFormOpen}
                 onClose={() => {

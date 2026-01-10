@@ -150,16 +150,13 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
         return endDateObj < todayObj;
     })();
 
-    // Detect if the active term is paused/closed (has effective_until set, regardless of date)
-    const isTermPaused = !!(commitmentToEdit?.active_term?.effective_until);
+
 
     // Detect if commitment has multiple terms (history) - if so, term fields should be read-only
     const hasTermsHistory = commitmentToEdit && (commitmentToEdit.all_terms?.length || 0) > 1;
 
-    // Show terms section if: 2+ terms OR 1 term that is paused (to allow editing the pause) OR manually shown
-    const shouldShowTermsSection = commitmentToEdit && (
-        (commitmentToEdit.all_terms?.length || 0) >= 2 || isTermPaused || showTermsHistory
-    );
+    // Show terms section ALWAYS if we are editing a commitment (allows viewing payment history)
+    const shouldShowTermsSection = !!commitmentToEdit;
 
     // When editing existing commitment: term fields are disabled unless reactivating
     // Also disable if manually showing terms history (e.g. for pausing)
@@ -961,8 +958,8 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                 <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">Monto</label>
                                 <div className="flex items-center gap-2">
                                     {/* Amount Input with $ symbol */}
-                                    <div className="flex items-baseline relative">
-                                        <span className={`text-3xl font-bold mr-2 ${themeClasses.text} opacity-50`}>$</span>
+                                    <div className="flex items-baseline relative flex-1 min-w-0 justify-end">
+                                        <span className={`text-2xl sm:text-3xl font-bold mr-1 sm:mr-2 ${themeClasses.text} opacity-50`}>$</span>
                                         <input
                                             type="text"
                                             inputMode="numeric"
@@ -984,7 +981,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                                 if (baseCLP !== null) setBaseCLP(null);
                                             }}
                                             className={`
-                                                bg-transparent border-none p-0 text-center text-5xl font-extrabold font-mono tracking-tighter tabular-nums w-full max-w-[280px]
+                                                bg-transparent border-none p-0 text-right sm:text-center text-4xl sm:text-5xl font-extrabold font-mono tracking-tighter tabular-nums w-full sm:max-w-[280px]
                                                 focus:ring-0 outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600
                                                 ${themeClasses.text}
                                                 ${shakeField === 'amount' ? 'animate-shake' : ''}
@@ -995,11 +992,11 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                     </div>
 
                                     {/* Currency Dropdown Selector */}
-                                    <div className="relative">
+                                    <div className="relative shrink-0">
                                         <button
                                             type="button"
                                             onClick={() => setCurrencyDropdownOpen(!currencyDropdownOpen)}
-                                            className="group/currency px-3 py-1.5 bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-700 hover:from-slate-200 hover:to-slate-100 dark:hover:from-slate-700 dark:hover:to-slate-600 text-slate-700 dark:text-slate-200 text-2xl font-black rounded-xl border-2 border-slate-200 dark:border-slate-600 cursor-pointer outline-none focus:ring-4 focus:ring-sky-500/30 transition-all duration-200 active:scale-95 shadow-lg hover:shadow-xl flex items-center gap-1.5"
+                                            className="group/currency px-2 py-1 sm:px-3 sm:py-1.5 bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-700 hover:from-slate-200 hover:to-slate-100 dark:hover:from-slate-700 dark:hover:to-slate-600 text-slate-700 dark:text-slate-200 text-base sm:text-2xl font-black rounded-xl border-2 border-slate-200 dark:border-slate-600 cursor-pointer outline-none focus:ring-4 focus:ring-sky-500/30 transition-all duration-200 active:scale-95 shadow-lg hover:shadow-xl flex items-center gap-1"
                                         >
                                             <span className="tracking-tight">{currency}</span>
                                             <svg className={`w-4 h-4 opacity-60 group-hover/currency:opacity-100 transition-all duration-200 ${currencyDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1337,7 +1334,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                     <div className="flex items-center gap-3">
                                         <History className="w-4 h-4 text-slate-500" />
                                         <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                                            {t('form.termsHistory', 'Historial de Términos')}
+                                            {t('form.termsHistory', 'Historial de Pagos y Términos')}
                                         </span>
                                         <span className="text-[10px] font-bold text-slate-500 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-full">
                                             {commitmentToEdit.all_terms?.length || (commitmentToEdit.active_term ? 1 : 0)}

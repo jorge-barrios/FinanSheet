@@ -41,16 +41,7 @@ interface CommitmentCardProps {
     translateFrequency?: (freq: string) => string;
 }
 
-// Map estado to BentoCard variant
-const estadoToVariant: Record<EstadoType, BentoCardVariant> = {
-    overdue: 'negative',
-    pending: 'warning',
-    ok: 'positive',
-    completed: 'accent',
-    paused: 'neutral',
-    terminated: 'neutral',
-    no_payments: 'neutral',
-};
+
 
 // Estado badge colors
 const estadoBadgeStyles: Record<EstadoType, { bg: string; text: string; dot: string }> = {
