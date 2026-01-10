@@ -29,8 +29,7 @@ interface PaymentRecorderProps {
     onClose: () => void;
     onSave: (operation: 'created' | 'updated' | 'deleted') => void; // Callback with operation type
     commitment: CommitmentWithTerm;
-    year: number;
-    month: number; // 0-indexed
+    periodDate: string; // YYYY-MM-DD format (always first day of month)
 }
 
 // =============================================================================
@@ -42,11 +41,16 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     onClose,
     onSave,
     commitment,
-    year,
-    month,
+    periodDate,
 }) => {
     const { formatClp } = useLocalization();
     const { fromUnit, convertAmount, getFxRateToBase } = useCurrency();
+
+    // Parse year and month from periodDate string (YYYY-MM-DD)
+    const [year, month] = React.useMemo(() => {
+        const [y, m] = periodDate.split('-').map(Number);
+        return [y, m - 1]; // Convert to 0-indexed month
+    }, [periodDate]);
 
     // CRITICAL: Find the term that covers THIS specific period, not just active_term
     // This ensures payments for historical months are associated with the correct term
@@ -54,7 +58,6 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     const monthDate = new Date(year, month, 1);
     const term: Term | null = findTermForPeriod(commitment, monthDate);
 
-    // Currency type
     // Currency type - updated to include EUR and UTM
     type CurrencyType = 'CLP' | 'USD' | 'EUR' | 'UF' | 'UTM';
 
@@ -80,9 +83,6 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     // Expected amount from term (per-cuota if installments exist) - using centralized function
     const expectedAmount = term ? getPerPeriodAmount(term, false) : 0;
     const expectedCurrency = term?.currency_original || 'CLP';
-
-    // Period date string (YYYY-MM-DD format, first day of month)
-    const periodDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
 
     // Month name for display
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',

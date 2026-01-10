@@ -99,6 +99,32 @@ Estos cálculos NO deben reimplementarse en componentes:
 - Conteo de pagos pendientes
 - Próxima fecha de pago
 
+### Formato de Fechas de Período (periodDate)
+
+**SIEMPRE usar strings `periodDate` en formato `YYYY-MM-DD`** (primer día del mes) para identificar períodos de pago.
+
+```typescript
+// Formato: "2024-05-01" (primer día del mes)
+const periodDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+
+// Ejemplo: Abrir PaymentRecorder
+handleOpenPaymentRecorder(commitmentId, "2024-05-01");
+
+// Para convertir desde Date:
+const periodDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+```
+
+**¿Por qué?**
+- Evita errores de conversión entre meses 0-indexed (JS) y 1-indexed (DB)
+- La base de datos almacena `period_date` exactamente en este formato
+- Elimina lógica duplicada de parsing/reconstrucción
+
+**Componentes afectados:**
+- `PaymentRecorder.v2.tsx` - Recibe `periodDate: string` directamente
+- `handleOpenPaymentRecorder` en `App.tsx` - Usa `periodDate` string
+- `onRecordPayment` en `ExpenseGridVirtual.v2.tsx` - Usa `periodDate` string
+- `onOpenPaymentRecorder` en `DashboardFull.v2.tsx` - Usa `periodDate` string
+
 ---
 
 ## Vistas Principales

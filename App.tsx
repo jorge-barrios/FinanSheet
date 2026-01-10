@@ -126,13 +126,12 @@ const App: React.FC = () => {
     // V2 data (preloaded at app startup for instant tab switching)
     const [commitmentsV2, setCommitmentsV2] = useState<CommitmentWithTerm[]>([]);
     const [paymentsV2, setPaymentsV2] = useState<Map<string, Payment[]>>(new Map());
-    // PaymentRecorder V2 state
+    // PaymentRecorder V2 state - uses periodDate string directly (YYYY-MM-DD)
     const [paymentRecorderState, setPaymentRecorderState] = useState<{
         isOpen: boolean;
         commitment: CommitmentWithTerm | null;
-        year: number;
-        month: number;
-    }>({ isOpen: false, commitment: null, year: 0, month: 0 });
+        periodDate: string;
+    }>({ isOpen: false, commitment: null, periodDate: '' });
     const [editingCell, setEditingCell] = useState<{ expenseId: string; year: number; month: number; } | null>(null);
     // State for viewing commitment (read-only detail mode)
     const [viewingCommitment, setViewingCommitment] = useState<CommitmentWithTerm | null>(null);
@@ -897,25 +896,22 @@ const App: React.FC = () => {
         setIsFormOpen(true);
     }, []);
 
-    const handleOpenPaymentRecorder = useCallback((commitmentId: string, year: number, month: number) => {
-        // FIX: Use contextCommitments instead of commitmentsV2
-        // contextCommitments is updated by refreshCommitments() which is called after form save
-        // commitmentsV2 is only updated by refreshV2Data() which is NOT called after form save
+    // Opens the PaymentRecorder modal for a specific period
+    // periodDate format: YYYY-MM-DD (always first day of month)
+    const handleOpenPaymentRecorder = useCallback((commitmentId: string, periodDate: string) => {
         const commitment = contextCommitments.find(c => c.id === commitmentId);
         if (commitment) {
             setPaymentRecorderState({
                 isOpen: true,
                 commitment,
-                year,
-                month,
+                periodDate,
             });
         }
     }, [contextCommitments]);
 
-    // Wrapper for clicked payment row in TermsListView
+    // Wrapper for clicked payment row in TermsListView - passes periodDate directly
     const handlePaymentClick = useCallback((commitment: CommitmentWithTerm, periodDate: string) => {
-        const [year, month] = periodDate.split('-').map(Number);
-        handleOpenPaymentRecorder(commitment.id, year, month);
+        handleOpenPaymentRecorder(commitment.id, periodDate);
     }, [handleOpenPaymentRecorder]);
 
     const handleSavePaymentDetails = useCallback(async (expenseId: string, year: number, month: number, details: Partial<PaymentDetails>) => {
@@ -1318,8 +1314,7 @@ const App: React.FC = () => {
                             }
                         }}
                         commitment={paymentRecorderState.commitment}
-                        year={paymentRecorderState.year}
-                        month={paymentRecorderState.month}
+                        periodDate={paymentRecorderState.periodDate}
                     />
                 </React.Suspense>
             )}

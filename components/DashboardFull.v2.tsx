@@ -77,7 +77,7 @@ interface DashboardFullV2Props {
     displayMonth: number; // 0-indexed
     onMonthChange?: (month: number) => void;
     onYearChange?: (year: number) => void;
-    onOpenPaymentRecorder?: (commitmentId: string, year: number, month: number) => void;
+    onOpenPaymentRecorder?: (commitmentId: string, periodDate: string) => void; // periodDate: YYYY-MM-DD
 }
 
 interface CategorySummary {
@@ -88,6 +88,11 @@ interface CategorySummary {
 }
 
 type CategoryTab = 'expenses' | 'income';
+
+// Helper to build periodDate string from year and 0-indexed month
+const buildPeriodDate = (year: number, month: number): string => {
+    return `${year}-${String(month + 1).padStart(2, '0')}-01`;
+};
 
 // =============================================================================
 // COMPONENT
@@ -759,7 +764,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                                             <div
                                                 key={`${item.commitmentId}-${item.dueMonth}-${idx}`}
                                                 onClick={() => {
-                                                    onOpenPaymentRecorder?.(item.commitmentId, item.dueYear, item.dueMonth);
+                                                    onOpenPaymentRecorder?.(item.commitmentId, buildPeriodDate(item.dueYear, item.dueMonth));
                                                 }}
                                                 className="timeline-item timeline-item--overdue"
                                             >
@@ -795,7 +800,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                                             <div
                                                 key={`${item.commitmentId}-${item.dueMonth}-${idx}`}
                                                 onClick={() => {
-                                                    onOpenPaymentRecorder?.(item.commitmentId, item.dueYear, item.dueMonth);
+                                                    onOpenPaymentRecorder?.(item.commitmentId, buildPeriodDate(item.dueYear, item.dueMonth));
                                                 }}
                                                 className="timeline-item timeline-item--upcoming"
                                             >
@@ -834,7 +839,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                                             <div
                                                 key={`${item.commitmentId}-${item.dueMonth}-${idx}`}
                                                 onClick={() => {
-                                                    onOpenPaymentRecorder?.(item.commitmentId, item.dueYear, item.dueMonth);
+                                                    onOpenPaymentRecorder?.(item.commitmentId, buildPeriodDate(item.dueYear, item.dueMonth));
                                                 }}
                                                 className="timeline-item"
                                             >

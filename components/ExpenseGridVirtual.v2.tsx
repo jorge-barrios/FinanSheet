@@ -83,7 +83,7 @@ interface ExpenseGridV2Props {
     onDeleteCommitment: (commitmentId: string) => void;
     onPauseCommitment: (commitment: CommitmentWithTerm) => void;
     onResumeCommitment: (commitment: CommitmentWithTerm) => void;
-    onRecordPayment: (commitmentId: string, year: number, month: number) => void;
+    onRecordPayment: (commitmentId: string, periodDate: string) => void; // periodDate: YYYY-MM-DD
     onFocusedDateChange?: (date: Date) => void;
     visibleMonthsCount?: number;
     onVisibleMonthsCountChange?: (count: number) => void;
@@ -116,6 +116,13 @@ const getCategoryIcon = (category: string) => {
 // NOTE: getTermForPeriod has been extracted to utils/termUtils.ts as findTermForPeriod
 // It is imported at the top of this file. This alias maintains backward compatibility.
 const getTermForPeriod = findTermForPeriod;
+
+// Helper to convert Date to periodDate string (YYYY-MM-DD, first day of month)
+const dateToPeriod = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+};
 
 
 // =============================================================================
@@ -1045,7 +1052,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     if (viewMode === 'inventory') {
                                         onEditCommitment(c);
                                     } else if (isTermActiveInMonth && !isPaid) {
-                                        onRecordPayment(c.id, monthDate.getFullYear(), monthDate.getMonth());
+                                        onRecordPayment(c.id, dateToPeriod(monthDate));
                                     } else {
                                         onEditCommitment(c);
                                     }
@@ -1661,7 +1668,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                         ${isPending ? 'bg-amber-50/20 dark:bg-amber-950/10' : ''}
                                                                         ${isPaid ? 'bg-emerald-50/20 dark:bg-emerald-950/10' : ''}
                                                                     `}
-                                                                    onClick={() => onRecordPayment(commitment.id, monthDate.getFullYear(), monthDate.getMonth())}
+                                                                    onClick={() => onRecordPayment(commitment.id, dateToPeriod(monthDate))}
                                                                 >
                                                                     {/* GAP: No term for this period */}
                                                                     {!term && !isPaid ? (
@@ -1774,7 +1781,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                             className="relative flex items-center justify-center w-full h-full cursor-pointer group/paid"
                                                                                             onClick={(e) => {
                                                                                                 e.stopPropagation();
-                                                                                                onRecordPayment(commitment.id, monthDate.getFullYear(), monthDate.getMonth());
+                                                                                                onRecordPayment(commitment.id, dateToPeriod(monthDate));
                                                                                             }}
                                                                                         >
                                                                                             {/* Check Icon (Default) - Scales down on hover */}
@@ -1796,7 +1803,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                             className="relative flex items-center justify-center w-full h-full cursor-pointer"
                                                                                             onClick={(e) => {
                                                                                                 e.stopPropagation();
-                                                                                                onRecordPayment(commitment.id, monthDate.getFullYear(), monthDate.getMonth());
+                                                                                                onRecordPayment(commitment.id, dateToPeriod(monthDate));
                                                                                             }}
                                                                                         >
                                                                                             {/* Original Icon - Scales down on hover */}
@@ -1828,11 +1835,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                 className={`${pad} relative space-y-1 h-full flex flex-col justify-center cursor-pointer`}
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
-                                                                                    if (isPaid) {
-                                                                                        onRecordPayment(commitment.id, monthDate.getFullYear(), monthDate.getMonth());
-                                                                                    } else {
-                                                                                        onRecordPayment(commitment.id, monthDate.getFullYear(), monthDate.getMonth());
-                                                                                    }
+                                                                                    onRecordPayment(commitment.id, dateToPeriod(monthDate));
                                                                                 }}
                                                                             >
                                                                                 {/* Main amount - neutral colors */}
