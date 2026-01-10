@@ -667,6 +667,24 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
         };
     }, [endDate, lastEditedField]);
 
+    // Auto-configure ONCE frequency: force 1 installment with same start/end date
+    // This ensures ONCE commitments are always created as finite (not indefinite)
+    useEffect(() => {
+        if (isInitialLoadRef.current) return;
+        if (frequency === 'ONCE') {
+            // Force installments mode with 1 payment
+            if (durationType !== 'installments') {
+                setDurationType('installments');
+            }
+            if (installments !== '1') {
+                setInstallments('1');
+            }
+            // End date = start date for single payment
+            if (startDate && endDate !== startDate) {
+                setEndDate(startDate);
+            }
+        }
+    }, [frequency, startDate, durationType, installments, endDate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

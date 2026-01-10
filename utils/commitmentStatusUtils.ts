@@ -283,13 +283,47 @@ export function getCommitmentSummary(
                 }
             }
 
-            // Calculate next payment date (only relevant if active)
-            const nextPeriodIndex = periodsPassed + 1;
-            nextPaymentDate = new Date(
-                startDate.getFullYear(),
-                startDate.getMonth() + (nextPeriodIndex * interval),
-                dueDay
-            );
+            // Calculate next payment date:
+            // PRIORITY: First unpaid period (could be overdue or upcoming)
+            // If there are overdue periods, the "next" payment to make is the first overdue one
+            if (firstOverduePeriod) {
+                // Use the actual due date for the first overdue period
+                nextPaymentDate = new Date(
+                    firstOverduePeriod.getFullYear(),
+                    firstOverduePeriod.getMonth(),
+                    dueDay
+                );
+            } else {
+                // No overdue periods, calculate next upcoming period
+                // Find the first unpaid period from current onwards
+                let nextUnpaidPeriodIndex = -1;
+                for (let i = 0; i <= periodsPassed + 1; i++) {
+                    const totalMonthsOffset = (startMonth - 1) + (i * interval);
+                    const pYear = startYear + Math.floor(totalMonthsOffset / 12);
+                    const pMonth = totalMonthsOffset % 12;
+                    const periodKey = `${pYear}-${pMonth}`;
+
+                    if (!paidPeriods.has(periodKey)) {
+                        nextUnpaidPeriodIndex = i;
+                        break;
+                    }
+                }
+
+                if (nextUnpaidPeriodIndex >= 0) {
+                    const totalMonthsOffset = (startMonth - 1) + (nextUnpaidPeriodIndex * interval);
+                    const pYear = startYear + Math.floor(totalMonthsOffset / 12);
+                    const pMonth = totalMonthsOffset % 12;
+                    nextPaymentDate = new Date(pYear, pMonth, dueDay);
+                } else {
+                    // All periods paid, calculate truly next period
+                    const nextPeriodIndex = periodsPassed + 1;
+                    nextPaymentDate = new Date(
+                        startDate.getFullYear(),
+                        startDate.getMonth() + (nextPeriodIndex * interval),
+                        dueDay
+                    );
+                }
+            }
         }
     }
 
