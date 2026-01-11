@@ -42,7 +42,7 @@ interface EditingTerm {
     frequency: Frequency;
 }
 
-const formInputClasses = "w-full h-[32px] bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all";
+const formInputClasses = "w-full h-[36px] bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-500 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500";
 
 // Interface for new term creation form
 interface NewTermForm {
@@ -191,6 +191,20 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
         });
         return map;
     }, [payments]);
+
+    // Count total paid payments (those with payment_date) - used for auto-switching filter
+    const paidPaymentsCount = useMemo(() => {
+        return payments.filter(p => !!p.payment_date).length;
+    }, [payments]);
+
+    // Auto-switch to 'all' filter if no paid payments exist and filter is still 'paid'
+    // This runs once on mount to set initial filter appropriately
+    React.useEffect(() => {
+        if (paymentFilter === 'paid' && paidPaymentsCount === 0) {
+            console.log('TermsListView: No paid payments found, switching to "all" filter');
+            setPaymentFilter('all');
+        }
+    }, [paidPaymentsCount]); // Only run when paid count changes, not on every filter change
 
     // Check if a term is the active term (highest version number)
     // This matches the backend logic - version is the source of truth
@@ -462,6 +476,16 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
     // Handle save new term
     const handleSaveNewTerm = async (skipShortTermWarning = false) => {
         if (!newTerm || !onTermCreate) return;
+
+        // CRITICAL: Validate that effective_until >= effective_from (if effective_until is set)
+        if (newTerm.effective_until) {
+            const fromYM = newTerm.effective_from.substring(0, 7);
+            const untilYM = newTerm.effective_until.substring(0, 7);
+            if (untilYM < fromYM) {
+                setError(`La fecha "Hasta" (${untilYM}) no puede ser anterior a la fecha "Desde" (${fromYM})`);
+                return;
+            }
+        }
 
         const activeTerm = commitment.active_term;
 
@@ -746,85 +770,81 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
             <div className={isLoading ? 'opacity-50 pointer-events-none transition-opacity' : 'transition-opacity'}>
                 {/* Header row - only if buttons are needed OR if title is shown */}
                 {(!hideTitle || ((!isReadOnly && canPause && !showNewTermForm && !showPauseForm) || (!isReadOnly && canResume && onTermCreate && !showNewTermForm && !showPauseForm))) && (
-                    <div className={`flex items-center ${hideTitle ? 'justify-end' : 'justify-between'} mb-3`}>
+                    <div className="mb-3">
+                        {/* Title and count row */}
                         {!hideTitle && (
-                            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                {t('terms.history', 'Historial de Términos')}
-                            </h3>
-                        )}
-                        <div className="flex items-center gap-2">
-                            {!hideTitle && (
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                    {t('terms.history', 'Historial de Términos')}
+                                </h3>
                                 <span className="text-xs text-slate-500 dark:text-slate-400">
                                     {allTerms.length} {allTerms.length === 1 ? 'término' : 'términos'}
                                 </span>
-                            )}
-                            {/* Pause Button - only show if can pause and not in any form */}
-                            {!isReadOnly && canPause && !showNewTermForm && !showPauseForm && (
-                                <button
-                                    type="button"
-                                    onClick={handleStartPause}
-                                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-lg transition-colors"
-                                >
-                                    <Pause className="w-3.5 h-3.5" />
-                                    {t('terms.pause', 'Pausar')}
-                                </button>
-                            )}
-                            {/* Resume Button - show when term is paused (has effective_until) */}
-                            {!isReadOnly && canResume && onTermCreate && !showNewTermForm && !showPauseForm && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        // Pre-fill new term starting from the LATER of:
-                                        // 1. Month after current term ends
-                                        // 2. Current month (can't resume in the past)
-                                        const endDate = activeTerm?.effective_until;
-                                        if (endDate) {
-                                            const [endY, endM] = endDate.substring(0, 7).split('-').map(Number);
-                                            const nextMonthAfterEnd = endM === 12 ? 1 : endM + 1;
-                                            const nextYearAfterEnd = endM === 12 ? endY + 1 : endY;
-                                            const afterEndYM = `${nextYearAfterEnd}-${String(nextMonthAfterEnd).padStart(2, '0')}`;
+                            </div>
+                        )}
 
-                                            // Current month
-                                            const now = new Date();
-                                            const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-                                            // Use the later date (can't resume in the past)
-                                            const resumeYM = afterEndYM >= currentYM ? afterEndYM : currentYM;
-                                            const resumeFrom = `${resumeYM}-01`;
-
-                                            // Start new term form with pre-filled date
-                                            setEditingTerm(null);
-                                            setShowPauseForm(false);
-                                            setError(null);
-                                            setNewTerm({
-                                                effective_from: resumeFrom,
-                                                effective_until: null,
-                                                amount_original: activeTerm?.amount_original || 0,
-                                                due_day_of_month: activeTerm?.due_day_of_month || null,
-                                                frequency: activeTerm?.frequency || 'MONTHLY',
-                                                currency_original: activeTerm?.currency_original || 'CLP',
-                                            });
-                                            setShowNewTermForm(true);
-                                        }
-                                    }}
-                                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 rounded-lg transition-colors"
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    {t('terms.resume', 'Reanudar')}
-                                </button>
-                            )}
-                            {/* New Term Button - only show if onTermCreate is provided and not read-only */}
-                            {!isReadOnly && onTermCreate && !showNewTermForm && !showPauseForm && (
-                                <button
-                                    type="button"
-                                    onClick={handleStartNewTerm}
-                                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 rounded-lg transition-colors"
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    {t('terms.addNew', 'Nuevo')}
-                                </button>
-                            )}
-                        </div>
+                        {/* Action buttons row - aligned to the right */}
+                        {(!isReadOnly && (canPause || canResume || onTermCreate) && !showNewTermForm && !showPauseForm) && (
+                            <div className="flex items-center justify-end gap-2">
+                                {/* Pause Button */}
+                                {canPause && (
+                                    <button
+                                        type="button"
+                                        onClick={handleStartPause}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 dark:hover:bg-amber-900/60 rounded-lg transition-colors shadow-sm"
+                                    >
+                                        <Pause className="w-3.5 h-3.5" />
+                                        {t('terms.pause', 'Pausar')}
+                                    </button>
+                                )}
+                                {/* Resume Button */}
+                                {canResume && onTermCreate && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const endDate = activeTerm?.effective_until;
+                                            if (endDate) {
+                                                const [endY, endM] = endDate.substring(0, 7).split('-').map(Number);
+                                                const nextMonthAfterEnd = endM === 12 ? 1 : endM + 1;
+                                                const nextYearAfterEnd = endM === 12 ? endY + 1 : endY;
+                                                const afterEndYM = `${nextYearAfterEnd}-${String(nextMonthAfterEnd).padStart(2, '0')}`;
+                                                const now = new Date();
+                                                const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                                                const resumeYM = afterEndYM >= currentYM ? afterEndYM : currentYM;
+                                                const resumeFrom = `${resumeYM}-01`;
+                                                setEditingTerm(null);
+                                                setShowPauseForm(false);
+                                                setError(null);
+                                                setNewTerm({
+                                                    effective_from: resumeFrom,
+                                                    effective_until: null,
+                                                    amount_original: activeTerm?.amount_original || 0,
+                                                    due_day_of_month: activeTerm?.due_day_of_month || null,
+                                                    frequency: activeTerm?.frequency || 'MONTHLY',
+                                                    currency_original: activeTerm?.currency_original || 'CLP',
+                                                });
+                                                setShowNewTermForm(true);
+                                            }
+                                        }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/40 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 rounded-lg transition-colors shadow-sm"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        {t('terms.resume', 'Reanudar')}
+                                    </button>
+                                )}
+                                {/* New Term Button */}
+                                {onTermCreate && (
+                                    <button
+                                        type="button"
+                                        onClick={handleStartNewTerm}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/40 hover:bg-sky-200 dark:hover:bg-sky-900/60 rounded-lg transition-colors shadow-sm"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        {t('terms.addNew', 'Nuevo')}
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1111,7 +1131,7 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                     <div className="flex flex-col">
                                         <div className="flex items-center gap-1.5 text-sm font-medium text-slate-900 dark:text-white">
                                             <span>{formatMonthYear(term.effective_from)}</span>
-                                            <span className="text-slate-400">→</span>
+                                            <span className="text-sky-500 dark:text-sky-400 mx-1">→</span>
                                             <span>
                                                 {term.effective_until
                                                     ? formatMonthYear(term.effective_until)
@@ -1264,9 +1284,14 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                             <span>Día {term.due_day_of_month || '1'}</span>
                                         </div>
                                         {term.installments_count && (
-                                            <div className="flex items-center gap-1.5" title="Total de cuotas">
+                                            <div className="flex items-center gap-1.5" title={term.installments_count === 1 ? "Pago único" : (term.is_divided_amount ? "Total de cuotas" : "Total de ocurrencias")}>
                                                 <Hash className="w-3.5 h-3.5" />
-                                                <span>{term.installments_count} cuotas</span>
+                                                <span>
+                                                    {term.installments_count === 1
+                                                        ? 'Pago único'
+                                                        : `${term.installments_count} ${term.is_divided_amount ? 'cuotas' : 'pagos'}`
+                                                    }
+                                                </span>
                                             </div>
                                         )}
                                         {/* Total Debt if installments (shown clearly here) */}
@@ -1364,50 +1389,74 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                                         id={`payment-list-${term.id}`}
                                                         className="space-y-0.5 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar scroll-smooth"
                                                     >
-                                                        {filteredPayments.length > 0 ? filteredPayments.map(payment => {
-                                                            const isPaid = !!payment.payment_date;
-                                                            return (
-                                                                <div
-                                                                    key={payment.id}
-                                                                    data-payment-status={isPaid ? 'paid' : 'pending'}
-                                                                    onClick={() => onPaymentClick?.(payment.period_date)}
-                                                                    className={`flex items-center justify-between text-sm py-2 px-3 rounded-lg border shadow-sm transition-all ${onPaymentClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]' : ''} ${isPaid
-                                                                        ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-emerald-200'
-                                                                        : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:border-amber-200'
-                                                                        }`}
-                                                                >
-                                                                    <div className="flex items-center gap-3">
-                                                                        <span className="text-slate-500 font-medium whitespace-nowrap min-w-[70px]">
-                                                                            {formatMonthYear(payment.period_date)}
-                                                                        </span>
-                                                                        {isPaid ? (
-                                                                            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
-                                                                                <Check className="w-3 h-3" />
-                                                                                <span>
-                                                                                    {payment.payment_date?.substring(8, 10)}/
-                                                                                    {payment.payment_date?.substring(5, 7)}/
-                                                                                    {payment.payment_date?.substring(0, 4)}
+                                                        {filteredPayments.length > 0 ? (() => {
+                                                            // Calculate current month once for all payments
+                                                            const today = new Date();
+                                                            const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+                                                            return filteredPayments.map(payment => {
+                                                                const isPaid = !!payment.payment_date;
+                                                                const periodYM = payment.period_date.substring(0, 7);
+                                                                // Overdue = not paid AND period is before current month
+                                                                const isOverdue = !isPaid && periodYM < currentYM;
+                                                                // Status for styling: 'paid' | 'overdue' | 'pending'
+                                                                const status = isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending';
+
+                                                                return (
+                                                                    <div
+                                                                        key={payment.id}
+                                                                        data-payment-status={status}
+                                                                        onClick={() => onPaymentClick?.(payment.period_date)}
+                                                                        className={`relative flex items-center justify-between text-sm py-2 pl-4 pr-3 rounded-lg border shadow-sm transition-all overflow-hidden ${onPaymentClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]' : ''} ${isPaid
+                                                                                ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-emerald-200'
+                                                                                : isOverdue
+                                                                                    ? 'bg-rose-50/50 dark:bg-rose-900/10 border-rose-200 dark:border-rose-800/50 hover:border-rose-300'
+                                                                                    : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:border-amber-200'
+                                                                            }`}
+                                                                    >
+                                                                        {/* Status accent bar */}
+                                                                        <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${isPaid ? 'bg-emerald-500' : isOverdue ? 'bg-rose-500' : 'bg-amber-400'
+                                                                            }`} />
+                                                                        <div className="flex items-center gap-3">
+                                                                            <span className={`font-medium whitespace-nowrap min-w-[70px] ${isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500'}`}>
+                                                                                {formatMonthYear(payment.period_date)}
+                                                                            </span>
+                                                                            {isPaid ? (
+                                                                                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
+                                                                                    <Check className="w-3 h-3" />
+                                                                                    <span>
+                                                                                        {payment.payment_date?.substring(8, 10)}/
+                                                                                        {payment.payment_date?.substring(5, 7)}/
+                                                                                        {payment.payment_date?.substring(0, 4)}
+                                                                                    </span>
                                                                                 </span>
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="flex items-center gap-1 text-slate-400">
-                                                                                <Clock className="w-3 h-3" />
-                                                                                <span>Pendiente</span>
-                                                                            </span>
-                                                                        )}
+                                                                            ) : isOverdue ? (
+                                                                                <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-bold">
+                                                                                    <AlertTriangle className="w-3 h-3" />
+                                                                                    <span>Vencido</span>
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="flex items-center gap-1 text-amber-500 dark:text-amber-400">
+                                                                                    <Clock className="w-3 h-3" />
+                                                                                    <span>Pendiente</span>
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <span className={`font-bold ${isPaid
+                                                                                ? 'text-emerald-600 dark:text-emerald-400'
+                                                                                : isOverdue
+                                                                                    ? 'text-rose-600 dark:text-rose-400'
+                                                                                    : 'text-slate-400 dark:text-slate-500 opacity-75'
+                                                                            }`}>
+                                                                            {payment.currency_original === 'CLP'
+                                                                                ? formatClp(payment.amount_original)
+                                                                                : `${payment.currency_original} ${payment.amount_original.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                                                                            }
+                                                                        </span>
                                                                     </div>
-                                                                    <span className={`font-bold ${isPaid
-                                                                        ? 'text-emerald-600 dark:text-emerald-400'
-                                                                        : 'text-slate-400 dark:text-slate-500 opacity-75'
-                                                                        }`}>
-                                                                        {payment.currency_original === 'CLP'
-                                                                            ? formatClp(payment.amount_original)
-                                                                            : `${payment.currency_original} ${payment.amount_original.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-                                                                        }
-                                                                    </span>
-                                                                </div>
-                                                            );
-                                                        }) : (
+                                                                );
+                                                            });
+                                                        })() : (
                                                             <div className="py-8 text-center text-xs text-slate-400 italic">
                                                                 No hay pagos {paymentFilter === 'all' ? '' : paymentFilter} en este período.
                                                             </div>

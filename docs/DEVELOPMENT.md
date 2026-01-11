@@ -1,7 +1,7 @@
 # FinanSheet Development Guide
 
 > **Este documento es el master reference para cualquier IA o desarrollador trabajando en el proyecto.**
-> Última actualización: 2026-01-09
+> Última actualización: 2026-01-10
 
 ## Regla de Mantenimiento
 
@@ -23,19 +23,62 @@
 
 ### Data Model
 
-El proyecto usa el modelo V2 normalizado:
+El proyecto usa el modelo V2 normalizado con versionamiento de términos:
 
 ```
-Commitment → Term → Payment
+Commitment (Netflix)
+  ├── Term v1 (2024-01 → 2024-06) ── $9.990/mes
+  │     ├── Payment 2024-01 ✓
+  │     ├── Payment 2024-02 ✓
+  │     └── ...
+  └── Term v2 (2024-07 → NULL) ── $12.990/mes (subió el precio)
+        ├── Payment 2024-07 ✓
+        └── Payment 2024-08 (pendiente)
 ```
 
-- **Commitment**: Obligación financiera (gasto o ingreso recurrente)
-- **Term**: Versión/configuración de un commitment (monto, frecuencia, fechas)
-- **Payment**: Registro de pago para un período específico
+**Entidades:**
+
+| Entidad | Descripción | Inmutabilidad |
+|---------|-------------|---------------|
+| **Commitment** | Obligación financiera (gasto o ingreso). Metadatos: nombre, categoría, notas. | Editable libremente. |
+| **Term** | Versión de condiciones (monto, frecuencia, fechas). | **Editable**: Campos se pueden modificar. Si se pausa o cambian condiciones futuras, se crea nueva versión. |
+| **Payment** | Registro de pago para un período específico. | Editable (monto, fecha de pago). |
+
+**Reglas de Relación:**
+
+1.  **Un Commitment tiene N Terms** (versionados, no se solapan).
+2.  **Un Term pertenece a 1 Commitment** y tiene N Payments.
+3.  **Un Payment pertenece a 1 Term y 1 Commitment**, identificado por `period_date`.
+4.  **`period_date`** = El mes al que corresponde el pago (ej: `2024-03-01` = Marzo 2024).
+5.  **Constraint DB:** `UNIQUE(commitment_id, period_date)` → Solo 1 pago por mes por commitment.
+
+**Versionamiento de Terms (Frontend):**
+Cuando cambian las condiciones (monto, frecuencia), el frontend:
+1.  Cierra el term actual: `effective_until = último día del mes actual`.
+2.  Crea un nuevo term: `version + 1`, `effective_from = primer día del mes siguiente`.
+
+> ⚠️ **TODO:** Esta lógica está en frontend (`TermsListView.tsx`). Idealmente debería tener validación en backend también.
 
 **Archivos clave:**
 - `types.v2.ts` - Definiciones de tipos
 - `services/dataService.v2.ts` - Capa de acceso a datos (Supabase)
+
+### Term Data Integrity (Backend Trigger)
+
+La tabla `terms` tiene un trigger `calculate_effective_until()` que garantiza consistencia de datos:
+
+| Prioridad | Condición | Acción del Trigger |
+|-----------|-----------|-------------------|
+| 0 | `frequency = 'ONCE'` | Fuerza `installments_count = 1` y `effective_until = effective_from`. **Siempre definido.** |
+| 1 | `effective_until = NULL` + `is_divided_amount = FALSE` | Limpia `installments_count = NULL`. **Indefinido/Recurrente.** |
+| 2 | `installments_count > 0` | Calcula `effective_until` basado en conteo y frecuencia. **Definido.** |
+
+**Reglas de Negocio:**
+- **ONCE**: Siempre es un pago único. No se puede hacer indefinido.
+- **Indefinido**: Si no tiene fecha de fin Y no es monto dividido → no puede tener número de cuotas.
+- **Dividido (préstamos)**: Puede tener `installments_count` sin `effective_until` (crédito interrumpido).
+
+**Ubicación:** `database/018_bidirectional_term_trigger.sql`
 
 ---
 
@@ -98,6 +141,30 @@ Estos cálculos NO deben reimplementarse en componentes:
 - Monto por período (considerando is_divided_amount)
 - Conteo de pagos pendientes
 - Próxima fecha de pago
+
+### Modelo de Períodos y Pagos
+
+Cada pago se asocia a un **período mensual**, no a una fecha arbitraria:
+
+```
+Commitment (Netflix)
+  └── Term (desde 2024-01)
+        ├── Period 2024-01 → Payment ✓
+        ├── Period 2024-02 → Payment ✓
+        ├── Period 2024-03 → (sin registro = PENDIENTE)
+        └── Period 2024-04 → (futuro)
+```
+
+**Reglas:**
+- Un `period_date` representa **el mes** al que corresponde el pago (ej: `2024-03-01` = Marzo 2024).
+- Solo puede existir **un pago por período** por commitment (`UNIQUE(commitment_id, period_date)`).
+- El `payment_date` es **cuándo se pagó realmente** (puede ser antes o después del período).
+
+**Ejemplo:** Netflix de Marzo pagado el 28 de Febrero:
+```sql
+period_date = '2024-03-01'   -- Es para Marzo
+payment_date = '2024-02-28'  -- Pero se pagó en Febrero
+```
 
 ### Formato de Fechas de Período (periodDate)
 
@@ -333,3 +400,4 @@ import { getPerPeriodAmount } from '../utils/financialUtils.v2';
 - [ ] Implementar dark mode
 - [ ] Probar en mobile (responsive)
 - [ ] Build sin errores antes de commit
+- [ ] Actualizar este documento despues de commit

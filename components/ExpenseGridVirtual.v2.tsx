@@ -1044,7 +1044,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                 key={c.id}
                                 commitment={c}
                                 payments={payments.get(c.id) || []}
-                                mode="monthly"
+                                mode={viewMode === 'inventory' ? 'inventory' : 'monthly'}
+                                viewDate={monthDate}
                                 monthlyInfo={monthlyInfo}
                                 categoryName={getTranslatedCategoryName(c)}
                                 formatAmount={formatClp}

@@ -116,6 +116,7 @@ const App: React.FC = () => {
     const [categories, setCategories] = useState<Category[]>([]);
     const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map()); // categoryName -> categoryId
     const [loading, setLoading] = useState(isSupabaseConfigured);
+    const [dataFetchError, setDataFetchError] = useState<string | null>(null); // Non-blocking error display
 
     const [focusedDate, setFocusedDate] = useState(new Date());
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -196,6 +197,17 @@ const App: React.FC = () => {
             setLoading(false);
             return;
         }
+
+        // Guard: If we already have data loaded, skip refetch on window focus/auth refresh
+        // This prevents the "Failed to fetch" error when switching windows
+        if (expenses.length > 0 && categories.length > 0) {
+            console.log('fetchData: Data already loaded, skipping refetch');
+            setLoading(false);
+            return;
+        }
+
+        // Clear any previous error when retrying
+        setDataFetchError(null);
 
         try {
             const { data: expensesData, error: expensesError } = await supabase
@@ -339,7 +351,8 @@ const App: React.FC = () => {
 
         } catch (error) {
             console.error('Error fetching data:', error);
-            alert('Failed to fetch data. Please check your Supabase connection and configuration.');
+            // Non-blocking error: show dismissible banner instead of blocking alert
+            setDataFetchError('Failed to fetch data. Please check your Supabase connection and configuration.');
         } finally {
             setLoading(false);
         }
@@ -1082,6 +1095,19 @@ const App: React.FC = () => {
         </div>
     );
 
+    // Dismissible error banner for fetch failures (non-blocking)
+    const DataFetchErrorBanner = () => dataFetchError ? (
+        <div className="bg-red-600/90 backdrop-blur-sm text-white text-center p-3 flex items-center justify-center gap-3 shadow-lg">
+            <span className="text-sm">{dataFetchError}</span>
+            <button
+                onClick={() => setDataFetchError(null)}
+                className="px-3 py-1 text-xs font-medium bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+            >
+                Cerrar
+            </button>
+        </div>
+    ) : null;
+
     if (loading) {
         return <div className="flex items-center justify-center h-screen bg-slate-900 text-white">{t('loading')}...</div>;
     }
@@ -1090,6 +1116,7 @@ const App: React.FC = () => {
         <div className={`flex h-screen font-sans antialiased theme-${theme}`}>
             <div className="flex-1 flex flex-col min-w-0 bg-slate-100/50 dark:bg-slate-900">
                 {!isSupabaseConfigured && <OfflineBanner />}
+                <DataFetchErrorBanner />
                 <Header
                     onAddExpense={handleAddExpenseClick}
                     onExport={handleExport}

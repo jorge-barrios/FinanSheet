@@ -501,9 +501,12 @@ Se adoptó la **Ruta 1: Claridad Celestial** como estándar visual:
 
 | Uso | Fuente | Peso | Características |
 |-----|--------|------|-----------------|
-| UI General | Inter | 400-700 | Figuras tabulares activadas |
-| Números/Montos | Inter | 600-700 | `font-variant-numeric: tabular-nums` |
-| Títulos | Inter | 700-800 | Tracking ajustado |
+| UI General | Geist | 400-700 | Fuente principal del sistema |
+| Números/Montos | Geist | 600-700 | `font-variant-numeric: tabular-nums` |
+| Títulos | Geist | 700-800 | Tracking ajustado |
+| Marca (Logo) | Space Grotesk | 600-700 | Para logotipo y marketing |
+
+> **Nota:** Se usa Geist (Vercel) como fuente principal en lugar de Inter por su mejor rendimiento y estética tech moderna.
 
 ## 12.4. Estilos CSS Centralizados
 

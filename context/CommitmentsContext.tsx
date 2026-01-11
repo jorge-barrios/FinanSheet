@@ -118,30 +118,45 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
                 return;
             }
 
-            // Calculate wide rolling window: more history than future
-            // This ensures we have data cached for navigation without constant refreshes
+            // First, fetch commitments to determine the date range for payments
+            const commitmentsData = await CommitmentService.getCommitmentsWithTerms(userId);
+            setCommitments(commitmentsData);
+
+            // Calculate date range based on oldest commitment's effective_from
+            // This ensures we load ALL payments that could be overdue
             const centerDate = new Date(displayYear, displayMonth, 1);
 
-            // Start: 12 months before (to have buffer for 8-month history view)
-            const startDate = new Date(centerDate);
-            startDate.setMonth(startDate.getMonth() - 12);
+            // Find the oldest effective_from date across all terms
+            let oldestEffectiveFrom: Date | null = null;
+            commitmentsData.forEach(c => {
+                const terms = c.all_terms || (c.active_term ? [c.active_term] : []);
+                terms.forEach(t => {
+                    if (t.effective_from) {
+                        const termStart = new Date(t.effective_from);
+                        if (!oldestEffectiveFrom || termStart < oldestEffectiveFrom) {
+                            oldestEffectiveFrom = termStart;
+                        }
+                    }
+                });
+            });
 
-            // End: 12 months after
+            // Start: Use oldest effective_from or fallback to 12 months before
+            const startDate = oldestEffectiveFrom || new Date(centerDate);
+            if (!oldestEffectiveFrom) {
+                startDate.setMonth(startDate.getMonth() - 12);
+            }
+
+            // End: 12 months after current view
             const endDate = new Date(centerDate);
             endDate.setMonth(endDate.getMonth() + 13); // +13 to include the final month
 
             const startStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-01`;
             const endStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-01`;
 
-            console.log(`CommitmentsContext: Loading ${silent ? '(silent)' : ''} wide window from ${startStr} to ${endStr}`);
+            console.log(`CommitmentsContext: Loading ${silent ? '(silent)' : ''} payments from ${startStr} (oldest commitment) to ${endStr}`);
 
-            // Fetch commitments and payments in parallel
-            const [commitmentsData, allPayments] = await Promise.all([
-                CommitmentService.getCommitmentsWithTerms(userId),
-                PaymentService.getPaymentsByDateRange(userId, startStr, endStr)
-            ]);
-
-            setCommitments(commitmentsData);
+            // Now fetch payments for the calculated range
+            const allPayments = await PaymentService.getPaymentsByDateRange(userId, startStr, endStr);
 
             // Group payments by commitment_id
             const paymentsByCommitment = new Map<string, Payment[]>();

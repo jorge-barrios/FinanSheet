@@ -454,15 +454,17 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                 // Set duration type based on term data
                 if (term.is_divided_amount && term.installments_count && term.installments_count > 0) {
                     setDurationType('installments');
-                } else if (term.installments_count && term.installments_count > 0) {
+                } else if (term.effective_until) {
                     setDurationType('endsOn');
-                } else if (!term.effective_until) {
-                    setDurationType('recurring');
                 } else {
-                    setDurationType('endsOn');
+                    // No effective date = recurring (indefinite), ignoring any legacy installments_count
+                    setDurationType('recurring');
                 }
                 setEndDate(term.effective_until || '');
-                setInstallments(term.installments_count?.toString() || '');
+                // Only preserve installments count if term is divided (cuotas) OR has an end date (fixed).
+                // Otherwise (recurring), ignore legacy count to prevent "defined" bugs.
+                const shouldHaveInstallments = term.is_divided_amount || term.effective_until;
+                setInstallments(shouldHaveInstallments ? (term.installments_count?.toString() || '') : '');
 
                 // Set isActive based on whether commitment is paused
                 const isPaused = term.effective_until && new Date(term.effective_until) < new Date(today);

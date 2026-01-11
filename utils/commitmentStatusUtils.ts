@@ -207,18 +207,25 @@ export function getCommitmentSummary(
     let paidPeriods = new Set<string>();
 
     // Calculate DEBT Metrics first
-    if (activeTerm) {
+    // Use active_term if available, otherwise use the most recent term from all_terms
+    // This handles the case where a term has ended but still has unpaid periods
+    const termForDebtCalc = activeTerm || (commitment.all_terms && commitment.all_terms.length > 0
+        ? commitment.all_terms.reduce((latest, t) =>
+            !latest || t.effective_from > latest.effective_from ? t : latest, null as Term | null)
+        : null);
+
+    if (termForDebtCalc) {
         // Calculate expected periods and check for missing payments
         // FIX: Manually parse YYYY-MM-DD to avoid timezone issues with `new Date()`
-        const [startYear, startMonth, startDay] = activeTerm.effective_from.split('-').map(Number);
+        const [startYear, startMonth, startDay] = termForDebtCalc.effective_from.split('-').map(Number);
 
         // Construct dates safely using local time at noon to avoid DST shifts
         const startDate = new Date(startYear, startMonth - 1, startDay || 1, 12, 0, 0);
-        const dueDay = activeTerm.due_day_of_month || 1;
+        const dueDay = termForDebtCalc.due_day_of_month || 1;
 
         // Get interval in months
         let interval = 1;
-        switch (activeTerm.frequency) {
+        switch (termForDebtCalc.frequency) {
             case 'ONCE': interval = 0; break;
             case 'MONTHLY': interval = 1; break;
             case 'BIMONTHLY': interval = 2; break;
@@ -256,8 +263,8 @@ export function getCommitmentSummary(
 
                 // If term ended, we shouldn't count periods AFTER the end date
                 let isPeriodValid = true;
-                if (activeTerm.effective_until) {
-                    const datePart = activeTerm.effective_until.split('T')[0];
+                if (termForDebtCalc.effective_until) {
+                    const datePart = termForDebtCalc.effective_until.split('T')[0];
                     const [endY, endM, endD] = datePart.split('-').map(Number);
                     const endDate = new Date(endY, endM - 1, endD, 23, 59, 59);
 
@@ -530,4 +537,75 @@ export function generateExpectedPeriods(
 
     // Sort Newest -> Oldest
     return expectedPeriods.sort((a, b) => b.period_date.localeCompare(a.period_date));
+}
+
+/**
+ * Calculates the chronological installment number for a specific date.
+ * It generates the full timeline of all expected periods across all terms
+ * to determine exactly which number in the sequence matches the target date.
+ * 
+ * @param commitment The commitment to analyze
+ * @param payments list of all payments for this commitment
+ * @param targetDate The date (YYYY-MM) to find the installment number for
+ * @returns Object with { current: number, total: number } or null if not found
+ */
+export function getInstallmentNumber(
+    commitment: CommitmentWithTerm,
+    payments: Payment[],
+    targetDate: string
+): { current: number; total: number; totalLabel: string } | null {
+    const targetYM = targetDate.substring(0, 7);
+
+    // 1. Get all terms
+    const allTerms = commitment.all_terms && commitment.all_terms.length > 0
+        ? commitment.all_terms
+        : (commitment.active_term ? [commitment.active_term] : []);
+
+    if (allTerms.length === 0) return null;
+
+    // 2. Generate ALL expected periods for ALL terms
+    let allPeriods: PaymentWithDetails[] = [];
+
+    for (const term of allTerms) {
+        const termPeriods = generateExpectedPeriods(term, commitment, payments);
+        allPeriods = allPeriods.concat(termPeriods);
+    }
+
+    // 3. Sort Chronologically (Oldest -> Newest) for counting
+    // Filter out duplicates if any (though terms shouldn't overlap) based on period_date
+    const seenPeriods = new Set<string>();
+    const uniquePeriods = allPeriods
+        .filter(p => {
+            const ym = p.period_date.substring(0, 7);
+            if (seenPeriods.has(ym)) return false;
+            seenPeriods.add(ym);
+            return true;
+        })
+        .sort((a, b) => a.period_date.localeCompare(b.period_date)); // Ascending
+
+    // 4. Find the index of the target date
+    const index = uniquePeriods.findIndex(p => p.period_date.substring(0, 7) === targetYM);
+
+    if (index === -1) return null;
+
+    const currentNumber = index + 1;
+    const totalCount = uniquePeriods.length;
+
+    // Determine total label behavior
+    // If the active term is open-ended (no installments_count and no effective_until), 
+    // the total is dynamic/infinite, so we might want to show just "Cuota X" or "Cuota X / ..."
+    const activeTerm = commitment.active_term;
+    // Fix: Treat as indefinite if no effective date AND not a divided amount.
+    // This ignores legacy installments_count that might be lingering on indefinite terms.
+    const isIndefinite = activeTerm && !activeTerm.effective_until && !activeTerm.is_divided_amount;
+
+    // If indefinite, showing "/ X" is confusing because X keeps growing.
+    // But if we have a defined set (loans), X is fixed.
+    const totalLabel = isIndefinite ? '∞' : totalCount.toString();
+
+    return {
+        current: currentNumber,
+        total: totalCount,
+        totalLabel
+    };
 }

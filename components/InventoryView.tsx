@@ -43,18 +43,21 @@ const InventoryView: React.FC<InventoryViewProps> = ({
             }
 
             // Status filter using centralized utility
-            const status = getCommitmentStatus(c);
+            const lifecycleStatus = getCommitmentStatus(c);
 
-            if (filterStatus === 'active' && status !== 'ACTIVE') return false;
-            if (filterStatus === 'terminated' && status !== 'ACTIVE' && status !== 'COMPLETED') return false; // Fixed logic slightly to match generic
+            // Get financial status to check for overdue - commitments with debt should always show in "active" filter
+            const summary = getCommitmentSummary(c, payments, lastPaymentsMap);
+            const hasDebt = summary.estado === 'overdue';
 
-            // Reverting to original logic for safety match with previous code
-            if (filterStatus === 'active' && status !== 'ACTIVE') return false;
-            if (filterStatus === 'terminated' && status === 'ACTIVE') return false;
+            // Active filter: show ACTIVE lifecycle OR any commitment with overdue debt
+            if (filterStatus === 'active' && lifecycleStatus !== 'ACTIVE' && !hasDebt) return false;
+
+            // Terminated filter: show non-active commitments (but exclude those with debt - they belong in active)
+            if (filterStatus === 'terminated' && (lifecycleStatus === 'ACTIVE' || hasDebt)) return false;
 
             return true;
         });
-    }, [commitments, searchTerm, filterStatus]);
+    }, [commitments, searchTerm, filterStatus, payments, lastPaymentsMap]);
 
     // Use centralized getCommitmentSummary for all commitment details
     // This fixes the is_divided_amount bug and removes 140 lines of duplicated logic
@@ -255,7 +258,14 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                                                     text: 'text-amber-600 dark:text-amber-400',
                                                     dot: 'bg-amber-500'
                                                 };
-                                                dateDetail = estadoDetail;
+                                                // Show next payment date for pending (more useful than generic detail)
+                                                if (nextPaymentDate) {
+                                                    const dateObj = new Date(nextPaymentDate);
+                                                    const dateStr = dateObj.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' });
+                                                    dateDetail = `Vence: ${dateStr}`;
+                                                } else {
+                                                    dateDetail = estadoDetail;
+                                                }
                                             } else if (estado === 'ok' && lifecycleStatus === 'ACTIVE') {
                                                 // Active and OK -> Show "Al día" and Next Payment
                                                 financialBadge = {

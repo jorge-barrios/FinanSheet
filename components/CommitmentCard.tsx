@@ -9,7 +9,7 @@
 import { BentoCard, BentoCardVariant } from './BentoCard';
 import { CommitmentWithTerm, Payment } from '../types.v2';
 // useLocalization removed
-import { getCommitmentSummary, getCommitmentStatus, EstadoType } from '../utils/commitmentStatusUtils';
+import { getCommitmentSummary, getCommitmentStatus, EstadoType, getInstallmentNumber } from '../utils/commitmentStatusUtils';
 import { getCategoryIcon } from '../utils/categoryIcons';
 import { MoreVertical } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -20,6 +20,8 @@ interface CommitmentCardProps {
     lastPaymentsMap?: Map<string, Payment>;
     /** Display mode: 'inventory' shows global info, 'monthly' shows period-specific info */
     mode?: 'inventory' | 'monthly';
+    /** Current view date for contextual installment counting (optional) */
+    viewDate?: Date;
     /** Category name */
     categoryName?: string;
     /** Format currency */
@@ -43,6 +45,13 @@ interface CommitmentCardProps {
 
 
 
+// ... [inside component]
+
+
+
+
+
+
 // Estado badge colors
 const estadoBadgeStyles: Record<EstadoType, { bg: string; text: string; dot: string }> = {
     overdue: { bg: 'bg-red-500/10', text: 'text-red-400', dot: 'bg-red-500' },
@@ -59,6 +68,7 @@ export function CommitmentCard({
     payments,
     lastPaymentsMap,
     mode = 'inventory',
+    viewDate,
     categoryName,
     formatAmount = (n) => `$${n.toLocaleString('es-CL')}`,
     onClick,
@@ -75,6 +85,53 @@ export function CommitmentCard({
 
     // Determine if commitment is paused/terminated
     const isInactive = summary.estado === 'paused' || summary.estado === 'terminated';
+
+    // Format frequency
+    const frequencyLabel = activeTerm?.frequency
+        ? (translateFrequency ? translateFrequency(activeTerm.frequency.toLowerCase()) : activeTerm.frequency)
+        : '';
+
+    // Determine installment progress display
+    const getPaymentProgress = () => {
+        // Mode MONTHLY + viewDate available -> Use Contextual Counter
+        if (mode === 'monthly' && viewDate) {
+            const viewYM = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
+            const installmentInfo = getInstallmentNumber(commitment, payments, viewYM);
+
+            if (installmentInfo) {
+                return (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        <span className="bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded text-[10px] tracking-wide uppercase">
+                            Cuota
+                        </span>
+                        <span>
+                            {installmentInfo.current} / {installmentInfo.totalLabel}
+                        </span>
+                    </div>
+                );
+            }
+        }
+
+        // Mode INVENTORY (or fallback) -> Use Global Progress
+        if (summary.isInstallmentBased && summary.installmentsCount) {
+            return (
+                <span className="text-xs font-mono text-[var(--dashboard-text-muted)]">
+                    {summary.paymentCount}/{summary.installmentsCount}
+                </span>
+            );
+        }
+
+        // Final fallback: Frequency Label
+        if (frequencyLabel) {
+            return (
+                <span className="text-[10px] uppercase font-semibold tracking-wide text-[var(--dashboard-text-muted)]">
+                    {frequencyLabel}
+                </span>
+            );
+        }
+
+        return null;
+    };
 
     // Card variant based on estado
     // ============================================================
@@ -117,10 +174,7 @@ export function CommitmentCard({
     // Remove legacy customClasses overrides
     const customClasses = overdueClasses;
 
-    // Format frequency
-    const frequencyLabel = activeTerm?.frequency
-        ? (translateFrequency ? translateFrequency(activeTerm.frequency.toLowerCase()) : activeTerm.frequency)
-        : '';
+
 
     // Determine status labels based on mode
     const getStatusInfo = () => {
@@ -182,9 +236,13 @@ export function CommitmentCard({
                     style: { ...estadoBadgeStyles['overdue'], bg: 'bg-transparent', text: 'text-rose-600 dark:text-rose-400' }
                 };
             } else if (summary.estado === 'pending') {
+                // For pending, show next payment date if available (more useful than generic "Pendiente")
+                const pendingDetail = summary.nextPaymentDate
+                    ? `Vence ${summary.nextPaymentDate.getDate()} ${['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][summary.nextPaymentDate.getMonth()]}`
+                    : summary.estadoDetail;
                 financial = {
                     label: 'Pendiente',
-                    detail: summary.estadoDetail,
+                    detail: pendingDetail,
                     style: { ...estadoBadgeStyles['pending'], bg: 'bg-transparent', text: 'text-amber-600 dark:text-amber-400' }
                 };
             } else if (summary.estado === 'ok' && status === 'ACTIVE') {
@@ -321,16 +379,8 @@ export function CommitmentCard({
                     </span>
                 </div>
 
-                {/* Progress (for installments) OR Frequency badge */}
-                {summary.isInstallmentBased ? (
-                    <span className="text-xs font-mono text-[var(--dashboard-text-muted)]">
-                        {summary.paymentCount}/{summary.installmentsCount}
-                    </span>
-                ) : frequencyLabel && (
-                    <span className="text-[10px] uppercase font-semibold tracking-wide text-[var(--dashboard-text-muted)]">
-                        {frequencyLabel}
-                    </span>
-                )}
+                {/* Contextual Payment Progress */}
+                {getPaymentProgress()}
             </div>
 
             {/* Simplified Footer: Just status text + date, no heavy badges */}

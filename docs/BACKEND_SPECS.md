@@ -1,7 +1,7 @@
 # FinanSheet - Especificaciones Backend (Supabase)
 
 > Documento de referencia para la lógica del backend. Basado en consultas reales a la base de datos.
-> Última actualización: 2026-01-07
+> Última actualización: 2026-01-10
 
 ---
 
@@ -247,50 +247,28 @@ $$ LANGUAGE plpgsql;
 
 ---
 
-### `calculate_effective_until()`
+### `calculate_effective_until()` (v3 - Bidireccional)
 
-**IMPORTANTE**: Auto-calcula `effective_until` cuando hay `installments_count`.
+**IMPORTANTE**: Este trigger garantiza consistencia de datos en términos.
 
-```sql
-CREATE OR REPLACE FUNCTION calculate_effective_until()
-RETURNS TRIGGER AS $$
-DECLARE
-    months_per_period INTEGER;
-BEGIN
-    IF NEW.installments_count IS NOT NULL AND NEW.installments_count > 0 THEN
-        months_per_period := CASE NEW.frequency
-            WHEN 'MONTHLY' THEN 1
-            WHEN 'BIMONTHLY' THEN 2
-            WHEN 'QUARTERLY' THEN 3
-            WHEN 'SEMIANNUALLY' THEN 6
-            WHEN 'ANNUALLY' THEN 12
-            WHEN 'ONCE' THEN 0
-            ELSE 1
-        END;
+**Orden de prioridad:**
 
-        IF months_per_period = 0 THEN
-            NEW.effective_until := NEW.effective_from;
-        ELSE
-            NEW.effective_until := NEW.effective_from +
-                ((NEW.installments_count - 1) * months_per_period * INTERVAL '1 month');
-        END IF;
-    END IF;
+| # | Condición | Acción |
+|---|-----------|--------|
+| 0 | `frequency = 'ONCE'` | Fuerza `installments_count = 1` y `effective_until = effective_from`. **Siempre definido.** |
+| 1 | `effective_until = NULL` + `is_divided_amount = FALSE` | Limpia `installments_count = NULL`. **Indefinido.** |
+| 2 | `installments_count > 0` | Calcula `effective_until` según conteo y frecuencia. **Definido.** |
 
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-```
+**Comportamiento detallado:**
 
-**Comportamiento**:
-| Escenario | installments_count | effective_until |
-|-----------|-------------------|-----------------|
-| Indefinido | NULL | No se modifica (queda NULL) |
-| Definido 3 meses | 3 | effective_from + 2 meses |
-| En cuotas 6 | 6 | effective_from + 5 meses |
-| ONCE | 1 | effective_from (mismo día) |
+| Escenario | frequency | installments_count | is_divided_amount | effective_until |
+|-----------|-----------|-------------------|-------------------|----------------|
+| Pago único | ONCE | → 1 (forzado) | - | → effective_from |
+| Indefinido | MONTHLY | → NULL (limpiado) | FALSE | NULL |
+| Préstamo interrumpido | MONTHLY | 48 | TRUE | NULL (permitido) |
+| Definido 3 meses | MONTHLY | 3 | FALSE | effective_from + 2 meses |
 
-**Ejemplo**: `effective_from = 2025-12-26`, `installments_count = 3`, `frequency = MONTHLY`
-→ `effective_until = 2026-02-26`
+**Archivo:** `database/018_bidirectional_term_trigger.sql`
 
 ---
 
@@ -310,8 +288,12 @@ BEGIN
   SELECT id INTO v_term_id
   FROM terms
   WHERE commitment_id = p_commitment_id
-    AND effective_from <= p_date
-    AND (effective_until IS NULL OR effective_until >= p_date)
+    -- Compare at MONTH level, not exact day (fix 017)
+    AND DATE_TRUNC('month', effective_from) <= DATE_TRUNC('month', p_date)
+    AND (
+      effective_until IS NULL
+      OR DATE_TRUNC('month', effective_until) >= DATE_TRUNC('month', p_date)
+    )
   ORDER BY version DESC
   LIMIT 1;
 
@@ -320,7 +302,7 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
-**Nota**: Usa `effective_until >= p_date`, por lo que el mes de `effective_until` SÍ se incluye.
+**Nota**: Usa `DATE_TRUNC('month', ...)` para comparar a nivel de MES. El mes de `effective_until` SÍ se incluye.
 
 ---
 
@@ -764,6 +746,9 @@ ORDER BY c.name;
 | `011_add_goals.sql` | Tabla goals para Smart Buckets |
 | `012_add_payment_adjustments.sql` | Tabla payment_adjustments para audit trail |
 | `013_fix_effective_until_trigger_v2.sql` | Fix: trigger no sobrescribe effective_until manual |
+| `016_validate_payment_term.sql` | Trigger para validar consistencia term_id ↔ period_date |
+| `017_fix_date_comparison.sql` | Fix: get_active_term usa DATE_TRUNC para comparar meses |
+| `018_bidirectional_term_trigger.sql` | Trigger bidireccional: ONCE siempre definido, indefinido limpia count |
 
 ---
 
@@ -886,3 +871,51 @@ WHERE c.user_id = auth.uid()
 ORDER BY pa.adjusted_at DESC
 LIMIT 20;
 ```
+
+---
+
+## Queries de Auditoría
+
+Ejecutar en Supabase SQL Editor para verificar estado actual.
+
+### Ver todas las funciones
+```sql
+SELECT routine_name, routine_type
+FROM information_schema.routines
+WHERE routine_schema = 'public'
+ORDER BY routine_name;
+```
+
+### Ver todos los triggers
+```sql
+SELECT trigger_name, event_manipulation, event_object_table
+FROM information_schema.triggers
+WHERE trigger_schema = 'public'
+ORDER BY event_object_table, trigger_name;
+```
+
+### Ver constraints
+```sql
+SELECT tc.table_name, tc.constraint_name, tc.constraint_type
+FROM information_schema.table_constraints tc
+WHERE tc.table_schema = 'public'
+ORDER BY tc.table_name, tc.constraint_type;
+```
+
+### Ver políticas RLS
+```sql
+SELECT tablename, policyname, cmd, qual
+FROM pg_policies
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;
+```
+
+---
+
+## Historial de Cambios
+
+| Fecha | Cambio |
+|-------|--------|
+| 2026-01-10 | Trigger `calculate_effective_until` v3 (bidireccional, ONCE, limpia indefinidos) |
+| 2026-01-07 | Fix `get_active_term` con DATE_TRUNC (migración 017) |
+| 2026-01-07 | Trigger `validate_payment_term` para validar term_id ↔ period_date (migración 016) |
