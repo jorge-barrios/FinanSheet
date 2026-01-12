@@ -1137,7 +1137,8 @@ const App: React.FC = () => {
                                         // Use context commitments (auto-updates) instead of stale local state
                                         preloadedCommitments={contextCommitments}
                                         preloadedPayments={contextPayments}
-                                        onEditCommitment={handleViewCommitment} // Clicking opens Detail View now
+                                        onEditCommitment={handleEditCommitment} // Edit form for basic data
+                                        onDetailCommitment={handleViewCommitment} // Detail modal with terms
                                         onDeleteCommitment={(id) => {
                                             // Open confirmation modal instead of window.confirm
                                             setCommitmentToDelete(id);
@@ -1332,7 +1333,7 @@ const App: React.FC = () => {
                             const toastId = showToast('Procesando...', 'loading');
                             try {
                                 // Refresh context silently (Grid now uses context data)
-                                await refreshCommitments(true);
+                                await refreshCommitments({ silent: true, force: true });
                                 removeToast(toastId);
                                 showToast(messages[operation], 'success');
                             } catch {
@@ -1354,7 +1355,7 @@ const App: React.FC = () => {
                         onClose={() => setPauseModalState({ isOpen: false, commitment: null })}
                         onSuccess={async () => {
                             showToast('Compromiso pausado', 'success');
-                            await refreshCommitments(true);
+                            await refreshCommitments({ silent: true, force: true });
                         }}
                         commitment={pauseModalState.commitment}
                     />

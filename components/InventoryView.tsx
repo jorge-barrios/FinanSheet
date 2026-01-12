@@ -11,6 +11,7 @@ interface InventoryViewProps {
     payments: Payment[];
     lastPaymentsMap?: Map<string, Payment>;
     onEditCommitment: (commitment: CommitmentWithTerm) => void;
+    onDetailCommitment: (commitment: CommitmentWithTerm) => void;  // NEW: Opens detail modal
     onDeleteCommitment: (id: string) => void;
     onPauseCommitment: (commitment: CommitmentWithTerm) => void;
     onResumeCommitment: (commitment: CommitmentWithTerm) => void;
@@ -24,6 +25,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
     payments,
     lastPaymentsMap,
     onEditCommitment,
+    onDetailCommitment,
     onDeleteCommitment,
     onPauseCommitment,
     onResumeCommitment,
@@ -172,8 +174,9 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                                         mode="inventory"
                                         categoryName={categories.find(c => c.id === commitment.category_id)?.name}
                                         formatAmount={formatClp}
-                                        onClick={() => onEditCommitment(commitment)}
+                                        onClick={() => onDetailCommitment(commitment)}
                                         onEdit={() => onEditCommitment(commitment)}
+                                        onDetail={() => onDetailCommitment(commitment)}
                                         onPause={() => onPauseCommitment(commitment)}
                                         onResume={() => onResumeCommitment(commitment)}
                                         onDelete={() => onDeleteCommitment(commitment.id)}

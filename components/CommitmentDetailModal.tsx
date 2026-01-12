@@ -6,6 +6,9 @@ import { TermsListView } from './TermsListView';
 import { getCategoryIcon } from '../utils/categoryIcons';
 import { getCommitmentSummary } from '../utils/commitmentStatusUtils';
 import { useCommitmentHistory } from '../hooks/useCommitmentHistory';
+import { TermService } from '../services/dataService.v2';
+import type { TermFormData } from '../types.v2';
+import { useToast } from '../context/ToastContext';
 
 interface CommitmentDetailModalProps {
     isOpen: boolean;
@@ -25,6 +28,7 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
     onPaymentClick
 }) => {
     const { t, formatClp } = useLocalization();
+    const { showToast } = useToast();
     const CategoryIcon = getCategoryIcon(commitment.category?.name || '');
 
     // 1. Fetch FULL history for this commitment (to find 2024 payments etc.)
@@ -37,6 +41,47 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
     const summary = React.useMemo(() => {
         return getCommitmentSummary(commitment, effectivePayments, new Map());
     }, [commitment, effectivePayments]);
+
+    // Local state for toggling "Manage Terms" mode
+    const [isTermsEditing, setIsTermsEditing] = React.useState(false);
+
+    // Handlers for Direct Term Editing
+    const handleTermCreate = async (termData: Partial<TermFormData>) => {
+        try {
+            // Cast to TermFormData as we know the form validates required fields
+            await TermService.createTerm(commitment.id, termData as TermFormData);
+            showToast('Término creado exitosamente', 'success');
+            await refreshHistory(); // Refresh local history
+        } catch (error) {
+            console.error('Error creating term:', error);
+            const msg = error instanceof Error ? error.message : 'Error desconocido';
+            showToast(`Error: ${msg}`, 'error');
+        }
+    };
+
+    const handleTermUpdate = async (termId: string, termData: Partial<TermFormData>) => {
+        try {
+            await TermService.updateTerm(termId, termData);
+            showToast('Término actualizado', 'success');
+            await refreshHistory();
+        } catch (error) {
+            console.error('Error updating term:', error);
+            const msg = error instanceof Error ? error.message : 'Error desconocido';
+            showToast(`Error: ${msg}`, 'error');
+        }
+    };
+
+    const handleTermDelete = async (termId: string) => {
+        try {
+            await TermService.deleteTerm(termId);
+            showToast('Término eliminado', 'success');
+            await refreshHistory();
+        } catch (error) {
+            console.error('Error deleting term:', error);
+            const msg = error instanceof Error ? error.message : 'Error desconocido';
+            showToast(`Error: ${msg}`, 'error');
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -84,78 +129,106 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
                 </div>
 
                 <div className="p-6 space-y-8">
-                    {/* Key Stats Grid - Bento Glass Style */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="bg-white/50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/50 dark:border-white/5 backdrop-blur-sm">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Estado</label>
-                            {/* Simplified Status Badge: Just the status name, no date redundancy */}
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold capitalize
-                                ${summary.estado === 'ok' ? 'bg-emerald-500/10 text-emerald-500' : ''}
-                                ${summary.estado === 'pending' ? 'bg-amber-500/10 text-amber-500' : ''}
-                                ${summary.estado === 'overdue' ? 'bg-rose-500/10 text-rose-500' : ''}
-                                ${summary.estado === 'terminated' ? 'bg-slate-500/10 text-slate-500' : ''}
-                            `}>
+                    {/* Key Stats Grid - Premium Glass Style */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        {/* Estado Card */}
+                        <div className={`
+                            relative overflow-hidden rounded-2xl p-4 border transition-all duration-300
+                            ${summary.estado === 'overdue' ? 'bg-rose-500/5 border-rose-500/20 shadow-rose-500/10 shadow-lg' : ''}
+                            ${summary.estado === 'ok' ? 'bg-emerald-500/5 border-emerald-500/20 shadow-emerald-500/10 shadow-lg' : ''}
+                            ${summary.estado === 'pending' ? 'bg-amber-500/5 border-amber-500/20 shadow-amber-500/10 shadow-lg' : ''}
+                            ${!['overdue', 'ok', 'pending'].includes(summary.estado) ? 'bg-slate-100/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/50' : ''}
+                        `}>
+                            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">Estado Actual</label>
+                            <div className={`text-lg sm:text-xl font-black capitalize tracking-tight
+                                ${summary.estado === 'overdue' ? 'text-rose-600 dark:text-rose-400' : ''}
+                                ${summary.estado === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : ''}
+                                ${summary.estado === 'pending' ? 'text-amber-600 dark:text-amber-400' : ''}
+                                ${summary.estado === 'terminated' ? 'text-slate-600 dark:text-slate-400' : ''}
+                             `}>
                                 {summary.estado === 'ok' && 'Al Día'}
                                 {summary.estado === 'pending' && 'Pendiente'}
                                 {summary.estado === 'overdue' && 'Vencido'}
                                 {summary.estado === 'terminated' && 'Terminado'}
-                            </span>
+                            </div>
                         </div>
-                        <div className="bg-white/50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/50 dark:border-white/5 backdrop-blur-sm">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Monto Actual</label>
-                            {/* Increased font size for Amount */}
-                            <div className="text-base sm:text-lg font-black text-slate-900 dark:text-sky-400">
+
+                        {/* Monto Actual Card */}
+                        <div className="rounded-2xl p-4 border border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl shadow-sm">
+                            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">Monto Cuota</label>
+                            <div className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
                                 {formatClp(summary.perPeriodAmount ?? 0)}
                             </div>
                         </div>
-                        <div className="bg-white/50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/50 dark:border-white/5 backdrop-blur-sm">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Pagado Total</label>
-                            <div className="text-sm sm:text-base font-bold text-slate-700 dark:text-slate-200">
+
+                        {/* Pagado Total Card */}
+                        <div className="rounded-2xl p-4 border border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl shadow-sm">
+                            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">Total Pagado</label>
+                            <div className="text-lg sm:text-xl font-bold text-slate-700 dark:text-slate-300 tabular-nums tracking-tight">
                                 {formatClp(summary.totalPaid)}
                             </div>
                         </div>
-                        <div className="bg-white/50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/50 dark:border-white/5 backdrop-blur-sm">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Próximo Pago</label>
-                            {/* Increased font size and made it dynamic color based on urgency */}
-                            <div className={`text-base sm:text-lg font-bold truncate ${summary.estado === 'overdue' ? 'text-rose-500' : 'text-slate-700 dark:text-slate-200'
-                                }`}>
-                                {summary.nextPaymentDate ? new Date(summary.nextPaymentDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '-'}
+
+                        {/* Próximo Pago Card */}
+                        <div className="rounded-2xl p-4 border border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl shadow-sm">
+                            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">Próximo Pago</label>
+                            <div className={`text-lg sm:text-xl font-bold tabular-nums tracking-tight
+                                ${summary.estado === 'overdue' ? 'text-rose-500' : 'text-sky-600 dark:text-sky-400'}
+                            `}>
+                                {summary.nextPaymentDate ? new Date(summary.nextPaymentDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                             </div>
                         </div>
                     </div>
 
-                    {/* Terms & Payment History - Floating Style */}
+                    {/* Terms & Payment History - Unified Component */}
                     <div>
-                        <div className="flex items-center justify-between mb-4 px-1">
-                            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                Historial Completo
-                                <div className="flex items-center gap-1.5 ml-2">
-                                    <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/5 text-xs font-medium text-slate-500 dark:text-slate-400 border border-transparent dark:border-white/5">
-                                        {effectivePayments.filter(p => p.commitment_id === commitment.id).length} pagos
-                                    </span>
-                                    <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/5 text-xs font-medium text-slate-500 dark:text-slate-400 border border-transparent dark:border-white/5">
-                                        {(commitment.all_terms?.length || (commitment.active_term ? 1 : 0))} {(commitment.all_terms?.length || (commitment.active_term ? 1 : 0)) === 1 ? 'término' : 'términos'}
-                                    </span>
+                        {/* Using TermsListView's integrated header by setting hideTitle={false} */}
+                        <div className="rounded-xl overflow-hidden bg-white/50 dark:bg-slate-900/40 border border-slate-200/50 dark:border-slate-800/50">
+                            {/* Custom Header with Toggle */}
+                            <div className="px-4 py-3 border-b border-slate-200/50 dark:border-slate-800/50 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
+                                <div className="flex items-center gap-3">
+                                    <h3 className="font-bold text-slate-700 dark:text-slate-300 text-sm uppercase tracking-wider">
+                                        Historial de Términos
+                                    </h3>
+                                    {isTermsEditing && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-400/10 text-amber-600 dark:text-amber-500 border border-amber-400/20 uppercase tracking-wide animate-in fade-in zoom-in-95 duration-200">
+                                            Modo Edición
+                                        </span>
+                                    )}
                                 </div>
-                            </h3>
-                            {isLoadingHistory && (
-                                <div className="ml-auto">
-                                    <div className="animate-spin w-4 h-4 border-2 border-sky-500 border-t-transparent rounded-full"></div>
-                                </div>
-                            )}
-                        </div>
 
-                        {/* Removed rigid borders for floating look */}
-                        <div className="rounded-xl overflow-hidden">
+                                <button
+                                    onClick={() => setIsTermsEditing(!isTermsEditing)}
+                                    className={`
+                                        text-xs font-bold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 border
+                                        ${isTermsEditing
+                                            ? 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800 dark:bg-white dark:text-slate-900'
+                                            : 'bg-sky-50 text-sky-600 border-sky-200/50 hover:bg-sky-100 dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-500/20 dark:hover:bg-sky-500/20'
+                                        }
+                                        shadow-sm
+                                    `}
+                                >
+                                    {isTermsEditing ? (
+                                        <>
+                                            Listo
+                                        </>
+                                    ) : (
+                                        <>
+                                            Gestionar
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
                             <TermsListView
                                 commitment={commitment}
                                 payments={effectivePayments}
-                                isReadOnly={true}
+                                isReadOnly={!isTermsEditing}
                                 hideTitle={true}
                                 isLoading={isLoadingHistory}
-                                onTermUpdate={async () => { }}
-                                onTermCreate={async () => { }}
-                                onTermDelete={async () => { }}
+                                onTermUpdate={handleTermUpdate}
+                                onTermCreate={handleTermCreate}
+                                onTermDelete={handleTermDelete}
                                 onRefresh={refreshHistory}
                                 onPaymentClick={(date) => onPaymentClick?.(commitment, date)}
                             />

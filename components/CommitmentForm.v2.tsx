@@ -1345,45 +1345,8 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                             </div>
                         </div>
 
-                        {/* Terms History Section */}
-                        {shouldShowTermsSection && (
-                            <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden mt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowTermsHistory(!showTermsHistory)}
-                                    className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <History className="w-4 h-4 text-slate-500" />
-                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                                            {t('form.termsHistory', 'Historial de Pagos y Términos')}
-                                        </span>
-                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-full">
-                                            {commitmentToEdit.all_terms?.length || (commitmentToEdit.active_term ? 1 : 0)}
-                                        </span>
-                                    </div>
-                                    {showTermsHistory ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                                </button>
 
-                                {showTermsHistory && (
-                                    <div className="p-0 bg-slate-50/30 dark:bg-slate-900/30">
-                                        <TermsListView
-                                            commitment={effectiveCommitment!}
-                                            payments={termPayments}
-                                            onTermUpdate={handleTermUpdate}
-                                            onTermCreate={handleTermCreate}
-                                            onTermDelete={handleTermDelete}
-                                            onRefresh={handleRefresh}
-                                            openWithPauseForm={openWithPauseForm}
-                                            openWithResumeForm={openWithResumeForm}
-                                            hideTitle={true}
-                                            isLoading={loadingPayments}
-                                            onPaymentClick={(date) => onPaymentClick?.(effectiveCommitment!, date)}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                        {/* Terms History removed - editing now done in CommitmentDetailModal */}
                     </form>
                 </div>
 

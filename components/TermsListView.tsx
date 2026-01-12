@@ -768,82 +768,84 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
             )}
 
             <div className={isLoading ? 'opacity-50 pointer-events-none transition-opacity' : 'transition-opacity'}>
-                {/* Header row - only if buttons are needed OR if title is shown */}
-                {(!hideTitle || ((!isReadOnly && canPause && !showNewTermForm && !showPauseForm) || (!isReadOnly && canResume && onTermCreate && !showNewTermForm && !showPauseForm))) && (
-                    <div className="mb-3">
-                        {/* Title and count row */}
-                        {!hideTitle && (
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                    {t('terms.history', 'Historial de Términos')}
-                                </h3>
-                                <span className="text-xs text-slate-500 dark:text-slate-400">
-                                    {allTerms.length} {allTerms.length === 1 ? 'término' : 'términos'}
+                {/* Title and count row - only if title is shown */}
+                {!hideTitle && (
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                                {t('terms.history', 'Historial Completo')}
+                            </h3>
+                            <div className="flex gap-2">
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 tabular-nums">
+                                    {Object.values(paymentsByTerm).reduce((acc, list) => acc + list.filter(p => p.payment_date).length, 0)} pagos
+                                </span>
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 tabular-nums">
+                                    {allTerms.length} término{allTerms.length !== 1 ? 's' : ''}
                                 </span>
                             </div>
-                        )}
+                        </div>
+                    </div>
+                )}
 
-                        {/* Action buttons row - aligned to the right */}
-                        {(!isReadOnly && (canPause || canResume || onTermCreate) && !showNewTermForm && !showPauseForm) && (
-                            <div className="flex items-center justify-end gap-2">
-                                {/* Pause Button */}
-                                {canPause && (
-                                    <button
-                                        type="button"
-                                        onClick={handleStartPause}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 dark:hover:bg-amber-900/60 rounded-lg transition-colors shadow-sm"
-                                    >
-                                        <Pause className="w-3.5 h-3.5" />
-                                        {t('terms.pause', 'Pausar')}
-                                    </button>
-                                )}
-                                {/* Resume Button */}
-                                {canResume && onTermCreate && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const endDate = activeTerm?.effective_until;
-                                            if (endDate) {
-                                                const [endY, endM] = endDate.substring(0, 7).split('-').map(Number);
-                                                const nextMonthAfterEnd = endM === 12 ? 1 : endM + 1;
-                                                const nextYearAfterEnd = endM === 12 ? endY + 1 : endY;
-                                                const afterEndYM = `${nextYearAfterEnd}-${String(nextMonthAfterEnd).padStart(2, '0')}`;
-                                                const now = new Date();
-                                                const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                                                const resumeYM = afterEndYM >= currentYM ? afterEndYM : currentYM;
-                                                const resumeFrom = `${resumeYM}-01`;
-                                                setEditingTerm(null);
-                                                setShowPauseForm(false);
-                                                setError(null);
-                                                setNewTerm({
-                                                    effective_from: resumeFrom,
-                                                    effective_until: null,
-                                                    amount_original: activeTerm?.amount_original || 0,
-                                                    due_day_of_month: activeTerm?.due_day_of_month || null,
-                                                    frequency: activeTerm?.frequency || 'MONTHLY',
-                                                    currency_original: activeTerm?.currency_original || 'CLP',
-                                                });
-                                                setShowNewTermForm(true);
-                                            }
-                                        }}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/40 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 rounded-lg transition-colors shadow-sm"
-                                    >
-                                        <Plus className="w-3.5 h-3.5" />
-                                        {t('terms.resume', 'Reanudar')}
-                                    </button>
-                                )}
-                                {/* New Term Button */}
-                                {onTermCreate && (
-                                    <button
-                                        type="button"
-                                        onClick={handleStartNewTerm}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/40 hover:bg-sky-200 dark:hover:bg-sky-900/60 rounded-lg transition-colors shadow-sm"
-                                    >
-                                        <Plus className="w-3.5 h-3.5" />
-                                        {t('terms.addNew', 'Nuevo')}
-                                    </button>
-                                )}
-                            </div>
+                {/* Action buttons row - ALWAYS show when not read-only and conditions are met */}
+                {!isReadOnly && (canPause || canResume || onTermCreate) && !showNewTermForm && !showPauseForm && (
+                    <div className="flex items-center justify-center gap-3 px-2 py-3 mb-3 bg-slate-100/50 dark:bg-slate-800/30 rounded-xl border border-slate-200/50 dark:border-slate-700/30">
+                        {/* Pause Button */}
+                        {canPause && (
+                            <button
+                                type="button"
+                                onClick={handleStartPause}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 dark:hover:bg-amber-900/60 rounded-lg transition-colors shadow-sm"
+                            >
+                                <Pause className="w-3.5 h-3.5" />
+                                {t('terms.pause', 'Pausar')}
+                            </button>
+                        )}
+                        {/* Resume Button */}
+                        {canResume && onTermCreate && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const endDate = activeTerm?.effective_until;
+                                    if (endDate) {
+                                        const [endY, endM] = endDate.substring(0, 7).split('-').map(Number);
+                                        const nextMonthAfterEnd = endM === 12 ? 1 : endM + 1;
+                                        const nextYearAfterEnd = endM === 12 ? endY + 1 : endY;
+                                        const afterEndYM = `${nextYearAfterEnd}-${String(nextMonthAfterEnd).padStart(2, '0')}`;
+                                        const now = new Date();
+                                        const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                                        const resumeYM = afterEndYM >= currentYM ? afterEndYM : currentYM;
+                                        const resumeFrom = `${resumeYM}-01`;
+                                        setEditingTerm(null);
+                                        setShowPauseForm(false);
+                                        setError(null);
+                                        setNewTerm({
+                                            effective_from: resumeFrom,
+                                            effective_until: null,
+                                            amount_original: activeTerm?.amount_original || 0,
+                                            due_day_of_month: activeTerm?.due_day_of_month || null,
+                                            frequency: activeTerm?.frequency || 'MONTHLY',
+                                            currency_original: activeTerm?.currency_original || 'CLP',
+                                        });
+                                        setShowNewTermForm(true);
+                                    }
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/40 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 rounded-lg transition-colors shadow-sm"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                {t('terms.resume', 'Reanudar')}
+                            </button>
+                        )}
+                        {/* New Term Button */}
+                        {onTermCreate && (
+                            <button
+                                type="button"
+                                onClick={handleStartNewTerm}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/40 hover:bg-sky-200 dark:hover:bg-sky-900/60 rounded-lg transition-colors shadow-sm"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                {t('terms.addNew', 'Nuevo')}
+                            </button>
                         )}
                     </div>
                 )}
@@ -962,7 +964,7 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {/* Effective From */}
                             <div>
                                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
@@ -982,38 +984,45 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
 
                             {/* Effective Until */}
                             <div>
-                                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                                    Hasta (mes)
-                                </label>
-                                <div className="flex gap-2">
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                        Hasta (mes)
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setNewTerm(prev => prev ? { ...prev, effective_until: prev.effective_until ? null : (new Date().toISOString().slice(0, 7) + '-01') } : null)}
+                                        className="text-[10px] font-bold text-sky-500 hover:text-sky-600 dark:hover:text-sky-400 cursor-pointer transition-colors"
+                                    >
+                                        {newTerm.effective_until ? 'Hacer Indefinido' : 'Definir Término'}
+                                    </button>
+                                </div>
+
+                                {newTerm.effective_until ? (
                                     <input
                                         type="month"
-                                        value={newTerm.effective_until?.substring(0, 7) || ''}
+                                        value={newTerm.effective_until.substring(0, 7)}
                                         onChange={(e) => {
                                             if (e.target.value) {
                                                 const [year, month] = e.target.value.split('-').map(Number);
                                                 const lastDay = new Date(year, month, 0).getDate();
                                                 setNewTerm(prev => prev ? { ...prev, effective_until: `${e.target.value}-${String(lastDay).padStart(2, '0')}` } : null);
-                                            } else {
-                                                setNewTerm(prev => prev ? { ...prev, effective_until: null } : null);
                                             }
-                                            setPendingShortTermConfirm(false); // Reset confirmation when dates change
+                                            setPendingShortTermConfirm(false);
                                             setError(null);
                                         }}
-                                        className={`${formInputClasses} flex-1`}
-                                        placeholder="∞"
+                                        className={formInputClasses}
                                     />
-                                    {newTerm.effective_until && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setNewTerm(prev => prev ? { ...prev, effective_until: null } : null)}
-                                            className="px-2 text-xs text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 rounded"
-                                            title="Sin límite (∞)"
-                                        >
-                                            ∞
-                                        </button>
-                                    )}
-                                </div>
+                                ) : (
+                                    <div
+                                        onClick={() => setNewTerm(prev => prev ? { ...prev, effective_until: (new Date().toISOString().slice(0, 7) + '-01') } : null)}
+                                        className="w-full bg-slate-100 dark:bg-slate-700/30 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-md p-2 text-sm text-slate-500 text-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700/50 transition-colors"
+                                    >
+                                        <span className="flex items-center justify-center gap-1.5">
+                                            <span className="text-lg leading-none">∞</span>
+                                            <span className="text-xs font-medium">Indefinido (Siempre activo)</span>
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Amount */}
@@ -1099,29 +1108,29 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                         <div
                             key={term.id}
                             className={`
-                            border rounded-xl overflow-hidden transition-all
+                            border rounded-2xl overflow-hidden transition-all backdrop-blur-sm
                             ${isActive
-                                    ? 'border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-900/10'
-                                    : 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30'
+                                    ? 'border-sky-500/30 bg-sky-950/30'
+                                    : 'border-slate-700/50 bg-slate-800/40'
                                 }
-                            ${isEditing ? 'ring-2 ring-sky-500' : ''}
+                            ${isEditing ? 'border-amber-500/50 bg-amber-900/10' : ''}
                         `}
                         >
                             {/* Term Header - Optimized for cleaner look */}
                             <div
                                 className={`
                                 flex items-center justify-between p-3 cursor-pointer
-                                hover:bg-slate-100/50 dark:hover:bg-slate-700/30 transition-colors
+                                hover:bg-slate-700/30 transition-colors
                             `}
                                 onClick={() => !isEditing && toggleExpand(term.id)}
                             >
                                 <div className="flex items-center gap-3">
                                     {/* Version badge */}
                                     <div className={`
-                                    w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0
+                                    w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 shadow-lg
                                     ${isActive
-                                            ? 'bg-sky-500 text-white'
-                                            : 'bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300'
+                                            ? 'bg-gradient-to-br from-sky-400 to-sky-600 text-white shadow-sky-500/25'
+                                            : 'bg-slate-700 text-slate-400 border border-slate-600/50'
                                         }
                                 `}>
                                         V{term.version}
@@ -1171,7 +1180,7 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                 {/* Amount & actions */}
                                 <div className="flex items-center gap-3">
                                     <div className="text-right">
-                                        <div className="text-sm font-bold text-slate-900 dark:text-white">
+                                        <div className="text-sm font-bold text-white tabular-nums">
                                             {/* Logic: if is_divided_amount, calculated monthly installment. Else, show original amount */}
                                             {(() => {
                                                 const amountToShow = (term.is_divided_amount && term.installments_count)
@@ -1231,41 +1240,120 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
 
                             {/* Edit Form */}
                             {isEditing && editingTerm && (
-                                <div className="px-3 pb-3 border-t border-slate-200 dark:border-slate-700 pt-3 space-y-3" onClick={e => e.stopPropagation()}>
-                                    {/* ... existing form fields ... */}
-                                    {/* Re-using existing form fields exactly as they were, just wrapping in this block for structure */}
+                                <div className="px-3 pb-3 border-t border-amber-500/20 dark:border-amber-500/10 pt-3 space-y-4" onClick={e => e.stopPropagation()}>
+                                    {/* Dates Row */}
+                                    <div className="grid grid-cols-2 gap-6">
+                                        {/* Desde */}
+                                        <div>
+                                            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
+                                                Desde
+                                            </label>
+                                            <input
+                                                type="month"
+                                                value={editingTerm.effective_from.substring(0, 7)}
+                                                onChange={(e) => setEditingTerm(prev => prev ? { ...prev, effective_from: e.target.value + '-01' } : null)}
+                                                className={`${formInputClasses} w-full`}
+                                            />
+                                        </div>
+
+                                        {/* Hasta */}
+                                        <div>
+                                            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
+                                                Hasta
+                                            </label>
+                                            {editingTerm.effective_until ? (
+                                                <input
+                                                    type="month"
+                                                    value={editingTerm.effective_until.substring(0, 7)}
+                                                    onChange={(e) => {
+                                                        if (e.target.value) {
+                                                            const [y, m] = e.target.value.split('-').map(Number);
+                                                            const lastDay = new Date(y, m, 0).getDate();
+                                                            setEditingTerm(prev => prev ? { ...prev, effective_until: `${e.target.value}-${String(lastDay).padStart(2, '0')}` } : null);
+                                                        }
+                                                    }}
+                                                    className={`${formInputClasses} w-full`}
+                                                />
+                                            ) : (
+                                                <div className={`${formInputClasses} w-full flex items-center justify-center gap-2 text-slate-400`}>
+                                                    <span className="text-lg">∞</span>
+                                                    <span className="text-xs">Sin límite</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Toggle for Indefinite - Clean switch below dates */}
+                                    <div className="flex items-center justify-between py-2 px-3 bg-slate-100/50 dark:bg-slate-800/30 rounded-lg">
+                                        <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                                            {editingTerm.effective_until ? 'Tiene fecha de término' : 'Sin fecha de término (indefinido)'}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingTerm(prev => prev ? {
+                                                ...prev,
+                                                effective_until: prev.effective_until ? null : (new Date().toISOString().slice(0, 7) + '-01')
+                                            } : null)}
+                                            className={`
+                                                relative w-11 h-6 rounded-full transition-colors
+                                                ${editingTerm.effective_until
+                                                    ? 'bg-slate-300 dark:bg-slate-600'
+                                                    : 'bg-sky-500'
+                                                }
+                                            `}
+                                        >
+                                            <span className={`
+                                                absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform
+                                                ${editingTerm.effective_until ? 'left-0.5' : 'left-[22px]'}
+                                            `} />
+                                        </button>
+                                    </div>
+
+                                    {/* Amount and Due Day Row - Always 2 columns */}
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Desde (mes)</label>
-                                            <input type="month" value={editingTerm.effective_from.substring(0, 7)} onChange={(e) => setEditingTerm(prev => prev ? { ...prev, effective_from: e.target.value + '-01' } : null)} className={formInputClasses} />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Hasta (mes)</label>
-                                            <div className="flex gap-2">
-                                                <input type="month" value={editingTerm.effective_until?.substring(0, 7) || ''} onChange={(e) => {
-                                                    if (e.target.value) {
-                                                        const [y, m] = e.target.value.split('-').map(Number);
-                                                        const lastDay = new Date(y, m, 0).getDate();
-                                                        setEditingTerm(prev => prev ? { ...prev, effective_until: `${e.target.value}-${String(lastDay).padStart(2, '0')}` } : null);
-                                                    } else {
-                                                        setEditingTerm(prev => prev ? { ...prev, effective_until: null } : null);
-                                                    }
-                                                }} className={`${formInputClasses} flex-1`} placeholder="∞" />
-                                                {editingTerm.effective_until && <button type="button" onClick={() => setEditingTerm(prev => prev ? { ...prev, effective_until: null } : null)} className="px-2 text-xs text-sky-600">∞</button>}
-                                            </div>
-                                        </div>
-                                        <div>
                                             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Monto</label>
-                                            <input type="number" value={editingTerm.amount_original} onChange={(e) => setEditingTerm(prev => prev ? { ...prev, amount_original: parseFloat(e.target.value) || 0 } : null)} className={formInputClasses} min="0" step="0.01" />
+                                            <input
+                                                type="tel"
+                                                inputMode="numeric"
+                                                value={editingTerm.amount_original.toLocaleString('es-CL')}
+                                                onChange={(e) => {
+                                                    const raw = e.target.value.replace(/\D/g, '');
+                                                    setEditingTerm(prev => prev ? { ...prev, amount_original: parseFloat(raw) || 0 } : null);
+                                                }}
+                                                className={`${formInputClasses} w-full`}
+                                            />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Día vencimiento</label>
-                                            <input type="number" value={editingTerm.due_day_of_month || ''} onChange={(e) => setEditingTerm(prev => prev ? { ...prev, due_day_of_month: parseInt(e.target.value) || null } : null)} className={formInputClasses} min="1" max="31" placeholder="1-31" />
+                                            <input
+                                                type="number"
+                                                value={editingTerm.due_day_of_month || ''}
+                                                onChange={(e) => setEditingTerm(prev => prev ? { ...prev, due_day_of_month: parseInt(e.target.value) || null } : null)}
+                                                className={`${formInputClasses} w-full`}
+                                                min="1"
+                                                max="31"
+                                                placeholder="1-31"
+                                            />
                                         </div>
                                     </div>
-                                    <div className="flex justify-end gap-2 pt-2">
-                                        <button type="button" onClick={handleCancelEdit} className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 bg-slate-100 hover:bg-slate-200 rounded-lg">Cancelar</button>
-                                        <button type="button" onClick={handleSaveEdit} className="px-3 py-1.5 text-sm bg-sky-500 text-white hover:bg-sky-600 rounded-lg flex items-center gap-1.5">{saving ? 'Guardando...' : <><Check className="w-4 h-4" /> Guardar</>}</button>
+
+                                    {/* Buttons - Full width on mobile */}
+                                    <div className="grid grid-cols-2 gap-2 pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={handleCancelEdit}
+                                            className="w-full px-3 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveEdit}
+                                            className="w-full px-3 py-2.5 text-sm font-medium bg-sky-500 text-white hover:bg-sky-600 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                                        >
+                                            {saving ? 'Guardando...' : <><Check className="w-4 h-4" /> Guardar</>}
+                                        </button>
                                     </div>
                                 </div>
                             )}
@@ -1273,36 +1361,44 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                             {/* Expanded Details - OPTIMIZED LAYOUT */}
                             {isExpanded && !isEditing && (
                                 <div className="bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-200 dark:border-slate-700">
-                                    {/* Info Bar - Compact row of details */}
-                                    <div className="flex items-center gap-4 px-4 py-2 border-b border-slate-100 dark:border-slate-800/50 text-sm text-slate-500 dark:text-slate-400">
-                                        <div className="flex items-center gap-1.5" title="Moneda">
-                                            <DollarSign className="w-3.5 h-3.5" />
-                                            <span>{term.currency_original}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5" title="Día de vencimiento">
-                                            <Calendar className="w-3.5 h-3.5" />
-                                            <span>Día {term.due_day_of_month || '1'}</span>
-                                        </div>
-                                        {term.installments_count && (
-                                            <div className="flex items-center gap-1.5" title={term.installments_count === 1 ? "Pago único" : (term.is_divided_amount ? "Total de cuotas" : "Total de ocurrencias")}>
-                                                <Hash className="w-3.5 h-3.5" />
-                                                <span>
-                                                    {term.installments_count === 1
-                                                        ? 'Pago único'
-                                                        : `${term.installments_count} ${term.is_divided_amount ? 'cuotas' : 'pagos'}`
-                                                    }
-                                                </span>
+                                    {/* Info Grid - Bento Style Cards */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 p-3 bg-slate-100/50 dark:bg-slate-800/30 rounded-xl mx-2 mt-2 border border-slate-200 dark:border-slate-700/50">
+                                        {/* Item 1: Deuda Total (Si aplica) */}
+                                        {term.is_divided_amount && term.amount_original && (
+                                            <div className="flex flex-col gap-0.5 p-2">
+                                                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total</span>
+                                                <div className="flex items-center gap-1.5 text-sky-600 dark:text-sky-400 font-bold text-sm tabular-nums">
+                                                    {term.currency_original === 'CLP'
+                                                        ? formatClp(term.amount_original)
+                                                        : term.amount_original.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                </div>
                                             </div>
                                         )}
-                                        {/* Total Debt if installments (shown clearly here) */}
-                                        {!!term.is_divided_amount && (
-                                            <div className="ml-auto font-medium text-slate-600 dark:text-slate-300">
-                                                Total Deuda: {term.currency_original === 'CLP' ? formatClp(term.amount_original) : term.amount_original.toLocaleString()}
+                                        {/* Item 2: Moneda */}
+                                        <div className={`flex flex-col gap-0.5 p-2 ${term.is_divided_amount ? 'border-l border-slate-200 dark:border-slate-700/50' : ''}`}>
+                                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Moneda</span>
+                                            <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-semibold text-sm">
+                                                <DollarSign className="w-3.5 h-3.5 text-sky-500" />
+                                                <span>{term.currency_original}</span>
                                             </div>
-                                        )}
+                                        </div>
+                                        {/* Item 3: Duración/Cuotas */}
+                                        <div className="flex flex-col gap-0.5 p-2 border-l border-slate-200 dark:border-slate-700/50">
+                                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Duración</span>
+                                            <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-semibold text-sm">
+                                                <Hash className="w-3.5 h-3.5 text-sky-500" />
+                                                <span>{term.installments_count ? `${term.installments_count} ${term.is_divided_amount ? 'cuot.' : 'pagos'}` : '∞'}</span>
+                                            </div>
+                                        </div>
+                                        {/* Item 4: Día Vencimiento */}
+                                        <div className="flex flex-col gap-0.5 p-2 border-l border-slate-200 dark:border-slate-700/50">
+                                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Día Pago</span>
+                                            <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-semibold text-sm">
+                                                <Calendar className="w-3.5 h-3.5 text-sky-500" />
+                                                <span>Día {term.due_day_of_month || '1'}</span>
+                                            </div>
+                                        </div>
                                     </div>
-
-                                    {/* Payment list */}
                                     <div className="px-3 py-2">
                                         {(() => {
                                             // 1. Generate ALL expected periods for this term using CENTRALIZED logic
@@ -1315,7 +1411,7 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
 
 
                                             const filteredPayments = expectedPeriods.filter(p => {
-                                                if (useScrollNavigation) return true; // Always show all in scroll mode
+                                                // Always respect filter selection (scroll mode only affects UI behavior, not filtering)
                                                 if (paymentFilter === 'paid') return !!p.payment_date;
                                                 if (paymentFilter === 'pending') return !p.payment_date;
                                                 return true;
@@ -1326,23 +1422,23 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
 
                                             return (
                                                 <>
-                                                    <div className="flex items-center justify-between mb-2 px-1">
-                                                        <div className="flex items-center gap-3">
+                                                    <div className="flex flex-wrap items-center justify-between mb-2 px-1 gap-y-2">
+                                                        <div className="flex flex-wrap items-center gap-3">
                                                             <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
                                                                 Pagos
                                                                 <span className="flex items-center justify-center bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full w-5 h-5 text-xs ml-1">
-                                                                    {termPayments.length}
+                                                                    {termPayments.filter(p => p.payment_date).length}
                                                                 </span>
                                                             </h4>
                                                             {/* Mini Filters / Navigation Anchors */}
-                                                            <div className="flex bg-slate-100 dark:bg-slate-700/50 rounded-lg p-1 gap-1">
+                                                            <div className="flex bg-slate-800/60 backdrop-blur-sm rounded-xl p-0.5 gap-0.5 border border-slate-700/50 overflow-x-auto max-w-full">
                                                                 {(['all', 'paid', 'pending'] as const).map((filterType) => {
                                                                     const isActive = paymentFilter === filterType;
                                                                     const labels = { all: 'Todos', paid: 'Pagados', pending: 'Pendientes' };
-                                                                    const activeColors = {
-                                                                        all: 'text-sky-600 dark:text-sky-400',
-                                                                        paid: 'text-emerald-600 dark:text-emerald-400',
-                                                                        pending: 'text-amber-600 dark:text-amber-400'
+                                                                    const activeStyles = {
+                                                                        all: 'bg-sky-500/20 text-sky-400 ring-1 ring-sky-500/30',
+                                                                        paid: 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30',
+                                                                        pending: 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30'
                                                                     };
 
                                                                     return (
@@ -1366,10 +1462,10 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                                                                 }
                                                                             }}
                                                                             className={`
-                                                                                relative px-3 py-1.5 text-xs sm:text-sm font-bold rounded-md transition-all duration-200
+                                                                                relative px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 whitespace-nowrap
                                                                                 ${isActive
-                                                                                    ? `bg-white dark:bg-slate-600 shadow-sm ${activeColors[filterType]}`
-                                                                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-600/50'
+                                                                                    ? activeStyles[filterType]
+                                                                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
                                                                                 }
                                                                             `}
                                                                         >
@@ -1408,10 +1504,10 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                                                         data-payment-status={status}
                                                                         onClick={() => onPaymentClick?.(payment.period_date)}
                                                                         className={`relative flex items-center justify-between text-sm py-2 pl-4 pr-3 rounded-lg border shadow-sm transition-all overflow-hidden ${onPaymentClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]' : ''} ${isPaid
-                                                                                ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-emerald-200'
-                                                                                : isOverdue
-                                                                                    ? 'bg-rose-50/50 dark:bg-rose-900/10 border-rose-200 dark:border-rose-800/50 hover:border-rose-300'
-                                                                                    : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:border-amber-200'
+                                                                            ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-emerald-200'
+                                                                            : isOverdue
+                                                                                ? 'bg-rose-50/50 dark:bg-rose-900/10 border-rose-200 dark:border-rose-800/50 hover:border-rose-300'
+                                                                                : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700 hover:border-amber-200'
                                                                             }`}
                                                                     >
                                                                         {/* Status accent bar */}
@@ -1442,11 +1538,11 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                                                                 </span>
                                                                             )}
                                                                         </div>
-                                                                        <span className={`font-bold ${isPaid
-                                                                                ? 'text-emerald-600 dark:text-emerald-400'
-                                                                                : isOverdue
-                                                                                    ? 'text-rose-600 dark:text-rose-400'
-                                                                                    : 'text-slate-400 dark:text-slate-500 opacity-75'
+                                                                        <span className={`font-bold tabular-nums ${isPaid
+                                                                            ? 'text-emerald-400'
+                                                                            : isOverdue
+                                                                                ? 'text-rose-400'
+                                                                                : 'text-slate-500 opacity-75'
                                                                             }`}>
                                                                             {payment.currency_original === 'CLP'
                                                                                 ? formatClp(payment.amount_original)

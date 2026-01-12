@@ -80,6 +80,7 @@ const CompactTooltip = ({ children, content, triggerClassName, sideOffset = 5 }:
 interface ExpenseGridV2Props {
     focusedDate: Date;
     onEditCommitment: (commitment: CommitmentWithTerm) => void;
+    onDetailCommitment?: (commitment: CommitmentWithTerm) => void;  // NEW: Opens detail modal
     onDeleteCommitment: (commitmentId: string) => void;
     onPauseCommitment: (commitment: CommitmentWithTerm) => void;
     onResumeCommitment: (commitment: CommitmentWithTerm) => void;
@@ -132,6 +133,7 @@ const dateToPeriod = (date: Date): string => {
 const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     focusedDate,
     onEditCommitment,
+    onDetailCommitment,
     onDeleteCommitment,
     onPauseCommitment,
     onResumeCommitment,
@@ -787,26 +789,25 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             <div className="hidden lg:flex items-center gap-4 xl:gap-6 px-4 border-x border-slate-200 dark:border-slate-700">
                                 <div className="flex flex-col items-center">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ingresos</span>
-                                    <span className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-500">
+                                    <span className="text-sm font-black tabular-nums tracking-tight text-emerald-600 dark:text-emerald-500">
                                         {formatClp(totals.ingresos)}
                                     </span>
                                 </div>
                                 <div className="flex flex-col items-center">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Comprometido</span>
-                                    <span className="text-sm font-bold font-mono text-slate-700 dark:text-slate-200">
+                                    <span className="text-sm font-black tabular-nums tracking-tight text-slate-700 dark:text-slate-200">
                                         {formatClp(totals.comprometido)}
                                     </span>
                                 </div>
                                 <div className="flex flex-col items-center">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pagado</span>
-                                    <span className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
-                                        <CheckCircleIcon className="w-3 h-3" />
+                                    <span className="text-sm font-black tabular-nums tracking-tight text-indigo-600 dark:text-indigo-400">
                                         {formatClp(totals.pagado)}
                                     </span>
                                 </div>
                                 <div className="flex flex-col items-center">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pendiente</span>
-                                    <span className="text-sm font-bold font-mono text-amber-600 dark:text-amber-400">
+                                    <span className="text-sm font-black tabular-nums tracking-tight text-amber-500 dark:text-amber-400">
                                         {formatClp(totals.pendiente)}
                                     </span>
                                 </div>
@@ -1050,7 +1051,10 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                 categoryName={getTranslatedCategoryName(c)}
                                 formatAmount={formatClp}
                                 onClick={() => {
-                                    if (viewMode === 'inventory') {
+                                    // Click on card → detail if available, else edit
+                                    if (onDetailCommitment) {
+                                        onDetailCommitment(c);
+                                    } else if (viewMode === 'inventory') {
                                         onEditCommitment(c);
                                     } else if (isTermActiveInMonth && !isPaid) {
                                         onRecordPayment(c.id, dateToPeriod(monthDate));
@@ -1059,6 +1063,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     }
                                 }}
                                 onEdit={() => onEditCommitment(c)}
+                                onDetail={onDetailCommitment ? () => onDetailCommitment(c) : undefined}
                                 onPause={() => onPauseCommitment(c)}
                                 onResume={() => onResumeCommitment(c)}
                                 onDelete={() => onDeleteCommitment(c.id)}

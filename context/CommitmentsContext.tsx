@@ -6,7 +6,7 @@
  * Eliminates duplicate fetching between Grid and Dashboard.
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, ReactNode, useRef } from 'react';
 import { CommitmentService, PaymentService, getCurrentUserId } from '../services/dataService.v2';
 import type { CommitmentWithTerm, Payment, FlowType } from '../types.v2';
 import { extractYearMonth, getPerPeriodAmount, getCuotaNumber } from '../utils/financialUtils.v2';
@@ -60,8 +60,9 @@ interface CommitmentsContextValue {
     loading: boolean;
     error: string | null;
 
-    // Refresh function
-    refresh: (silent?: boolean) => Promise<void>;
+    // Refresh function - options: { silent?: boolean, force?: boolean }
+    // silent: don't show loading state, force: bypass staleTime check
+    refresh: (options?: { silent?: boolean; force?: boolean }) => Promise<void>;
 
     // Display year and month for rolling window calculations
     displayYear: number;
@@ -101,10 +102,27 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
     const [displayMonth, setDisplayMonth] = useState(now.getMonth()); // 0-indexed
 
     // ==========================================================================
+    // OPTIMIZATION: Track userId to avoid unnecessary refreshes on token refresh
+    // ==========================================================================
+    const prevUserIdRef = useRef<string | undefined>(undefined);
+    const lastRefreshRef = useRef<number>(0);
+    const STALE_TIME_MS = 300000; // 5 minutes - data considered fresh
+
+    // ==========================================================================
     // DATA FETCHING
     // ==========================================================================
 
-    const refresh = useCallback(async (silent: boolean = false) => {
+    const refresh = useCallback(async (options: { silent?: boolean; force?: boolean } = {}) => {
+        const { silent = false, force = false } = options;
+
+        // Stale time check: avoid unnecessary refreshes on visibility change / token refresh
+        // Skip this check if force is true (explicit user action like saving a payment)
+        const now = Date.now();
+        if (silent && !force && now - lastRefreshRef.current < STALE_TIME_MS) {
+            console.log('CommitmentsContext: Data is fresh, skipping silent refresh');
+            return;
+        }
+
         try {
             if (!silent) {
                 setLoading(true);
@@ -166,6 +184,9 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
             });
             setPayments(paymentsByCommitment);
 
+            // Mark successful refresh timestamp
+            lastRefreshRef.current = Date.now();
+
         } catch (err) {
             console.error('CommitmentsContext refresh error:', err);
             setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -176,21 +197,34 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
         }
     }, [displayYear, displayMonth]);
 
-    // SECURITY: Clear data when user logs out
+    // SECURITY + OPTIMIZATION: Handle user identity changes
+    // Compares userId (stable) instead of user object reference to avoid
+    // unnecessary refreshes on TOKEN_REFRESHED or visibility change events
     useEffect(() => {
-        if (!user) {
-            console.log('CommitmentsContext: User logged out, clearing data');
+        const currentUserId = user?.id;
+        const previousUserId = prevUserIdRef.current;
+
+        if (!currentUserId) {
+            // === LOGOUT: Always clear data (SECURITY) ===
+            console.log('CommitmentsContext: User logged out, clearing all data');
             setCommitments([]);
             setPayments(new Map());
             setError(null);
             setLoading(false);
-        } else {
-            // User logged in - load initial data
-            console.log('CommitmentsContext: User logged in, loading data');
+            prevUserIdRef.current = undefined;
+            lastRefreshRef.current = 0; // Reset stale time
+        } else if (currentUserId !== previousUserId) {
+            // === NEW USER: Different userId, must reload (SECURITY) ===
+            console.log(`CommitmentsContext: User changed from ${previousUserId} to ${currentUserId}, loading data`);
+            prevUserIdRef.current = currentUserId;
+            lastRefreshRef.current = 0; // Force fresh data for new user
             refresh();
+        } else {
+            // === SAME USER: Token refresh, visibility change, etc. ===
+            console.log('CommitmentsContext: Same user detected (token refresh?), no action needed');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user]); // Re-run when user changes (login/logout)
+    }, [user]); // Deliberately depends on user object to catch all auth events
 
     // REFRESH ON YEAR CHANGE
     // This is critical: When the user navigates the grid to a different year,
@@ -200,7 +234,7 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
     useEffect(() => {
         if (user) {
             console.log(`CommitmentsContext: Year changed to ${displayYear}, refreshing data...`);
-            refresh(true); // Silent refresh to avoid full loading screens
+            refresh({ silent: true }); // Silent refresh to avoid full loading screens
         }
     }, [displayYear, user]); // Deliberately exclude 'refresh' to avoid loop, and 'displayMonth' to avoid churn
 

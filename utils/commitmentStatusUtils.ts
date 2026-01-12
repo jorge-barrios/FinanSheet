@@ -162,10 +162,14 @@ export function getCommitmentSummary(
 
     // 1. Get all payments for this commitment
     // Include if:
-    // a) It has a payment date (actually paid)
-    // b) OR the amount is 0 (effectively paid/skipped, even if not marked with date)
+    // a) It has a VALID payment date (actually paid, non-empty string)
+    // b) OR the amount is 0 (effectively paid/skipped/waived)
     const commitmentPayments = allPayments.filter(
-        p => p.commitment_id === commitment.id && (p.payment_date || p.amount_original === 0 || p.amount_in_base === 0)
+        p => p.commitment_id === commitment.id && (
+            (p.payment_date && typeof p.payment_date === 'string' && p.payment_date.trim() !== '') ||
+            p.amount_original === 0 ||
+            p.amount_in_base === 0
+        )
     );
 
     // 2. Get last payment (prefer from map for performance, fallback to search)

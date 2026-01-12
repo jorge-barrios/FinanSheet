@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Payment } from '../types.v2';
 import { PaymentService } from '../services/dataService.v2';
 
@@ -13,17 +13,32 @@ interface UseCommitmentHistoryResult {
  * Hook to load the FULL payment history for a specific commitment.
  * This is needed because the global context only loads a 12-month window.
  * 
+ * Now includes auto-refresh when context payments change (e.g., after recording a payment).
+ * 
  * @param commitmentId The ID of the commitment to load history for
- * @param initialContextPayments Payments available from context (for immediate display)
+ * @param contextPayments Payments available from context (for change detection)
  */
 export function useCommitmentHistory(
     commitmentId: string | undefined,
-    initialContextPayments: Payment[] = []
+    contextPayments: Payment[] = []
 ): UseCommitmentHistoryResult {
-    const [historyPayments, setHistoryPayments] = useState<Payment[]>(initialContextPayments);
+    const [historyPayments, setHistoryPayments] = useState<Payment[]>(contextPayments);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [historyError, setHistoryError] = useState<string | null>(null);
-    const [hasLoadedFullHistory, setHasLoadedFullHistory] = useState(false);
+
+    // Track context payment changes to auto-refresh
+    // Use a fingerprint based on count + latest updated_at to detect edits too
+    const getFingerprint = useCallback((payments: Payment[]) => {
+        if (payments.length === 0) return '0-0';
+        const latestUpdate = payments.reduce((max, p) => {
+            const updated = p.updated_at || p.created_at || '';
+            return updated > max ? updated : max;
+        }, '');
+        return `${payments.length}-${latestUpdate}`;
+    }, []);
+
+    const prevFingerprintRef = useRef<string>(getFingerprint(contextPayments));
+    const hasLoadedFullHistoryRef = useRef<boolean>(false);
 
     const fetchHistory = useCallback(async () => {
         if (!commitmentId) return;
@@ -36,7 +51,7 @@ export function useCommitmentHistory(
             const fullPayments = await PaymentService.getPayments(commitmentId);
 
             setHistoryPayments(fullPayments);
-            setHasLoadedFullHistory(true);
+            hasLoadedFullHistoryRef.current = true;
         } catch (err) {
             console.error('[useCommitmentHistory] Error loading history:', err);
             setHistoryError('Error al cargar el historial completo');
@@ -48,22 +63,32 @@ export function useCommitmentHistory(
     // Initial load when commitmentId changes
     useEffect(() => {
         if (commitmentId) {
-            // If we haven't loaded full history yet, trigger fetch
-            // We start with initialContextPayments to show something immediately
-            setHistoryPayments(initialContextPayments);
+            // Reset state for new commitment
+            hasLoadedFullHistoryRef.current = false;
+            prevFingerprintRef.current = getFingerprint(contextPayments);
+            setHistoryPayments(contextPayments);
             fetchHistory();
         } else {
             setHistoryPayments([]);
         }
-    }, [commitmentId]); // Intentionally not including initialContextPayments to avoid refetch loops
+    }, [commitmentId]); // Intentionally not including contextPayments to avoid refetch loops
 
-    // Update local state if context provides *more* (or different) payments 
-    // BUT only if we haven't loaded the full history yet. 
-    // Once full history is loaded, it is authoritative (it contains everything).
-    // However, if context updates (e.g. user edits a payment), we might want to reflect that.
-    // Simplifying assumption: Detailed history is mostly read-only.
-    // If we wanted reactive updates, we'd need to merge context updates into historyPayments.
-    // For now, let's stick to the "fetch on open" strategy.
+    // Auto-refresh when context payments change (e.g., after recording/editing a payment)
+    // Uses fingerprint to detect both new payments and edits to existing payments
+    useEffect(() => {
+        const currentFingerprint = getFingerprint(contextPayments);
+        const prevFingerprint = prevFingerprintRef.current;
+
+        // Only refresh if: 
+        // 1. We have a commitmentId
+        // 2. We've already loaded full history once
+        // 3. Fingerprint changed (payment added/edited/removed)
+        if (commitmentId && hasLoadedFullHistoryRef.current && currentFingerprint !== prevFingerprint) {
+            console.log(`[useCommitmentHistory] Context payments changed (${prevFingerprint} -> ${currentFingerprint}), refreshing...`);
+            prevFingerprintRef.current = currentFingerprint;
+            fetchHistory();
+        }
+    }, [commitmentId, contextPayments, getFingerprint, fetchHistory]);
 
     return {
         historyPayments,
@@ -72,3 +97,4 @@ export function useCommitmentHistory(
         refreshHistory: fetchHistory
     };
 }
+

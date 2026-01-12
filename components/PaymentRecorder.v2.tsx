@@ -259,10 +259,10 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     // Loading state while fetching payment
     if (isFetchingPayment) {
         return (
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl p-8">
-                    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
-                        <span className="animate-spin text-2xl">⏳</span>
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50">
+                <div className="bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-slate-700/50">
+                    <div className="flex items-center gap-3 text-slate-300">
+                        <div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
                         <span>Cargando...</span>
                     </div>
                 </div>
@@ -275,16 +275,16 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
             {/* Delete Confirmation Dialog */}
             {showDeleteConfirm && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-                    <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/50 dark:border-white/10 rounded-3xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
+                    <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 ring-1 ring-white/5 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
                         <div className="flex items-center gap-4 mb-6">
-                            <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full shrink-0">
-                                <ExclamationTriangleIcon className="w-6 h-6 text-red-600 dark:text-red-400" />
+                            <div className="p-3 bg-rose-500/10 rounded-xl shrink-0 border border-rose-500/20">
+                                <ExclamationTriangleIcon className="w-6 h-6 text-rose-400" />
                             </div>
                             <div>
-                                <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
+                                <h3 className="text-lg font-bold text-white leading-tight">
                                     Eliminar pago
                                 </h3>
-                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                <p className="text-sm text-slate-400 mt-1">
                                     Esta acción no se puede deshacer.
                                 </p>
                             </div>
@@ -292,14 +292,14 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                         <div className="flex gap-3 justify-end">
                             <button
                                 onClick={() => setShowDeleteConfirm(false)}
-                                className="px-5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                                className="px-5 py-2.5 text-sm font-medium text-slate-300 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/50 rounded-xl transition-all"
                             >
                                 Cancelar
                             </button>
                             <button
                                 onClick={handleDelete}
                                 disabled={isLoading}
-                                className="px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-xl transition-colors shadow-lg shadow-red-600/20"
+                                className="px-5 py-2.5 text-sm font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-xl transition-colors shadow-lg shadow-rose-500/20"
                             >
                                 {isLoading ? 'Eliminando...' : 'Sí, eliminar'}
                             </button>
@@ -360,7 +360,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                     <div className="grid grid-cols-2 gap-4">
 
                         {/* 1. HERO CARD (Full Width) - Monto Esperado */}
-                        <div className="col-span-2 relative overflow-hidden group rounded-2xl bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 border border-slate-200 dark:border-slate-700/50 p-6 text-center shadow-sm">
+                        <div className="col-span-2 relative overflow-hidden group rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700/50 p-6 text-center shadow-sm">
                             <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <Coins className="w-24 h-24 rotate-12" />
                             </div>
@@ -368,11 +368,11 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                             <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
                                 Monto Esperado
                             </p>
-                            <div className="flex items-center justify-center gap-2 text-slate-900 dark:text-white">
-                                <span className="text-lg font-medium text-slate-400">{expectedCurrency}</span>
-                                <span className={`text-4xl font-extrabold tracking-tight ${!isPaid ? 'text-slate-900 dark:text-white' : 'text-emerald-500 dark:text-emerald-400'}`}>
+                            <div className="flex items-center justify-center gap-2">
+                                <span className="text-lg font-medium text-slate-500">{expectedCurrency}</span>
+                                <span className={`text-4xl font-extrabold tracking-tight tabular-nums ${!isPaid ? 'text-white' : 'text-emerald-400'}`}>
                                     {expectedCurrency === 'CLP'
-                                        ? formatClp(expectedAmount).replace('$', '')
+                                        ? expectedAmount.toLocaleString('es-CL')
                                         : expectedAmount.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                             </div>
@@ -512,11 +512,21 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
 
                                     {/* Amount Input */}
                                     <input
-                                        type="number"
-                                        value={amount}
-                                        onChange={(e) => setAmount(e.target.value)}
-                                        placeholder={String(expectedAmount)}
-                                        className="flex-1 px-4 py-3 bg-white dark:bg-slate-800 text-lg font-mono font-bold text-slate-900 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 focus:outline-none"
+                                        type="tel"
+                                        value={amountCurrency === 'CLP' && amount ? Number(amount).toLocaleString('es-CL') : amount}
+                                        onChange={(e) => {
+                                            let val = e.target.value;
+                                            if (amountCurrency === 'CLP') {
+                                                // Remove dots for parsing
+                                                val = val.replace(/\./g, '');
+                                            }
+                                            // Allow empty or valid number
+                                            if (val === '' || !isNaN(Number(val))) {
+                                                setAmount(val);
+                                            }
+                                        }}
+                                        placeholder={amountCurrency === 'CLP' ? expectedAmount.toLocaleString('es-CL') : String(expectedAmount)}
+                                        className="flex-1 px-4 py-3 bg-slate-800 text-lg font-bold tabular-nums tracking-tight text-white placeholder-slate-500 focus:outline-none"
                                     />
                                 </div>
 

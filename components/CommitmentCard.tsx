@@ -11,7 +11,7 @@ import { CommitmentWithTerm, Payment } from '../types.v2';
 // useLocalization removed
 import { getCommitmentSummary, getCommitmentStatus, EstadoType, getInstallmentNumber } from '../utils/commitmentStatusUtils';
 import { getCategoryIcon } from '../utils/categoryIcons';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, Edit2, Pause, Play, Trash2, Eye } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 
 interface CommitmentCardProps {
@@ -29,6 +29,7 @@ interface CommitmentCardProps {
     /** Handlers */
     onClick?: () => void;
     onEdit?: () => void;
+    onDetail?: () => void;  // NEW: Opens detail modal with terms history
     onPause?: () => void;
     onResume?: () => void;
     onDelete?: () => void;
@@ -73,6 +74,7 @@ export function CommitmentCard({
     formatAmount = (n) => `$${n.toLocaleString('es-CL')}`,
     onClick,
     onEdit,
+    onDetail,
     onPause,
     onResume,
     onDelete,
@@ -323,40 +325,53 @@ export function CommitmentCard({
                             </DropdownMenu.Trigger>
                             <DropdownMenu.Portal>
                                 <DropdownMenu.Content
-                                    className="bg-[var(--dashboard-surface)] backdrop-blur-xl border border-[var(--dashboard-border)] rounded-xl p-1 shadow-xl min-w-[140px] z-50"
+                                    className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-xl p-1.5 shadow-2xl min-w-[160px] z-50"
                                     sideOffset={5}
                                 >
                                     {onEdit && (
                                         <DropdownMenu.Item
                                             onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                                            className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--dashboard-text-primary)] hover:bg-[var(--dashboard-accent)]/10 rounded-lg cursor-pointer outline-none"
+                                            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-200 hover:bg-slate-700/50 rounded-lg cursor-pointer outline-none transition-colors"
                                         >
+                                            <Edit2 className="w-4 h-4 text-slate-400" />
                                             Editar
+                                        </DropdownMenu.Item>
+                                    )}
+                                    {onDetail && (
+                                        <DropdownMenu.Item
+                                            onClick={(e) => { e.stopPropagation(); onDetail(); }}
+                                            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-sky-400 hover:bg-sky-500/10 rounded-lg cursor-pointer outline-none transition-colors"
+                                        >
+                                            <Eye className="w-4 h-4" />
+                                            Detalle
                                         </DropdownMenu.Item>
                                     )}
                                     {!isInactive && onPause && (
                                         <DropdownMenu.Item
                                             onClick={(e) => { e.stopPropagation(); onPause(); }}
-                                            className="flex items-center gap-2 px-3 py-2 text-sm text-amber-400 hover:bg-amber-500/10 rounded-lg cursor-pointer outline-none"
+                                            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/10 rounded-lg cursor-pointer outline-none transition-colors"
                                         >
+                                            <Pause className="w-4 h-4" />
                                             Pausar
                                         </DropdownMenu.Item>
                                     )}
                                     {isInactive && onResume && (
                                         <DropdownMenu.Item
                                             onClick={(e) => { e.stopPropagation(); onResume(); }}
-                                            className="flex items-center gap-2 px-3 py-2 text-sm text-emerald-400 hover:bg-emerald-500/10 rounded-lg cursor-pointer outline-none"
+                                            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-emerald-400 hover:bg-emerald-500/10 rounded-lg cursor-pointer outline-none transition-colors"
                                         >
+                                            <Play className="w-4 h-4" />
                                             Reanudar
                                         </DropdownMenu.Item>
                                     )}
                                     {onDelete && (
                                         <>
-                                            <DropdownMenu.Separator className="h-px bg-[var(--dashboard-border)] my-1" />
+                                            <DropdownMenu.Separator className="h-px bg-slate-700/50 my-1.5" />
                                             <DropdownMenu.Item
                                                 onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                                                className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg cursor-pointer outline-none"
+                                                className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10 rounded-lg cursor-pointer outline-none transition-colors"
                                             >
+                                                <Trash2 className="w-4 h-4" />
                                                 Eliminar
                                             </DropdownMenu.Item>
                                         </>
@@ -368,13 +383,13 @@ export function CommitmentCard({
                 </div>
             </div>
 
-            {/* Amount Row - Tighter spacing */}
+            {/* Amount Row - Tighter spacing and Premium Typography */}
             <div className="mt-2 flex items-baseline justify-between">
                 <div className="flex items-baseline gap-1">
-                    <span className="text-xl font-bold font-mono tracking-tight text-[var(--dashboard-text-primary)]">
+                    <span className="text-xl font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)]">
                         {summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
                     </span>
-                    <span className="text-[10px] font-semibold text-[var(--dashboard-text-muted)] uppercase">
+                    <span className="text-[10px] font-bold text-[var(--dashboard-text-muted)] uppercase">
                         CLP
                     </span>
                 </div>
