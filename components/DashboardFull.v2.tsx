@@ -25,6 +25,7 @@ import {
 } from './icons';
 import { FlowType, periodToString } from '../types.v2';
 import { getPerPeriodAmount } from '../utils/financialUtils.v2';
+import { PullToRefresh } from './PullToRefresh';
 
 Chart.register(...registerables);
 
@@ -119,7 +120,8 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
         setDisplayYear,
         setDisplayMonth,
         getUpcomingPayments,
-        getMonthlyData
+        getMonthlyData,
+        refresh
     } = useCommitments();
 
     const [chartReady, setChartReady] = useState(false);
@@ -685,446 +687,451 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
     }
 
     return (
-        <div className="dashboard-container h-full flex flex-col lg:flex-row gap-4 p-2 sm:p-4 overflow-y-auto lg:overflow-hidden">
-            {/* Sidebar: Pagos por Vencer - Timeline Design */}
-            <div className={`sidebar-upcoming flex-shrink-0 transition-all duration-300 w-full ${sidebarCollapsed ? 'lg:w-14' : 'lg:w-80'} order-last lg:order-first`}>
-                {/* Sidebar Header */}
-                <div className="sidebar-header">
-                    <div className="flex items-center justify-between">
-                        {!sidebarCollapsed ? (
-                            <>
-                                <div className="sidebar-title">
-                                    <ClockIcon className="w-4 h-4 text-amber-500 dark:text-amber-400" />
-                                    Pagos por Vencer
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="px-2 py-0.5 text-xs font-bold rounded-full"
+        <PullToRefresh
+            onRefresh={async () => { await refresh({ force: true }); }}
+            className="h-full"
+        >
+            <div className="dashboard-container h-full flex flex-col lg:flex-row gap-4 p-2 sm:p-4 overflow-y-auto lg:overflow-hidden">
+                {/* Sidebar: Pagos por Vencer - Timeline Design */}
+                <div className={`sidebar-upcoming flex-shrink-0 transition-all duration-300 w-full ${sidebarCollapsed ? 'lg:w-14' : 'lg:w-80'} order-last lg:order-first`}>
+                    {/* Sidebar Header */}
+                    <div className="sidebar-header">
+                        <div className="flex items-center justify-between">
+                            {!sidebarCollapsed ? (
+                                <>
+                                    <div className="sidebar-title">
+                                        <ClockIcon className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                                        Pagos por Vencer
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="px-2 py-0.5 text-xs font-bold rounded-full"
+                                            style={{ background: 'var(--dashboard-warning-light)', color: 'var(--dashboard-warning)' }}>
+                                            {upcomingPayments.length}
+                                        </span>
+                                        <button
+                                            onClick={() => setSidebarCollapsed(true)}
+                                            className="p-1 rounded transition-colors hover:opacity-70"
+                                            title="Colapsar"
+                                        >
+                                            <svg className="w-4 h-4" style={{ color: 'var(--dashboard-text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={() => setSidebarCollapsed(false)}
+                                    className="w-full flex flex-col items-center gap-1 py-1"
+                                    title="Expandir Pagos por Vencer"
+                                >
+                                    <ClockIcon className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+                                    <span className="px-1.5 py-0.5 text-xs font-bold rounded-full"
                                         style={{ background: 'var(--dashboard-warning-light)', color: 'var(--dashboard-warning)' }}>
                                         {upcomingPayments.length}
                                     </span>
-                                    <button
-                                        onClick={() => setSidebarCollapsed(true)}
-                                        className="p-1 rounded transition-colors hover:opacity-70"
-                                        title="Colapsar"
-                                    >
-                                        <svg className="w-4 h-4" style={{ color: 'var(--dashboard-text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                                        </svg>
-                                    </button>
+                                    <svg className="w-4 h-4 mt-1" style={{ color: 'var(--dashboard-text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+                        {!sidebarCollapsed && (
+                            <>
+                                <div className="sidebar-total tabular-nums">
+                                    {formatClp(upcomingTotal)}
+                                </div>
+                                <div className="sidebar-subtitle">
+                                    {MONTHS_FULL[displayMonth]} {displayYear}
                                 </div>
                             </>
+                        )}
+                    </div>
+
+                    {/* Sidebar Timeline List - Grouped by Urgency */}
+                    <div className={`timeline-list thin-scrollbar ${sidebarCollapsed ? 'hidden' : ''}`}>
+                        {upcomingPayments.length === 0 ? (
+                            <div className="empty-state">
+                                <CheckCircleIcon className="empty-state-icon" />
+                                <p className="empty-state-text">¡Todo al día!</p>
+                            </div>
                         ) : (
+                            <>
+                                {/* Overdue Group */}
+                                {upcomingPayments.some(p => p.urgencyGroup === 'overdue') && (
+                                    <div className="timeline-group">
+                                        <div className="timeline-group-label timeline-group-label--overdue">
+                                            <ExclamationTriangleIcon className="w-3 h-3" />
+                                            Vencidos
+                                        </div>
+                                        {upcomingPayments
+                                            .filter(p => p.urgencyGroup === 'overdue')
+                                            .map((item, idx) => (
+                                                <div
+                                                    key={`${item.commitmentId}-${item.dueMonth}-${idx}`}
+                                                    onClick={() => {
+                                                        onOpenPaymentRecorder?.(item.commitmentId, buildPeriodDate(item.dueYear, item.dueMonth));
+                                                    }}
+                                                    className="timeline-item timeline-item--overdue"
+                                                >
+                                                    <div className="timeline-date">
+                                                        {MONTHS_ES[item.dueMonth]} {item.dueDay.toString().padStart(2, '0')}, {item.dueYear}
+                                                    </div>
+                                                    <div className="timeline-name">
+                                                        {item.commitmentName}
+                                                    </div>
+                                                    {item.cuotaNumber && item.totalCuotas && (
+                                                        <div className="timeline-meta">
+                                                            Cuota {item.cuotaNumber}/{item.totalCuotas}
+                                                        </div>
+                                                    )}
+                                                    <div className="timeline-amount">
+                                                        {formatClp(item.amount)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                )}
+
+                                {/* Next 7 Days Group */}
+                                {upcomingPayments.some(p => p.urgencyGroup === 'next7days') && (
+                                    <div className="timeline-group">
+                                        <div className="timeline-group-label timeline-group-label--soon">
+                                            <ClockIcon className="w-3 h-3" />
+                                            Próximos 7 días
+                                        </div>
+                                        {upcomingPayments
+                                            .filter(p => p.urgencyGroup === 'next7days')
+                                            .map((item, idx) => (
+                                                <div
+                                                    key={`${item.commitmentId}-${item.dueMonth}-${idx}`}
+                                                    onClick={() => {
+                                                        onOpenPaymentRecorder?.(item.commitmentId, buildPeriodDate(item.dueYear, item.dueMonth));
+                                                    }}
+                                                    className="timeline-item timeline-item--upcoming"
+                                                >
+                                                    <div className="timeline-date">
+                                                        {MONTHS_ES[item.dueMonth]} {item.dueDay.toString().padStart(2, '0')}
+                                                        <span className="timeline-days-badge">
+                                                            {item.daysUntilDue === 0 ? 'Hoy' : item.daysUntilDue === 1 ? 'Mañana' : `${item.daysUntilDue}d`}
+                                                        </span>
+                                                    </div>
+                                                    <div className="timeline-name">
+                                                        {item.commitmentName}
+                                                    </div>
+                                                    {item.cuotaNumber && item.totalCuotas && (
+                                                        <div className="timeline-meta">
+                                                            Cuota {item.cuotaNumber}/{item.totalCuotas}
+                                                        </div>
+                                                    )}
+                                                    <div className="timeline-amount">
+                                                        {formatClp(item.amount)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                )}
+
+                                {/* Rest of Month Group */}
+                                {upcomingPayments.some(p => p.urgencyGroup === 'restOfMonth') && (
+                                    <div className="timeline-group">
+                                        <div className="timeline-group-label">
+                                            <CalendarIcon className="w-3 h-3" />
+                                            Resto del mes
+                                        </div>
+                                        {upcomingPayments
+                                            .filter(p => p.urgencyGroup === 'restOfMonth')
+                                            .map((item, idx) => (
+                                                <div
+                                                    key={`${item.commitmentId}-${item.dueMonth}-${idx}`}
+                                                    onClick={() => {
+                                                        onOpenPaymentRecorder?.(item.commitmentId, buildPeriodDate(item.dueYear, item.dueMonth));
+                                                    }}
+                                                    className="timeline-item"
+                                                >
+                                                    <div className="timeline-date">
+                                                        {MONTHS_ES[item.dueMonth]} {item.dueDay.toString().padStart(2, '0')}
+                                                    </div>
+                                                    <div className="timeline-name">
+                                                        {item.commitmentName}
+                                                    </div>
+                                                    {item.cuotaNumber && item.totalCuotas && (
+                                                        <div className="timeline-meta">
+                                                            Cuota {item.cuotaNumber}/{item.totalCuotas}
+                                                        </div>
+                                                    )}
+                                                    <div className="timeline-amount">
+                                                        {formatClp(item.amount)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* Main Content */}
+                <div className="flex-1 flex flex-col gap-4 min-w-0">
+                    {/* Month Navigator + KPIs Row */}
+                    <div className="flex flex-col xl:flex-row gap-4 items-stretch">
+                        {/* Month/Year Navigator */}
+                        <div className="month-navigator">
+                            <CalendarIcon className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+
                             <button
-                                onClick={() => setSidebarCollapsed(false)}
-                                className="w-full flex flex-col items-center gap-1 py-1"
-                                title="Expandir Pagos por Vencer"
+                                onClick={handlePrevMonth}
+                                className="month-navigator-btn"
+                                aria-label="Mes anterior"
+                                title="Mes anterior"
                             >
-                                <ClockIcon className="w-5 h-5 text-amber-500 dark:text-amber-400" />
-                                <span className="px-1.5 py-0.5 text-xs font-bold rounded-full"
-                                    style={{ background: 'var(--dashboard-warning-light)', color: 'var(--dashboard-warning)' }}>
-                                    {upcomingPayments.length}
-                                </span>
-                                <svg className="w-4 h-4 mt-1" style={{ color: 'var(--dashboard-text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                                 </svg>
                             </button>
-                        )}
-                    </div>
-                    {!sidebarCollapsed && (
-                        <>
-                            <div className="sidebar-total tabular-nums">
-                                {formatClp(upcomingTotal)}
-                            </div>
-                            <div className="sidebar-subtitle">
+
+                            <div className="month-navigator-display">
                                 {MONTHS_FULL[displayMonth]} {displayYear}
                             </div>
-                        </>
-                    )}
-                </div>
 
-                {/* Sidebar Timeline List - Grouped by Urgency */}
-                <div className={`timeline-list thin-scrollbar ${sidebarCollapsed ? 'hidden' : ''}`}>
-                    {upcomingPayments.length === 0 ? (
-                        <div className="empty-state">
-                            <CheckCircleIcon className="empty-state-icon" />
-                            <p className="empty-state-text">¡Todo al día!</p>
-                        </div>
-                    ) : (
-                        <>
-                            {/* Overdue Group */}
-                            {upcomingPayments.some(p => p.urgencyGroup === 'overdue') && (
-                                <div className="timeline-group">
-                                    <div className="timeline-group-label timeline-group-label--overdue">
-                                        <ExclamationTriangleIcon className="w-3 h-3" />
-                                        Vencidos
-                                    </div>
-                                    {upcomingPayments
-                                        .filter(p => p.urgencyGroup === 'overdue')
-                                        .map((item, idx) => (
-                                            <div
-                                                key={`${item.commitmentId}-${item.dueMonth}-${idx}`}
-                                                onClick={() => {
-                                                    onOpenPaymentRecorder?.(item.commitmentId, buildPeriodDate(item.dueYear, item.dueMonth));
-                                                }}
-                                                className="timeline-item timeline-item--overdue"
-                                            >
-                                                <div className="timeline-date">
-                                                    {MONTHS_ES[item.dueMonth]} {item.dueDay.toString().padStart(2, '0')}, {item.dueYear}
-                                                </div>
-                                                <div className="timeline-name">
-                                                    {item.commitmentName}
-                                                </div>
-                                                {item.cuotaNumber && item.totalCuotas && (
-                                                    <div className="timeline-meta">
-                                                        Cuota {item.cuotaNumber}/{item.totalCuotas}
-                                                    </div>
-                                                )}
-                                                <div className="timeline-amount">
-                                                    {formatClp(item.amount)}
-                                                </div>
-                                            </div>
-                                        ))}
-                                </div>
-                            )}
+                            <button
+                                onClick={handleNextMonth}
+                                className="month-navigator-btn"
+                                aria-label="Mes siguiente"
+                                title="Mes siguiente"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
 
-                            {/* Next 7 Days Group */}
-                            {upcomingPayments.some(p => p.urgencyGroup === 'next7days') && (
-                                <div className="timeline-group">
-                                    <div className="timeline-group-label timeline-group-label--soon">
-                                        <ClockIcon className="w-3 h-3" />
-                                        Próximos 7 días
-                                    </div>
-                                    {upcomingPayments
-                                        .filter(p => p.urgencyGroup === 'next7days')
-                                        .map((item, idx) => (
-                                            <div
-                                                key={`${item.commitmentId}-${item.dueMonth}-${idx}`}
-                                                onClick={() => {
-                                                    onOpenPaymentRecorder?.(item.commitmentId, buildPeriodDate(item.dueYear, item.dueMonth));
-                                                }}
-                                                className="timeline-item timeline-item--upcoming"
-                                            >
-                                                <div className="timeline-date">
-                                                    {MONTHS_ES[item.dueMonth]} {item.dueDay.toString().padStart(2, '0')}
-                                                    <span className="timeline-days-badge">
-                                                        {item.daysUntilDue === 0 ? 'Hoy' : item.daysUntilDue === 1 ? 'Mañana' : `${item.daysUntilDue}d`}
-                                                    </span>
-                                                </div>
-                                                <div className="timeline-name">
-                                                    {item.commitmentName}
-                                                </div>
-                                                {item.cuotaNumber && item.totalCuotas && (
-                                                    <div className="timeline-meta">
-                                                        Cuota {item.cuotaNumber}/{item.totalCuotas}
-                                                    </div>
-                                                )}
-                                                <div className="timeline-amount">
-                                                    {formatClp(item.amount)}
-                                                </div>
-                                            </div>
-                                        ))}
-                                </div>
-                            )}
+                            <div className="h-6 w-px mx-1" style={{ background: 'var(--dashboard-border)' }}></div>
 
-                            {/* Rest of Month Group */}
-                            {upcomingPayments.some(p => p.urgencyGroup === 'restOfMonth') && (
-                                <div className="timeline-group">
-                                    <div className="timeline-group-label">
-                                        <CalendarIcon className="w-3 h-3" />
-                                        Resto del mes
-                                    </div>
-                                    {upcomingPayments
-                                        .filter(p => p.urgencyGroup === 'restOfMonth')
-                                        .map((item, idx) => (
-                                            <div
-                                                key={`${item.commitmentId}-${item.dueMonth}-${idx}`}
-                                                onClick={() => {
-                                                    onOpenPaymentRecorder?.(item.commitmentId, buildPeriodDate(item.dueYear, item.dueMonth));
-                                                }}
-                                                className="timeline-item"
-                                            >
-                                                <div className="timeline-date">
-                                                    {MONTHS_ES[item.dueMonth]} {item.dueDay.toString().padStart(2, '0')}
-                                                </div>
-                                                <div className="timeline-name">
-                                                    {item.commitmentName}
-                                                </div>
-                                                {item.cuotaNumber && item.totalCuotas && (
-                                                    <div className="timeline-meta">
-                                                        Cuota {item.cuotaNumber}/{item.totalCuotas}
-                                                    </div>
-                                                )}
-                                                <div className="timeline-amount">
-                                                    {formatClp(item.amount)}
-                                                </div>
-                                            </div>
-                                        ))}
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col gap-4 min-w-0">
-                {/* Month Navigator + KPIs Row */}
-                <div className="flex flex-col xl:flex-row gap-4 items-stretch">
-                    {/* Month/Year Navigator */}
-                    <div className="month-navigator">
-                        <CalendarIcon className="w-5 h-5 text-slate-400 dark:text-slate-500" />
-
-                        <button
-                            onClick={handlePrevMonth}
-                            className="month-navigator-btn"
-                            aria-label="Mes anterior"
-                            title="Mes anterior"
-                        >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                        </button>
-
-                        <div className="month-navigator-display">
-                            {MONTHS_FULL[displayMonth]} {displayYear}
+                            <button
+                                onClick={handleToday}
+                                className="month-navigator-today"
+                                title="Ir al mes actual"
+                            >
+                                Hoy
+                            </button>
                         </div>
 
-                        <button
-                            onClick={handleNextMonth}
-                            className="month-navigator-btn"
-                            aria-label="Mes siguiente"
-                            title="Mes siguiente"
-                        >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                        </button>
-
-                        <div className="h-6 w-px mx-1" style={{ background: 'var(--dashboard-border)' }}></div>
-
-                        <button
-                            onClick={handleToday}
-                            className="month-navigator-today"
-                            title="Ir al mes actual"
-                        >
-                            Hoy
-                        </button>
-                    </div>
-
-                    {/* KPI Cards - Hero Balance Layout with Enhanced Design */}
-                    <div className="flex-1 kpi-grid grid grid-cols-2 md:grid-cols-4 xl:flex gap-3">
-                        {/* Balance - Hero Card */}
-                        <div className="kpi-card kpi-card--hero kpi-card-hero-glow animate-fade-in-up group">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="kpi-label mb-0">Balance Mensual</span>
-                                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-teal-500 to-cyan-600 transition-transform duration-300 group-hover:scale-110">
-                                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                </div>
-                            </div>
-                            <p className={`kpi-value tabular-nums ${currentMonthSummary.balance >= 0 ? 'kpi-value--accent' : 'kpi-value--negative'}`}>
-                                {formatClp(currentMonthSummary.balance)}
-                            </p>
-                            <p className="text-xs mt-1" style={{ color: 'var(--dashboard-text-muted)' }}>Flujo neto del mes</p>
-                            <TrendIndicator change={currentMonthSummary.balanceChange} />
-                        </div>
-
-                        {/* Income */}
-                        <div className="kpi-card kpi-card--positive animate-fade-in-up stagger-1 group">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="kpi-label mb-0">Ingresos</span>
-                                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/15 dark:bg-emerald-400/15 transition-transform duration-300 group-hover:scale-110">
-                                    <ArrowTrendingUpIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                                </div>
-                            </div>
-                            <p className="kpi-value kpi-value--positive tabular-nums">
-                                {formatClp(currentMonthSummary.income)}
-                            </p>
-                            <TrendIndicator change={currentMonthSummary.incomeChange} />
-                        </div>
-
-                        {/* Expenses */}
-                        <div className="kpi-card kpi-card--negative animate-fade-in-up stagger-2 group">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="kpi-label mb-0">Gastos</span>
-                                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-500/15 dark:bg-red-400/15 transition-transform duration-300 group-hover:scale-110">
-                                    <ArrowTrendingDownIcon className="w-5 h-5 text-red-600 dark:text-red-400" />
-                                </div>
-                            </div>
-                            <p className="kpi-value kpi-value--negative tabular-nums">
-                                {formatClp(currentMonthSummary.expenses)}
-                            </p>
-                            <TrendIndicator change={currentMonthSummary.expensesChange} invertColors />
-                        </div>
-
-                        {/* Pending Payments - Warning Style */}
-                        <div className="kpi-card kpi-card--neutral animate-fade-in-up stagger-3 group" style={{ borderColor: upcomingPayments.length > 0 ? 'var(--dashboard-warning)' : undefined }}>
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="kpi-label mb-0">Por Pagar</span>
-                                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-500/15 dark:bg-amber-400/15 transition-transform duration-300 group-hover:scale-110">
-                                    <ClockIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                                </div>
-                            </div>
-                            <p className="kpi-value tabular-nums" style={{ color: upcomingPayments.length > 0 ? 'var(--dashboard-warning)' : 'var(--dashboard-text-primary)' }}>
-                                {formatClp(upcomingTotal)}
-                            </p>
-                            <p className="text-xs mt-1" style={{ color: 'var(--dashboard-text-muted)' }}>
-                                {upcomingPayments.length} pagos pendientes
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Chart and Categories Row */}
-                <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0">
-                    {/* Chart */}
-                    <div className="chart-panel flex-1 min-w-0">
-                        <h3 className="chart-title">
-                            {(() => {
-                                const centerDate = new Date(displayYear, displayMonth, 1);
-                                const firstDate = new Date(centerDate);
-                                firstDate.setMonth(firstDate.getMonth() - 8);
-                                const lastDate = new Date(centerDate);
-                                lastDate.setMonth(lastDate.getMonth() + 3);
-
-                                const firstMonth = MONTHS_ES[firstDate.getMonth()];
-                                const firstYear = firstDate.getFullYear();
-                                const lastMonth = MONTHS_ES[lastDate.getMonth()];
-                                const lastYear = lastDate.getFullYear();
-
-                                return `Evolución ${firstMonth} ${firstYear} - ${lastMonth} ${lastYear}`;
-                            })()}
-                        </h3>
-                        <div className="flex-1 min-h-[250px]">
-                            {chartReady ? (
-                                <Bar data={chartData as any} options={chartOptions} />
-                            ) : (
-                                <div className="h-full flex items-center justify-center">
-                                    <div className="text-center">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-2" style={{ borderColor: 'var(--dashboard-accent)' }} />
-                                        <p className="text-sm" style={{ color: 'var(--dashboard-text-muted)' }}>Cargando gráfico...</p>
+                        {/* KPI Cards - Hero Balance Layout with Enhanced Design */}
+                        <div className="flex-1 kpi-grid grid grid-cols-2 md:grid-cols-4 xl:flex gap-3">
+                            {/* Balance - Hero Card */}
+                            <div className="kpi-card kpi-card--hero kpi-card-hero-glow animate-fade-in-up group">
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="kpi-label mb-0">Balance Mensual</span>
+                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-teal-500 to-cyan-600 transition-transform duration-300 group-hover:scale-110">
+                                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
                                     </div>
                                 </div>
-                            )}
-                        </div>
+                                <p className={`kpi-value tabular-nums ${currentMonthSummary.balance >= 0 ? 'kpi-value--accent' : 'kpi-value--negative'}`}>
+                                    {formatClp(currentMonthSummary.balance)}
+                                </p>
+                                <p className="text-xs mt-1" style={{ color: 'var(--dashboard-text-muted)' }}>Flujo neto del mes</p>
+                                <TrendIndicator change={currentMonthSummary.balanceChange} />
+                            </div>
 
-                        {/* Info note for months with no data */}
-                        {monthlyData.some(d => !d.hasIncomeData || !d.hasExpenseData) && (
-                            <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--dashboard-border)' }}>
-                                <p className="text-xs flex items-start gap-2" style={{ color: 'var(--dashboard-text-muted)' }}>
-                                    <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                    </svg>
-                                    <span>
-                                        Las barras en gris claro indican meses sin registros de commitments activos.
-                                    </span>
+                            {/* Income */}
+                            <div className="kpi-card kpi-card--positive animate-fade-in-up stagger-1 group">
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="kpi-label mb-0">Ingresos</span>
+                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/15 dark:bg-emerald-400/15 transition-transform duration-300 group-hover:scale-110">
+                                        <ArrowTrendingUpIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                                    </div>
+                                </div>
+                                <p className="kpi-value kpi-value--positive tabular-nums">
+                                    {formatClp(currentMonthSummary.income)}
+                                </p>
+                                <TrendIndicator change={currentMonthSummary.incomeChange} />
+                            </div>
+
+                            {/* Expenses */}
+                            <div className="kpi-card kpi-card--negative animate-fade-in-up stagger-2 group">
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="kpi-label mb-0">Gastos</span>
+                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-500/15 dark:bg-red-400/15 transition-transform duration-300 group-hover:scale-110">
+                                        <ArrowTrendingDownIcon className="w-5 h-5 text-red-600 dark:text-red-400" />
+                                    </div>
+                                </div>
+                                <p className="kpi-value kpi-value--negative tabular-nums">
+                                    {formatClp(currentMonthSummary.expenses)}
+                                </p>
+                                <TrendIndicator change={currentMonthSummary.expensesChange} invertColors />
+                            </div>
+
+                            {/* Pending Payments - Warning Style */}
+                            <div className="kpi-card kpi-card--neutral animate-fade-in-up stagger-3 group" style={{ borderColor: upcomingPayments.length > 0 ? 'var(--dashboard-warning)' : undefined }}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="kpi-label mb-0">Por Pagar</span>
+                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-500/15 dark:bg-amber-400/15 transition-transform duration-300 group-hover:scale-110">
+                                        <ClockIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                                    </div>
+                                </div>
+                                <p className="kpi-value tabular-nums" style={{ color: upcomingPayments.length > 0 ? 'var(--dashboard-warning)' : 'var(--dashboard-text-primary)' }}>
+                                    {formatClp(upcomingTotal)}
+                                </p>
+                                <p className="text-xs mt-1" style={{ color: 'var(--dashboard-text-muted)' }}>
+                                    {upcomingPayments.length} pagos pendientes
                                 </p>
                             </div>
-                        )}
+                        </div>
                     </div>
 
-                    {/* Categories Panel */}
-                    <div className="category-panel w-full lg:w-72">
-                        {/* Tab Header with Counters */}
-                        <div className="category-header">
-                            <h3 className="category-title">Por Categoría</h3>
-                            <div className="category-tabs">
-                                <button
-                                    onClick={() => setCategoryTab('expenses')}
-                                    className={`category-tab category-tab--expenses ${categoryTab === 'expenses' ? 'category-tab--active' : ''}`}
-                                >
-                                    <span>Gastos</span>
-                                    {expenseCategories.length > 0 && (
-                                        <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full transition-colors ${categoryTab === 'expenses'
-                                            ? 'bg-red-500/15 text-red-600 dark:text-red-400'
-                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-                                            }`}>
-                                            {expenseCategories.length}
-                                        </span>
-                                    )}
-                                </button>
-                                <button
-                                    onClick={() => setCategoryTab('income')}
-                                    className={`category-tab category-tab--income ${categoryTab === 'income' ? 'category-tab--active' : ''}`}
-                                >
-                                    <span>Ingresos</span>
-                                    {incomeCategories.length > 0 && (
-                                        <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full transition-colors ${categoryTab === 'income'
-                                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-                                            }`}>
-                                            {incomeCategories.length}
-                                        </span>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
+                    {/* Chart and Categories Row */}
+                    <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0">
+                        {/* Chart */}
+                        <div className="chart-panel flex-1 min-w-0">
+                            <h3 className="chart-title">
+                                {(() => {
+                                    const centerDate = new Date(displayYear, displayMonth, 1);
+                                    const firstDate = new Date(centerDate);
+                                    firstDate.setMonth(firstDate.getMonth() - 8);
+                                    const lastDate = new Date(centerDate);
+                                    lastDate.setMonth(lastDate.getMonth() + 3);
 
-                        {/* Category List */}
-                        <div className="category-list thin-scrollbar">
-                            {currentCategories.length === 0 ? (
-                                <p className="text-sm" style={{ color: 'var(--dashboard-text-muted)' }}>
-                                    {categoryTab === 'expenses' ? 'Sin gastos este mes' : 'Sin ingresos este mes'}
-                                </p>
-                            ) : (
-                                currentCategories.slice(0, 8).map((cat, idx) => (
-                                    <div key={cat.name} className="category-item animate-fade-in-up" style={{ animationDelay: `${idx * 0.05}s` }}>
-                                        <div className="category-item-header">
-                                            <span className="category-item-name">{cat.name}</span>
-                                            <span className="category-item-value tabular-nums">
-                                                {formatClp(cat.total)}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <div className="category-progress flex-1">
-                                                <div
-                                                    className={`category-progress-bar ${categoryTab === 'expenses' ? 'category-progress-bar--expense' : 'category-progress-bar--income'}`}
-                                                    style={{ width: `${Math.min(cat.percentage, 100)}%` }}
-                                                />
-                                            </div>
-                                            <span className="text-[10px] font-medium tabular-nums" style={{ color: 'var(--dashboard-text-muted)', minWidth: '32px', textAlign: 'right' }}>
-                                                {cat.percentage.toFixed(0)}%
-                                            </span>
+                                    const firstMonth = MONTHS_ES[firstDate.getMonth()];
+                                    const firstYear = firstDate.getFullYear();
+                                    const lastMonth = MONTHS_ES[lastDate.getMonth()];
+                                    const lastYear = lastDate.getFullYear();
+
+                                    return `Evolución ${firstMonth} ${firstYear} - ${lastMonth} ${lastYear}`;
+                                })()}
+                            </h3>
+                            <div className="flex-1 min-h-[250px]">
+                                {chartReady ? (
+                                    <Bar data={chartData as any} options={chartOptions} />
+                                ) : (
+                                    <div className="h-full flex items-center justify-center">
+                                        <div className="text-center">
+                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-2" style={{ borderColor: 'var(--dashboard-accent)' }} />
+                                            <p className="text-sm" style={{ color: 'var(--dashboard-text-muted)' }}>Cargando gráfico...</p>
                                         </div>
                                     </div>
-                                ))
+                                )}
+                            </div>
+
+                            {/* Info note for months with no data */}
+                            {monthlyData.some(d => !d.hasIncomeData || !d.hasExpenseData) && (
+                                <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--dashboard-border)' }}>
+                                    <p className="text-xs flex items-start gap-2" style={{ color: 'var(--dashboard-text-muted)' }}>
+                                        <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                        </svg>
+                                        <span>
+                                            Las barras en gris claro indican meses sin registros de commitments activos.
+                                        </span>
+                                    </p>
+                                </div>
                             )}
                         </div>
 
-                        {/* Annual Summary */}
-                        <div className="annual-summary">
-                            <h4 className="annual-summary-title">
-                                Acumulado {displayYear}
-                            </h4>
-                            <div className="annual-summary-grid">
-                                <div>
-                                    <p className="annual-summary-item-label">Ingresos</p>
-                                    <p className="annual-summary-item-value annual-summary-item-value--positive tabular-nums">
-                                        {formatClp(annualTotals.income)}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="annual-summary-item-label">Gastos</p>
-                                    <p className="annual-summary-item-value annual-summary-item-value--negative tabular-nums">
-                                        {formatClp(annualTotals.expenses)}
-                                    </p>
+                        {/* Categories Panel */}
+                        <div className="category-panel w-full lg:w-72">
+                            {/* Tab Header with Counters */}
+                            <div className="category-header">
+                                <h3 className="category-title">Por Categoría</h3>
+                                <div className="category-tabs">
+                                    <button
+                                        onClick={() => setCategoryTab('expenses')}
+                                        className={`category-tab category-tab--expenses ${categoryTab === 'expenses' ? 'category-tab--active' : ''}`}
+                                    >
+                                        <span>Gastos</span>
+                                        {expenseCategories.length > 0 && (
+                                            <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full transition-colors ${categoryTab === 'expenses'
+                                                ? 'bg-red-500/15 text-red-600 dark:text-red-400'
+                                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                                }`}>
+                                                {expenseCategories.length}
+                                            </span>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={() => setCategoryTab('income')}
+                                        className={`category-tab category-tab--income ${categoryTab === 'income' ? 'category-tab--active' : ''}`}
+                                    >
+                                        <span>Ingresos</span>
+                                        {incomeCategories.length > 0 && (
+                                            <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full transition-colors ${categoryTab === 'income'
+                                                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                                }`}>
+                                                {incomeCategories.length}
+                                            </span>
+                                        )}
+                                    </button>
                                 </div>
                             </div>
-                            {/* Balance anual */}
-                            <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--dashboard-border)' }}>
-                                <div className="flex justify-between items-baseline">
-                                    <span className="annual-summary-item-label">Balance</span>
-                                    <span className={`annual-summary-item-value tabular-nums ${annualTotals.balance >= 0 ? 'annual-summary-item-value--positive' : 'annual-summary-item-value--negative'}`}>
-                                        {formatClp(annualTotals.balance)}
-                                    </span>
+
+                            {/* Category List */}
+                            <div className="category-list thin-scrollbar">
+                                {currentCategories.length === 0 ? (
+                                    <p className="text-sm" style={{ color: 'var(--dashboard-text-muted)' }}>
+                                        {categoryTab === 'expenses' ? 'Sin gastos este mes' : 'Sin ingresos este mes'}
+                                    </p>
+                                ) : (
+                                    currentCategories.slice(0, 8).map((cat, idx) => (
+                                        <div key={cat.name} className="category-item animate-fade-in-up" style={{ animationDelay: `${idx * 0.05}s` }}>
+                                            <div className="category-item-header">
+                                                <span className="category-item-name">{cat.name}</span>
+                                                <span className="category-item-value tabular-nums">
+                                                    {formatClp(cat.total)}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="category-progress flex-1">
+                                                    <div
+                                                        className={`category-progress-bar ${categoryTab === 'expenses' ? 'category-progress-bar--expense' : 'category-progress-bar--income'}`}
+                                                        style={{ width: `${Math.min(cat.percentage, 100)}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-[10px] font-medium tabular-nums" style={{ color: 'var(--dashboard-text-muted)', minWidth: '32px', textAlign: 'right' }}>
+                                                    {cat.percentage.toFixed(0)}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+
+                            {/* Annual Summary */}
+                            <div className="annual-summary">
+                                <h4 className="annual-summary-title">
+                                    Acumulado {displayYear}
+                                </h4>
+                                <div className="annual-summary-grid">
+                                    <div>
+                                        <p className="annual-summary-item-label">Ingresos</p>
+                                        <p className="annual-summary-item-value annual-summary-item-value--positive tabular-nums">
+                                            {formatClp(annualTotals.income)}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="annual-summary-item-label">Gastos</p>
+                                        <p className="annual-summary-item-value annual-summary-item-value--negative tabular-nums">
+                                            {formatClp(annualTotals.expenses)}
+                                        </p>
+                                    </div>
+                                </div>
+                                {/* Balance anual */}
+                                <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--dashboard-border)' }}>
+                                    <div className="flex justify-between items-baseline">
+                                        <span className="annual-summary-item-label">Balance</span>
+                                        <span className={`annual-summary-item-value tabular-nums ${annualTotals.balance >= 0 ? 'annual-summary-item-value--positive' : 'annual-summary-item-value--negative'}`}>
+                                            {formatClp(annualTotals.balance)}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </PullToRefresh>
     );
 };
 
