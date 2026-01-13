@@ -1264,7 +1264,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             ${density === 'compact' ? 'px-3 py-3 min-w-[140px] max-w-[300px] w-auto' : pad}
                                                         `}>
                                                             {/* Flow Type Pill Indicator */}
-                                                            <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full ${commitment.flow_type === 'INCOME' ? 'bg-emerald-400' : 'bg-rose-400'} opacity-80`} />
+                                                            <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-10 rounded-r-full ${commitment.flow_type === 'INCOME' ? 'bg-emerald-400' : 'bg-rose-400'} opacity-90`} />
                                                             {density === 'compact' ? (
                                                                 /* Compact: Single Line Layout -> Name (Left) ... Details (Right) + ACTIONS */
                                                                 <div
@@ -1287,31 +1287,31 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                             )}
                                                                             {/* New Item Badge */}
                                                                             {((new Date().getTime() - new Date(commitment.created_at).getTime()) < 5 * 60 * 1000) && (
-                                                                                <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 animate-pulse">
+                                                                                <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 ring-1 ring-inset ring-sky-500/30 animate-pulse">
                                                                                     NUEVO
                                                                                 </span>
                                                                             )}
                                                                             {/* Status Badges - Differentiated by termination reason */}
                                                                             {terminationReason === 'PAUSED' && (
-                                                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100/50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 ring-1 ring-inset ring-amber-500/20">
+                                                                                <span className="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 ring-1 ring-inset ring-amber-400/30">
                                                                                     <PauseIcon className="w-2.5 h-2.5" />
                                                                                     PAUSADO
                                                                                 </span>
                                                                             )}
                                                                             {(viewMode !== 'inventory' && (isGloballyTerminated || terminationReason === 'PAUSED')) && (
-                                                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 ring-1 ring-inset ring-indigo-500/20" title="Visible por actividad en el periodo">
+                                                                                <span className="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 ring-1 ring-inset ring-sky-400/30" title="Visible por actividad en el periodo">
                                                                                     <InfoIcon className="w-2.5 h-2.5" />
                                                                                     PENDIENTE
                                                                                 </span>
                                                                             )}
                                                                             {terminationReason === 'COMPLETED_INSTALLMENTS' && (
-                                                                                <span className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 ring-1 ring-inset ring-emerald-500/20">
+                                                                                <span className="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 ring-1 ring-inset ring-emerald-400/30">
                                                                                     <CheckCircleIcon className="w-2.5 h-2.5" />
                                                                                     COMPLETADO
                                                                                 </span>
                                                                             )}
                                                                             {terminationReason === 'TERMINATED' && (
-                                                                                <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+                                                                                <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 ring-1 ring-inset ring-slate-300/50 dark:ring-slate-600/50">
                                                                                     TERMINADO
                                                                                 </span>
                                                                             )}
@@ -1320,11 +1320,11 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                                                                     {/* Right: Category + Amount + Icon */}
                                                                     <div className="flex items-center gap-2 shrink-0">
-                                                                        <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold bg-slate-100 dark:bg-slate-700/80 text-slate-800 dark:text-slate-200 uppercase tracking-wider border border-slate-200 dark:border-slate-600/50">
+                                                                        <span className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-semibold bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 uppercase tracking-wider ring-1 ring-inset ring-slate-200 dark:ring-slate-700/50">
                                                                             {getTranslatedCategoryName(commitment)}
                                                                         </span>
-                                                                        <div className="flex items-center gap-1.5 text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700/50">
-                                                                            <span>
+                                                                        <div className="flex items-center gap-1.5 text-xs font-mono tabular-nums text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/60 px-2 py-0.5 rounded-full ring-1 ring-inset ring-slate-200 dark:ring-slate-700/50">
+                                                                            <span className="font-medium">
                                                                                 {formatClp(
                                                                                     commitment.active_term
                                                                                         ? Math.round(getPerPeriodAmount(commitment.active_term, true))
@@ -1666,291 +1666,295 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                 <td
                                                                     key={mi}
                                                                     className={`
-                                                                        text-right border-r border-slate-200/50 dark:border-slate-700/50 last:border-r-0 
+                                                                        text-right p-0.5
                                                                         cursor-pointer transition-all duration-150 ease-out group/cell
-                                                                        hover:ring-2 hover:ring-inset hover:ring-sky-500/50 dark:hover:ring-sky-400/50
-                                                                        ${isCurrentMonth(monthDate) ? 'bg-sky-50/40 dark:bg-sky-900/15 ring-1 ring-inset ring-sky-500/20' : ''}
-                                                                        ${isDisabled ? 'opacity-50 grayscale hover:opacity-100 hover:grayscale-0' : ''}
-                                                                        ${isGap ? 'bg-slate-100/60 dark:bg-slate-900/50' : ''}
-                                                                        ${isOverdue ? 'bg-rose-50/40 dark:bg-rose-950/20' : ''}
-                                                                        ${isPending ? 'bg-amber-50/30 dark:bg-amber-950/15' : ''}
-                                                                        ${isPaid ? 'bg-emerald-50/30 dark:bg-emerald-950/15' : ''}
                                                                     `}
                                                                     onClick={() => onRecordPayment(commitment.id, dateToPeriod(monthDate))}
                                                                 >
-                                                                    {/* GAP: No term for this period */}
-                                                                    {!term && !isPaid ? (
-                                                                        <div className="flex items-center justify-center h-full w-full text-slate-300 dark:text-slate-700 select-none" title="Sin término activo en este período">
-                                                                            <Minus className="w-4 h-4 opacity-50" />
-                                                                        </div>
-                                                                    ) : !term && isPaid ? (
-                                                                        /* ORPHAN: Payment without term */
-                                                                        <div className="space-y-1">
-                                                                            <div className="font-bold font-mono tabular-nums text-base text-orange-600 dark:text-orange-500" title="⚠️ Pago registrado sin término activo">
-                                                                                {formatClp(paidAmount!)} ⚠️
+                                                                    <div className={`
+                                                                        rounded-lg p-2 h-full w-full transition-all
+                                                                        hover:ring-2 hover:ring-inset hover:ring-sky-500/50 dark:hover:ring-sky-400/50
+                                                                        ${isCurrentMonth(monthDate) ? 'bg-sky-50/60 dark:bg-sky-900/25 ring-1 ring-inset ring-sky-500/30' : 'bg-slate-50/50 dark:bg-slate-800/30'}
+                                                                        ${isDisabled ? 'opacity-50 grayscale hover:opacity-100 hover:grayscale-0' : ''}
+                                                                        ${isGap ? 'bg-slate-100/80 dark:bg-slate-900/60' : ''}
+                                                                        ${isOverdue ? 'bg-rose-50/60 dark:bg-rose-950/30' : ''}
+                                                                        ${isPending ? 'bg-amber-50/50 dark:bg-amber-950/25' : ''}
+                                                                        ${isPaid ? 'bg-emerald-50/50 dark:bg-emerald-950/25' : ''}
+                                                                    `}>
+                                                                        {/* GAP: No term for this period */}
+                                                                        {!term && !isPaid ? (
+                                                                            <div className="flex items-center justify-center h-full w-full text-slate-300 dark:text-slate-700 select-none" title="Sin término activo en este período">
+                                                                                <Minus className="w-4 h-4 opacity-50" />
                                                                             </div>
-                                                                            <div className="text-xs text-orange-500">
-                                                                                Pago huérfano
+                                                                        ) : !term && isPaid ? (
+                                                                            /* ORPHAN: Payment without term */
+                                                                            <div className="space-y-1">
+                                                                                <div className="font-bold font-mono tabular-nums text-base text-orange-600 dark:text-orange-500" title="⚠️ Pago registrado sin término activo">
+                                                                                    {formatClp(paidAmount!)} ⚠️
+                                                                                </div>
+                                                                                <div className="text-xs text-orange-500">
+                                                                                    Pago huérfano
+                                                                                </div>
                                                                             </div>
-                                                                        </div>
-                                                                    ) : (isActive || isPaid) ? (
-                                                                        /* === COMPACT VIEW: Rectangular pill badges === */
-                                                                        density === 'compact' ? (
-                                                                            <CompactTooltip
-                                                                                triggerClassName={pad}
-                                                                                sideOffset={14}
-                                                                                content={
-                                                                                    <div className="min-w-[140px] text-slate-800 dark:text-slate-100">
-                                                                                        {/* --- HEADER: Fecha del período --- */}
-                                                                                        <div className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 mb-2">
-                                                                                            {monthDate.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
-                                                                                        </div>
-
-                                                                                        {/* --- CONTENT: Monto + Badge en línea --- */}
-                                                                                        <div className="flex items-center justify-between gap-3 mb-1">
-                                                                                            {/* Monto - protagonista, siempre neutro */}
-                                                                                            <div className="text-base font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-100">
-                                                                                                {formatClp(displayAmount!)}
+                                                                        ) : (isActive || isPaid) ? (
+                                                                            /* === COMPACT VIEW: Rectangular pill badges === */
+                                                                            density === 'compact' ? (
+                                                                                <CompactTooltip
+                                                                                    triggerClassName={pad}
+                                                                                    sideOffset={14}
+                                                                                    content={
+                                                                                        <div className="min-w-[140px] text-slate-800 dark:text-slate-100">
+                                                                                            {/* --- HEADER: Fecha del período --- */}
+                                                                                            <div className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 mb-2">
+                                                                                                {monthDate.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
                                                                                             </div>
-                                                                                            {/* Badge de estado compacto */}
-                                                                                            {isPaid ? (
-                                                                                                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-inset ring-emerald-500/20 px-2 py-0.5 rounded-full">
-                                                                                                    <CheckCircleIcon className="w-3 h-3" />
-                                                                                                    Pagado
-                                                                                                </span>
-                                                                                            ) : isOverdue ? (
-                                                                                                <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 ring-1 ring-inset ring-red-500/20 px-2 py-0.5 rounded-full">
-                                                                                                    <ExclamationTriangleIcon className="w-3 h-3" />
-                                                                                                    Vencido
-                                                                                                </span>
-                                                                                            ) : isDisabled ? (
-                                                                                                <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">
-                                                                                                    <CalendarIcon className="w-3 h-3" />
-                                                                                                    Futuro
-                                                                                                </span>
-                                                                                            ) : (
-                                                                                                <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full">
-                                                                                                    <ClockIcon className="w-3 h-3" />
-                                                                                                    Pendiente
-                                                                                                </span>
-                                                                                            )}
-                                                                                        </div>
 
-                                                                                        {/* Original Currency (si aplica) */}
-                                                                                        {showOriginalCurrency && (
-                                                                                            <div className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums mb-1">
-                                                                                                {originalCurrency} {perPeriodOriginal?.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                                                            </div>
-                                                                                        )}
-
-                                                                                        {/* Cuota info (si aplica) */}
-                                                                                        {(cuotaNumber && installmentsCount && installmentsCount > 1) ? (
-                                                                                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                                                                {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
-                                                                                            </div>
-                                                                                        ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
-                                                                                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                                                                Pago {(() => {
-                                                                                                    const [startYear, startMonth] = term.effective_from.split('-').map(Number);
-                                                                                                    const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
-                                                                                                        (monthDate.getMonth() + 1 - startMonth) + 1;
-                                                                                                    return paymentNumber > 0 ? paymentNumber : 1;
-                                                                                                })()}/∞
-                                                                                            </div>
-                                                                                        ) : null}
-
-                                                                                        {/* --- FOOTER: Fecha relativa + CTA --- */}
-                                                                                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px]">
-                                                                                            <span className="text-slate-400 dark:text-slate-500">
-                                                                                                {isPaid && currentPayment?.payment_date ? (
-                                                                                                    `Pagado: ${new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                                                                                            {/* --- CONTENT: Monto + Badge en línea --- */}
+                                                                                            <div className="flex items-center justify-between gap-3 mb-1">
+                                                                                                {/* Monto - protagonista, siempre neutro */}
+                                                                                                <div className="text-base font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-100">
+                                                                                                    {formatClp(displayAmount!)}
+                                                                                                </div>
+                                                                                                {/* Badge de estado compacto */}
+                                                                                                {isPaid ? (
+                                                                                                    <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-inset ring-emerald-500/20 px-2 py-0.5 rounded-full">
+                                                                                                        <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                                                                        Pagado
+                                                                                                    </span>
                                                                                                 ) : isOverdue ? (
-                                                                                                    `Venció hace ${daysOverdue} ${daysOverdue === 1 ? 'día' : 'días'}`
-                                                                                                ) : daysRemaining === 0 ? (
-                                                                                                    'Vence hoy'
-                                                                                                ) : isCurrentMonth(monthDate) ? (
-                                                                                                    `Vence en ${daysRemaining} ${daysRemaining === 1 ? 'día' : 'días'}`
+                                                                                                    <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 ring-1 ring-inset ring-red-500/20 px-2 py-0.5 rounded-full">
+                                                                                                        <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                                                                                                        Vencido
+                                                                                                    </span>
+                                                                                                ) : isDisabled ? (
+                                                                                                    <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">
+                                                                                                        <CalendarIcon className="w-3.5 h-3.5" />
+                                                                                                        Futuro
+                                                                                                    </span>
                                                                                                 ) : (
-                                                                                                    `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                                                                                                    <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full">
+                                                                                                        <ClockIcon className="w-3.5 h-3.5" />
+                                                                                                        Pendiente
+                                                                                                    </span>
                                                                                                 )}
-                                                                                            </span>
-                                                                                            {!isPaid && !isDisabled && (
-                                                                                                <span className="text-sky-500 dark:text-sky-400 font-medium">
-                                                                                                    Click →
-                                                                                                </span>
+                                                                                            </div>
+
+                                                                                            {/* Original Currency (si aplica) */}
+                                                                                            {showOriginalCurrency && (
+                                                                                                <div className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums mb-1">
+                                                                                                    {originalCurrency} {perPeriodOriginal?.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                                                </div>
                                                                                             )}
+
+                                                                                            {/* Cuota info (si aplica) */}
+                                                                                            {(cuotaNumber && installmentsCount && installmentsCount > 1) ? (
+                                                                                                <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                                                                    {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
+                                                                                                </div>
+                                                                                            ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
+                                                                                                <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                                                                    Pago {(() => {
+                                                                                                        const [startYear, startMonth] = term.effective_from.split('-').map(Number);
+                                                                                                        const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
+                                                                                                            (monthDate.getMonth() + 1 - startMonth) + 1;
+                                                                                                        return paymentNumber > 0 ? paymentNumber : 1;
+                                                                                                    })()}/∞
+                                                                                                </div>
+                                                                                            ) : null}
+
+                                                                                            {/* --- FOOTER: Fecha relativa + CTA --- */}
+                                                                                            <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px]">
+                                                                                                <span className="text-slate-400 dark:text-slate-500">
+                                                                                                    {isPaid && currentPayment?.payment_date ? (
+                                                                                                        `Pagado: ${new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                                                                                                    ) : isOverdue ? (
+                                                                                                        `Venció hace ${daysOverdue} ${daysOverdue === 1 ? 'día' : 'días'}`
+                                                                                                    ) : daysRemaining === 0 ? (
+                                                                                                        'Vence hoy'
+                                                                                                    ) : isCurrentMonth(monthDate) ? (
+                                                                                                        `Vence en ${daysRemaining} ${daysRemaining === 1 ? 'día' : 'días'}`
+                                                                                                    ) : (
+                                                                                                        `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                                                                                                    )}
+                                                                                                </span>
+                                                                                                {!isPaid && !isDisabled && (
+                                                                                                    <span className="text-sky-500 dark:text-sky-400 font-medium">
+                                                                                                        Click →
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
                                                                                         </div>
-                                                                                    </div>
-                                                                                }
-                                                                            >
-                                                                                <div className="relative flex justify-center items-center h-full">
-                                                                                    {isPaid ? (
-                                                                                        <div
-                                                                                            className="relative flex items-center justify-center w-full h-full cursor-pointer group/paid"
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation();
-                                                                                                onRecordPayment(commitment.id, dateToPeriod(monthDate));
-                                                                                            }}
-                                                                                        >
-                                                                                            {/* Check Icon (Default) - Scales down on hover */}
-                                                                                            <div className={`
+                                                                                    }
+                                                                                >
+                                                                                    <div className="relative flex justify-center items-center h-full">
+                                                                                        {isPaid ? (
+                                                                                            <div
+                                                                                                className="relative flex items-center justify-center w-full h-full cursor-pointer group/paid"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    onRecordPayment(commitment.id, dateToPeriod(monthDate));
+                                                                                                }}
+                                                                                            >
+                                                                                                {/* Check Icon (Default) - Scales down on hover */}
+                                                                                                <div className={`
                                                                                                 flex items-center justify-center transition-all duration-300 group-hover/cell:scale-0 group-hover/cell:opacity-0
                                                                                                 ${paidOnTime ? 'text-emerald-400' : 'text-emerald-500'}
                                                                                             `}>
-                                                                                                <CheckCircleIcon className="w-5 h-5" />
-                                                                                            </div>
+                                                                                                    <CheckCircleIcon className="w-5 h-5" />
+                                                                                                </div>
 
-                                                                                            {/* Edit Icon (Hover) - Scales up */}
-                                                                                            <div className="absolute inset-0 flex items-center justify-center transition-all duration-300 scale-0 opacity-0 group-hover/cell:scale-100 group-hover/cell:opacity-100 text-slate-500 dark:text-slate-400">
-                                                                                                <EditIcon className="w-5 h-5" />
+                                                                                                {/* Edit Icon (Hover) - Scales up */}
+                                                                                                <div className="absolute inset-0 flex items-center justify-center transition-all duration-300 scale-0 opacity-0 group-hover/cell:scale-100 group-hover/cell:opacity-100 text-slate-500 dark:text-slate-400">
+                                                                                                    <EditIcon className="w-5 h-5" />
+                                                                                                </div>
                                                                                             </div>
-                                                                                        </div>
-                                                                                    ) : (
-                                                                                        /* For unpaid items, we show status icon that transforms to + on hover */
-                                                                                        <div
-                                                                                            className="relative flex items-center justify-center w-full h-full cursor-pointer"
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation();
-                                                                                                onRecordPayment(commitment.id, dateToPeriod(monthDate));
-                                                                                            }}
-                                                                                        >
-                                                                                            {/* Original Icon - Scales down on hover */}
-                                                                                            <div className={`transition-all duration-300 group-hover/cell:scale-0 group-hover/cell:opacity-0 flex items-center justify-center
+                                                                                        ) : (
+                                                                                            /* For unpaid items, we show status icon that transforms to + on hover */
+                                                                                            <div
+                                                                                                className="relative flex items-center justify-center w-full h-full cursor-pointer"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    onRecordPayment(commitment.id, dateToPeriod(monthDate));
+                                                                                                }}
+                                                                                            >
+                                                                                                {/* Original Icon - Scales down on hover */}
+                                                                                                <div className={`transition-all duration-300 group-hover/cell:scale-0 group-hover/cell:opacity-0 flex items-center justify-center
                                                                                                 ${isOverdue ? 'text-red-500 animate-pulse' :
-                                                                                                    isPending ? 'text-amber-500' :
-                                                                                                        (installmentsCount && installmentsCount > 1) ? 'text-slate-500 dark:text-slate-400' :
-                                                                                                            (hasPaymentRecord) ? 'text-slate-500 dark:text-slate-400' :
-                                                                                                                'text-slate-700 dark:text-slate-600'}
+                                                                                                        isPending ? 'text-amber-500' :
+                                                                                                            (installmentsCount && installmentsCount > 1) ? 'text-slate-500 dark:text-slate-400' :
+                                                                                                                (hasPaymentRecord) ? 'text-slate-500 dark:text-slate-400' :
+                                                                                                                    'text-slate-700 dark:text-slate-600'}
                                                                                             `}>
-                                                                                                {isOverdue ? <ExclamationTriangleIcon className="w-5 h-5" /> :
-                                                                                                    isPending ? <ClockIcon className="w-5 h-5" /> :
-                                                                                                        (installmentsCount && installmentsCount > 1) ? <CalendarIcon className="w-4 h-4" /> :
-                                                                                                            <ClockIcon className={`w-5 h-5 ${!hasPaymentRecord ? 'opacity-40' : ''}`} />
-                                                                                                }
-                                                                                            </div>
+                                                                                                    {isOverdue ? <ExclamationTriangleIcon className="w-5 h-5" /> :
+                                                                                                        isPending ? <ClockIcon className="w-5 h-5" /> :
+                                                                                                            (installmentsCount && installmentsCount > 1) ? <CalendarIcon className="w-4 h-4" /> :
+                                                                                                                <ClockIcon className={`w-5 h-5 ${!hasPaymentRecord ? 'opacity-40' : ''}`} />
+                                                                                                    }
+                                                                                                </div>
 
-                                                                                            {/* Plus Icon - Scales up on hover (siempre sky para acción) */}
-                                                                                            <div className="absolute inset-0 flex items-center justify-center transition-all duration-300 scale-0 opacity-0 group-hover/cell:scale-100 group-hover/cell:opacity-100 text-sky-500">
-                                                                                                <PlusIcon className="w-6 h-6 stroke-2" />
+                                                                                                {/* Plus Icon - Scales up on hover (siempre sky para acción) */}
+                                                                                                <div className="absolute inset-0 flex items-center justify-center transition-all duration-300 scale-0 opacity-0 group-hover/cell:scale-100 group-hover/cell:opacity-100 text-sky-500">
+                                                                                                    <PlusIcon className="w-6 h-6 stroke-2" />
+                                                                                                </div>
                                                                                             </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </CompactTooltip>
+                                                                            ) : (
+                                                                                /* === FULL VIEW: All details === */
+                                                                                <div
+                                                                                    className={`${pad} relative space-y-1 h-full flex flex-col justify-center cursor-pointer`}
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        onRecordPayment(commitment.id, dateToPeriod(monthDate));
+                                                                                    }}
+                                                                                >
+                                                                                    {/* Main amount - neutral colors */}
+                                                                                    <div className="font-semibold font-mono tabular-nums text-base text-slate-800 dark:text-slate-100">
+                                                                                        {formatClp(displayAmount)}
+                                                                                    </div>
+                                                                                    {/* Original currency */}
+                                                                                    {showOriginalCurrency && (
+                                                                                        <div className="text-xs text-slate-500 tabular-nums">
+                                                                                            {originalCurrency} {perPeriodOriginal.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                                                         </div>
                                                                                     )}
+                                                                                    {/* Due date */}
+                                                                                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                                                        {isPaid && currentPayment?.payment_date ?
+                                                                                            `Pagado: ${new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}` :
+                                                                                            `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                                                                                        }
+                                                                                    </div>
+                                                                                    {/* Cuota / Payment number info */}
+                                                                                    {cuotaNumber && installmentsCount && installmentsCount > 1 ? (
+                                                                                        <div className="text-xs text-slate-500">
+                                                                                            {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
+                                                                                        </div>
+                                                                                    ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
+                                                                                        <div className="text-xs text-slate-500">
+                                                                                            Pago {(() => {
+                                                                                                // Parse date parts directly to avoid timezone issues
+                                                                                                const [startYear, startMonth] = term.effective_from.split('-').map(Number);
+                                                                                                const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
+                                                                                                    (monthDate.getMonth() + 1 - startMonth) + 1; // +1 for 0-indexed month
+                                                                                                return paymentNumber > 0 ? paymentNumber : 1;
+                                                                                            })()}/∞
+                                                                                        </div>
+                                                                                    ) : null}
+                                                                                    {/* Status badge - enhanced styling */}
+                                                                                    {/* Status badge - enhanced styling with hover animation */}
+                                                                                    <div className="flex items-center justify-end min-h-[20px]">
+                                                                                        {isPaid ? (
+                                                                                            <div className="grid grid-cols-1 items-center justify-items-end group/badge">
+                                                                                                {/* Default: Paid */}
+                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400
+                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
+                                                                                                    {paidOnTime && <Sparkles className="w-3 h-3" />}
+                                                                                                    <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                                                                    <span className="text-xs font-medium">Pagado</span>
+                                                                                                </div>
+                                                                                                {/* Hover: Edit */}
+                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300
+                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
+                                                                                                    <EditIcon className="w-3.5 h-3.5" />
+                                                                                                    <span className="text-xs font-medium">Editar</span>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        ) : isOverdue ? (
+                                                                                            <div className="grid grid-cols-1 items-center justify-items-end group/badge">
+                                                                                                {/* Default: Overdue */}
+                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse
+                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
+                                                                                                    <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                                                                                                    <span className="text-xs font-medium">Vencido ({daysOverdue}d)</span>
+                                                                                                </div>
+                                                                                                {/* Hover: Pay */}
+                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300
+                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
+                                                                                                    <PlusIcon className="w-3.5 h-3.5" />
+                                                                                                    <span className="text-xs font-medium">Registrar</span>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        ) : isPending && (isCurrentMonth(monthDate) || daysRemaining <= 45) ? (
+                                                                                            <div className="grid grid-cols-1 items-center justify-items-end group/badge">
+                                                                                                {/* Default: Pending */}
+                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400
+                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
+                                                                                                    <ClockIcon className="w-3.5 h-3.5" />
+                                                                                                    <span className="text-xs font-medium">{daysRemaining === 0 ? 'Vence hoy' : `En ${daysRemaining}d`}</span>
+                                                                                                </div>
+                                                                                                {/* Hover: Pay */}
+                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400
+                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
+                                                                                                    <PlusIcon className="w-3.5 h-3.5" />
+                                                                                                    <span className="text-xs font-medium">Registrar</span>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            /* Future / Programado */
+                                                                                            <div className="grid grid-cols-1 items-center justify-items-end group/badge">
+                                                                                                {/* Default: Programado */}
+                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700
+                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
+                                                                                                    <CalendarIcon className="w-3.5 h-3.5" />
+                                                                                                    <span className="text-xs font-medium">Programado</span>
+                                                                                                </div>
+                                                                                                {/* Hover: Register */}
+                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300
+                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
+                                                                                                    <PlusIcon className="w-3.5 h-3.5" />
+                                                                                                    <span className="text-xs font-medium">Registrar</span>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
                                                                                 </div>
-                                                                            </CompactTooltip>
+                                                                            )
                                                                         ) : (
-                                                                            /* === FULL VIEW: All details === */
-                                                                            <div
-                                                                                className={`${pad} relative space-y-1 h-full flex flex-col justify-center cursor-pointer`}
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    onRecordPayment(commitment.id, dateToPeriod(monthDate));
-                                                                                }}
-                                                                            >
-                                                                                {/* Main amount - neutral colors */}
-                                                                                <div className="font-semibold font-mono tabular-nums text-base text-slate-800 dark:text-slate-100">
-                                                                                    {formatClp(displayAmount)}
-                                                                                </div>
-                                                                                {/* Original currency */}
-                                                                                {showOriginalCurrency && (
-                                                                                    <div className="text-xs text-slate-500 tabular-nums">
-                                                                                        {originalCurrency} {perPeriodOriginal.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                                                    </div>
-                                                                                )}
-                                                                                {/* Due date */}
-                                                                                <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                                                    {isPaid && currentPayment?.payment_date ?
-                                                                                        `Pagado: ${new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}` :
-                                                                                        `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
-                                                                                    }
-                                                                                </div>
-                                                                                {/* Cuota / Payment number info */}
-                                                                                {cuotaNumber && installmentsCount && installmentsCount > 1 ? (
-                                                                                    <div className="text-xs text-slate-500">
-                                                                                        {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
-                                                                                    </div>
-                                                                                ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
-                                                                                    <div className="text-xs text-slate-500">
-                                                                                        Pago {(() => {
-                                                                                            // Parse date parts directly to avoid timezone issues
-                                                                                            const [startYear, startMonth] = term.effective_from.split('-').map(Number);
-                                                                                            const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
-                                                                                                (monthDate.getMonth() + 1 - startMonth) + 1; // +1 for 0-indexed month
-                                                                                            return paymentNumber > 0 ? paymentNumber : 1;
-                                                                                        })()}/∞
-                                                                                    </div>
-                                                                                ) : null}
-                                                                                {/* Status badge - enhanced styling */}
-                                                                                {/* Status badge - enhanced styling with hover animation */}
-                                                                                <div className="flex items-center justify-end min-h-[20px]">
-                                                                                    {isPaid ? (
-                                                                                        <div className="grid grid-cols-1 items-center justify-items-end group/badge">
-                                                                                            {/* Default: Paid */}
-                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400
-                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
-                                                                                                {paidOnTime && <Sparkles className="w-3 h-3" />}
-                                                                                                <CheckCircleIcon className="w-3.5 h-3.5" />
-                                                                                                <span className="text-xs font-medium">Pagado</span>
-                                                                                            </div>
-                                                                                            {/* Hover: Edit */}
-                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300
-                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
-                                                                                                <EditIcon className="w-3.5 h-3.5" />
-                                                                                                <span className="text-xs font-medium">Editar</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    ) : isOverdue ? (
-                                                                                        <div className="grid grid-cols-1 items-center justify-items-end group/badge">
-                                                                                            {/* Default: Overdue */}
-                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse
-                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
-                                                                                                <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-                                                                                                <span className="text-xs font-medium">Vencido ({daysOverdue}d)</span>
-                                                                                            </div>
-                                                                                            {/* Hover: Pay */}
-                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300
-                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
-                                                                                                <PlusIcon className="w-3.5 h-3.5" />
-                                                                                                <span className="text-xs font-medium">Registrar</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    ) : isPending && (isCurrentMonth(monthDate) || daysRemaining <= 45) ? (
-                                                                                        <div className="grid grid-cols-1 items-center justify-items-end group/badge">
-                                                                                            {/* Default: Pending */}
-                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400
-                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
-                                                                                                <ClockIcon className="w-3.5 h-3.5" />
-                                                                                                <span className="text-xs font-medium">{daysRemaining === 0 ? 'Vence hoy' : `En ${daysRemaining}d`}</span>
-                                                                                            </div>
-                                                                                            {/* Hover: Pay */}
-                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400
-                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
-                                                                                                <PlusIcon className="w-3.5 h-3.5" />
-                                                                                                <span className="text-xs font-medium">Registrar</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    ) : (
-                                                                                        /* Future / Programado */
-                                                                                        <div className="grid grid-cols-1 items-center justify-items-end group/badge">
-                                                                                            {/* Default: Programado */}
-                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700
-                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
-                                                                                                <CalendarIcon className="w-3.5 h-3.5" />
-                                                                                                <span className="text-xs font-medium">Programado</span>
-                                                                                            </div>
-                                                                                            {/* Hover: Register */}
-                                                                                            <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300
-                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
-                                                                                                <PlusIcon className="w-3.5 h-3.5" />
-                                                                                                <span className="text-xs font-medium">Registrar</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-                                                                        )
-                                                                    ) : (
-                                                                        <div className="text-slate-300 dark:text-slate-600">—</div>
-                                                                    )}
+                                                                            <div className="text-slate-300 dark:text-slate-600">—</div>
+                                                                        )}
+                                                                    </div>
                                                                 </td>
                                                             );
                                                         })}
