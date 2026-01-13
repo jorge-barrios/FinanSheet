@@ -305,7 +305,95 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
             return;
         }
 
-        // Check for orphaned payments (split by paid/pending)
+        // =================================================================
+        // CHECK FOR STRUCTURAL CHANGES REQUIRING NEW VERSION
+        // =================================================================
+        const originalTerm = allTerms.find(t => t.id === editingTerm.id);
+        const termPayments = paymentsByTerm[editingTerm.id] || [];
+        const hasPaidPayments = termPayments.some(p => !!p.payment_date);
+
+        // Detect structural changes (fields that affect payment meaning)
+        const structuralChanges = originalTerm && (
+            originalTerm.is_divided_amount !== editingTerm.is_divided_amount ||
+            originalTerm.amount_original !== editingTerm.amount_original ||
+            originalTerm.frequency !== editingTerm.frequency
+        );
+
+        // If term has PAID payments and structural changes, force V+1 creation
+        if (hasPaidPayments && structuralChanges) {
+            const changesList: string[] = [];
+            if (originalTerm?.is_divided_amount !== editingTerm.is_divided_amount) {
+                changesList.push(`Tipo: ${originalTerm?.is_divided_amount ? 'Cuotas' : 'Definido/Indefinido'} → ${editingTerm.is_divided_amount ? 'Cuotas' : 'Definido/Indefinido'}`);
+            }
+            if (originalTerm?.amount_original !== editingTerm.amount_original) {
+                changesList.push(`Monto: ${originalTerm?.amount_original} → ${editingTerm.amount_original}`);
+            }
+            if (originalTerm?.frequency !== editingTerm.frequency) {
+                changesList.push(`Frecuencia: ${originalTerm?.frequency} → ${editingTerm.frequency}`);
+            }
+
+            const confirmMessage = `⚠️ Este término tiene ${termPayments.filter(p => !!p.payment_date).length} pagos registrados.
+
+Estás cambiando campos estructurales:
+${changesList.map(c => `• ${c}`).join('\n')}
+
+Para preservar la integridad contable, esto creará un NUEVO TÉRMINO (V${(originalTerm?.version || 0) + 1}) con las nuevas condiciones, y cerrará el actual al final del mes pasado.
+
+Los pagos existentes permanecerán en el término actual.
+
+¿Continuar?`;
+
+            if (!window.confirm(confirmMessage)) {
+                return;
+            }
+
+            // Create V+1 instead of editing
+            setSaving(true);
+            try {
+                // 1. Close current term (effective_until = last day of previous month)
+                const today = new Date();
+                const lastDayOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+                const closeDate = lastDayOfLastMonth.toISOString().split('T')[0];
+
+                await onTermUpdate(editingTerm.id, {
+                    effective_until: closeDate
+                });
+
+                // 2. Create new term with updated values
+                const newTermData = {
+                    effective_from: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`,
+                    effective_until: editingTerm.effective_until,
+                    amount_original: editingTerm.amount_original,
+                    due_day_of_month: editingTerm.due_day_of_month,
+                    frequency: editingTerm.frequency,
+                    installments_count: editingTerm.installments_count,
+                    is_divided_amount: editingTerm.is_divided_amount,
+                };
+
+                if (onTermCreate) {
+                    await onTermCreate(newTermData);
+                }
+
+                setEditingTerm(null);
+                setError(null);
+                setSuccessMessage(`Término anterior cerrado. Nuevo término V${(originalTerm?.version || 0) + 1} creado.`);
+
+                if (onRefresh) {
+                    await onRefresh();
+                }
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : 'Error al crear nueva versión';
+                setError(errorMessage);
+                console.error('[TermsListView] Error creating new term version:', err);
+            } finally {
+                setSaving(false);
+            }
+            return; // Exit early, don't do the normal update
+        }
+
+        // =================================================================
+        // NORMAL FLOW: Check for orphaned payments (split by paid/pending)
+        // =================================================================
         const orphaned = getOrphanedPayments(
             editingTerm.id,
             editingTerm.effective_from,
