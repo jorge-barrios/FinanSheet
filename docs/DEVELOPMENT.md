@@ -222,6 +222,27 @@ const periodDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart
 | `CommitmentDetailModal.tsx` | Modal de detalle con términos/pagos |
 | `PaymentRecorder.v2.tsx` | Registro de pagos |
 | `TermsListView.tsx` | Vista de historial de términos |
+| `PullToRefresh.tsx` | Gesto pull-to-refresh para móvil (Dashboard) |
+| `AppLoadingSkeleton.tsx` | Skeleton loader que reemplaza "Loading..." |
+| `PWAUpdateNotifier.tsx` | Toast de notificación cuando hay nueva versión |
+
+### PWA (Progressive Web App)
+
+Configuración en `vite.config.ts` usando `vite-plugin-pwa`:
+
+| Característica | Implementación |
+|----------------|----------------|
+| **Manifest** | Auto-generado con iconos, theme_color, orientación |
+| **Service Worker** | Workbox con runtime caching |
+| **Offline** | `public/offline.html` - página branded con retry |
+| **Caching** | Google Fonts: CacheFirst (1 año), Supabase: NetworkOnly |
+| **Updates** | `registerType: 'prompt'` → muestra PWAUpdateNotifier |
+
+**Archivos clave:**
+- `vite.config.ts` - Configuración de VitePWA
+- `public/offline.html` - Página offline branded
+- `public/sw.js` - SW básico (fallback, reemplazado por Workbox en prod)
+- `pwa.d.ts` - Tipos para `virtual:pwa-register/react`
 
 ---
 
