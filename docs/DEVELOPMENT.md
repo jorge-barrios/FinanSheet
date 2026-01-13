@@ -1,7 +1,7 @@
 # FinanSheet Development Guide
 
 > **Este documento es el master reference para cualquier IA o desarrollador trabajando en el proyecto.**
-> Última actualización: 2026-01-10
+> Última actualización: 2026-01-13
 
 ## Regla de Mantenimiento
 
@@ -57,7 +57,16 @@ Cuando cambian las condiciones (monto, frecuencia), el frontend:
 1.  Cierra el term actual: `effective_until = último día del mes actual`.
 2.  Crea un nuevo term: `version + 1`, `effective_from = primer día del mes siguiente`.
 
-> ⚠️ **TODO:** Esta lógica está en frontend (`TermsListView.tsx`). Idealmente debería tener validación en backend también.
+### Reglas de Edición de Terms
+
+| Condición | Acción Permitida |
+|-----------|------------------|
+| **Term SIN pagos** | Edición libre de todos los campos |
+| **Term CON pagos** + cambio en `is_divided_amount`, `amount_original`, `frequency` | ⚠️ Forzar: Cerrar term actual → Crear V+1 |
+| **Term CON pagos** + solo cambio en `due_day_of_month`, `effective_until` (extender) | ✅ Edición directa |
+| **Term CON pagos** + acortar `effective_until` dejando pagos PAGADOS fuera | ❌ Bloqueado |
+
+**Justificación:** Si hay pagos registrados bajo ciertas condiciones (monto, frecuencia, tipo), esas condiciones son "historia contable". Cambiarlas retroactivamente crearía inconsistencias.
 
 **Archivos clave:**
 - `types.v2.ts` - Definiciones de tipos
@@ -208,46 +217,69 @@ const periodDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart
 |------------|-------------|
 | `BentoGrid.tsx` | Sistema de grid modular responsivo |
 | `BentoCard.tsx` | Card con glassmorphism para BentoGrid |
-| `CommitmentForm.v2.tsx` | Formulario de commitment/term |
+| `CommitmentCard.tsx` | Card de commitment con dropdown menu |
+| `CommitmentForm.v2.tsx` | Formulario de commitment (sheet lateral) |
+| `CommitmentDetailModal.tsx` | Modal de detalle con términos/pagos |
 | `PaymentRecorder.v2.tsx` | Registro de pagos |
+| `TermsListView.tsx` | Vista de historial de términos |
 
 ---
 
 ## Sistema de Diseño
 
-### Paleta de Colores (Deep Teal Identidad)
+### Paleta de Colores (Claridad Celestial)
 
-| Uso | Light Mode | Dark Mode |
-|-----|------------|-----------|
-| **Accent** | #00555A (Deep Teal) | #A8E6CF (Neo-Mint) |
-| **Positivo** | #059669 | #9CAF88 (Eucalyptus) |
-| **Warning** | #FF6F61 (Coral) | #FF6F61 |
-| **Fondo** | #FAFAF8 (Alabaster) | #0f1219 |
+| Uso | Color | Hex |
+|-----|-------|-----|
+| **Accent** | Sky Blue | `#0ea5e9` |
+| **Background** | Slate 900 | `#0f172a` |
+| **Surface** | Slate 800 | `#1e293b` |
+| **Positivo** | Emerald 500 | `#10b981` |
+| **Warning** | Amber 500 | `#f59e0b` |
+| **Error** | Rose 500 | `#f43f5e` |
 
-**Activación:** La clase `theme-identidad` está en `<html>` por defecto.
+### Layout: Sheet Lateral
 
-### CSS Variables
+Patrón para modales principales (fullscreen mobile, columna desktop):
 
-```css
-var(--dashboard-accent)      /* Color primario */
-var(--dashboard-positive)    /* Verde/positivo */
-var(--dashboard-negative)    /* Rojo/negativo */
-var(--dashboard-warning)     /* Amarillo/alerta */
-var(--dashboard-surface)     /* Fondo de cards */
-var(--dashboard-text-primary) /* Texto principal */
+```tsx
+// Contenedor
+<div className="fixed inset-0 z-50 flex justify-end">
+    // Backdrop con blur
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+    
+    // Contenido que desliza desde la derecha
+    <div className="relative w-full sm:max-w-xl h-full bg-slate-50 dark:bg-slate-950/95 
+                    animate-in slide-in-from-right duration-300 flex flex-col">
+        // Header con safe-area para notch
+        <div className="sticky top-0 px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-4 ...">
+        // Scrollable content
+        <div className="flex-1 overflow-y-auto">
 ```
 
-**Ubicación:** [dashboard-theme.css](../styles/dashboard-theme.css)
+**Usado en:** `CommitmentForm.v2.tsx`, `CommitmentDetailModal.tsx`
+
+### Estilos de Formulario Unificados
+
+```typescript
+// Inputs compactos (36px)
+const formInputClasses = "h-[36px] bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-500 rounded-xl text-sm focus:ring-2 focus:ring-sky-500";
+
+// Labels (11px uppercase)
+const formLabelClasses = "text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5";
+```
+
+**Usado en:** `CommitmentForm.v2.tsx`, `TermsListView.tsx`
+
+### Flujo de Interacción
+
+| Acción | Resultado | Componente |
+|--------|-----------|------------|
+| Click en card | Detail Modal | `CommitmentDetailModal` |
+| Menú → Editar | Form básico | `CommitmentForm.v2` |
+| Menú → Detalle | Detail Modal | `CommitmentDetailModal` |
 
 ### Glassmorphism
-
-El proyecto usa glassmorphism consistentemente:
-
-```css
-backdrop-blur-xl
-bg-[var(--dashboard-surface)]/80
-border border-[var(--dashboard-border)]
-```
 
 ### Filosofía de Cards Neutrales (Enfoque Híbrido)
 

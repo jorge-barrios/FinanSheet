@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 > Guía para IAs y desarrolladores trabajando en FinanSheet.
-> Última actualización: 2026-01-10
+> Última actualización: 2026-01-12
 
 ---
 

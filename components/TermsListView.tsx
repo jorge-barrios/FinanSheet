@@ -40,6 +40,8 @@ interface EditingTerm {
     amount_original: number;
     due_day_of_month: number | null;
     frequency: Frequency;
+    installments_count: number | null;
+    is_divided_amount: boolean | null;
 }
 
 const formInputClasses = "w-full h-[36px] bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-500 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500";
@@ -267,6 +269,8 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
             amount_original: term.amount_original,
             due_day_of_month: term.due_day_of_month,
             frequency: term.frequency as Frequency,
+            installments_count: term.installments_count,
+            is_divided_amount: term.is_divided_amount,
         });
         setError(null);
         setSuccessMessage(null);
@@ -301,15 +305,37 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
             return;
         }
 
-        // Check for orphaned payments
+        // Check for orphaned payments (split by paid/pending)
         const orphaned = getOrphanedPayments(
             editingTerm.id,
             editingTerm.effective_from,
             editingTerm.effective_until
         );
-        if (orphaned.length > 0) {
-            setError(`No se puede modificar: ${orphaned.length} pago(s) quedarían fuera del rango. Elimina esos pagos primero.`);
+
+        const paidOrphans = orphaned.filter(p => !!p.payment_date);
+        const pendingOrphans = orphaned.filter(p => !p.payment_date);
+
+        // 1. BLOCK: Never allow orphaning paid payments
+        if (paidOrphans.length > 0) {
+            setError(`No se puede acortar el plazo: Quedarían ${paidOrphans.length} pagos YA REALIZADOS fuera del rango. Elimina o mueve esos pagos históricos primero.`);
             return;
+        }
+
+        // 2. WARN: If pending payments will be dropped OR date is being shortened
+        const originalUntil = allTerms.find(t => t.id === editingTerm.id)?.effective_until;
+        const isShortening = editingTerm.effective_until && (
+            !originalUntil || // Was indefinite, now defined
+            editingTerm.effective_until < originalUntil // Ending sooner
+        );
+
+        if (pendingOrphans.length > 0 || isShortening) {
+            const message = pendingOrphans.length > 0
+                ? `⚠️ Al cambiar la fecha, ${pendingOrphans.length} pagos futuros quedarán fuera del rango y se eliminarán.\n\n¿Estás seguro de que deseas terminar este compromiso anticipadamente?`
+                : `Estás a punto de terminar este compromiso.\n\nEsto detendrá la generación de cobros futuros a partir de la fecha seleccionada.\n¿Confirmar término anticipado?`;
+
+            if (!window.confirm(message)) {
+                return;
+            }
         }
 
         setSaving(true);
@@ -320,6 +346,8 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                 amount_original: editingTerm.amount_original,
                 due_day_of_month: editingTerm.due_day_of_month,
                 frequency: editingTerm.frequency,
+                installments_count: editingTerm.installments_count,
+                is_divided_amount: editingTerm.is_divided_amount,
             });
             setEditingTerm(null);
             setError(null);
@@ -1143,8 +1171,17 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                             <span className="text-sky-500 dark:text-sky-400 mx-1">→</span>
                                             <span>
                                                 {term.effective_until
-                                                    ? formatMonthYear(term.effective_until)
-                                                    : <span className="text-sky-500">∞</span>
+                                                    ? (
+                                                        <span>
+                                                            {formatMonthYear(term.effective_until)}
+                                                            {term.is_divided_amount && term.installments_count && (
+                                                                <span className="text-slate-400 text-xs ml-1 font-normal">({term.installments_count} cuotas)</span>
+                                                            )}
+                                                        </span>
+                                                    )
+                                                    : (term.installments_count && term.installments_count > 1)
+                                                        ? <span className="text-slate-500">{term.installments_count} cuotas</span>
+                                                        : <span className="text-sky-500">∞</span>
                                                 }
                                             </span>
                                         </div>
@@ -1152,23 +1189,46 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                         <div className="text-xs">
                                             {(() => {
                                                 const status = getTermStatus(term);
+
+                                                // Check for early termination (Loan cut short)
+                                                // Use shared logic for accurate period counting
+                                                // We pass [] as payments because we only want the theoretical schedule based on dates
+                                                const effectiveInstallments = generateExpectedPeriods(term, commitment, []).length;
+
+                                                const isEarlyTerm = term.installments_count
+                                                    ? term.installments_count > effectiveInstallments
+                                                    : false;
+
+                                                const EarlyTermBadge = () => (
+                                                    <span className="text-rose-500 font-bold text-[10px] uppercase tracking-tight bg-rose-50 dark:bg-rose-900/30 px-1.5 py-0.5 rounded-md border border-rose-100 dark:border-rose-800 ml-1 whitespace-nowrap">
+                                                        Término Anticipado ({effectiveInstallments}/{term.installments_count})
+                                                    </span>
+                                                );
+
                                                 switch (status) {
                                                     case 'active':
                                                         return (
-                                                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                                                                Activo actualmente
-                                                            </span>
+                                                            <div className="flex items-center flex-wrap gap-1">
+                                                                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                                                    Activo actualmente
+                                                                </span>
+                                                                {isEarlyTerm && <EarlyTermBadge />}
+                                                            </div>
                                                         );
                                                     case 'scheduled':
                                                         return (
-                                                            <span className="text-sky-600 dark:text-sky-400 font-medium">
-                                                                Programado
-                                                            </span>
+                                                            <div className="flex items-center flex-wrap gap-1">
+                                                                <span className="text-sky-600 dark:text-sky-400 font-medium">
+                                                                    Programado
+                                                                </span>
+                                                                {isEarlyTerm && <EarlyTermBadge />}
+                                                            </div>
                                                         );
                                                     default:
                                                         return (
-                                                            <span className="text-slate-400">
-                                                                Histórico
+                                                            <span className="text-slate-400 flex items-center gap-1.5 flex-wrap">
+                                                                Inactivo
+                                                                {isEarlyTerm && <EarlyTermBadge />}
                                                             </span>
                                                         );
                                                 }
@@ -1292,7 +1352,10 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                             type="button"
                                             onClick={() => setEditingTerm(prev => prev ? {
                                                 ...prev,
-                                                effective_until: prev.effective_until ? null : (new Date().toISOString().slice(0, 7) + '-01')
+                                                effective_until: prev.effective_until ? null : (new Date().toISOString().slice(0, 7) + '-01'),
+                                                // STRICT: If switching to indefinite (null), MUST clear divided status and quarters
+                                                is_divided_amount: prev.effective_until ? false : prev.is_divided_amount,
+                                                installments_count: prev.effective_until ? null : prev.installments_count
                                             } : null)}
                                             className={`
                                                 relative w-11 h-6 rounded-full transition-colors
@@ -1363,34 +1426,38 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                 <div className="bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-200 dark:border-slate-700">
                                     {/* Info Grid - Bento Style Cards */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 p-3 bg-slate-100/50 dark:bg-slate-800/30 rounded-xl mx-2 mt-2 border border-slate-200 dark:border-slate-700/50">
-                                        {/* Item 1: Deuda Total (Si aplica) */}
-                                        {term.is_divided_amount && term.amount_original && (
-                                            <div className="flex flex-col gap-0.5 p-2">
-                                                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total</span>
-                                                <div className="flex items-center gap-1.5 text-sky-600 dark:text-sky-400 font-bold text-sm tabular-nums">
-                                                    {term.currency_original === 'CLP'
-                                                        ? formatClp(term.amount_original)
-                                                        : term.amount_original.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {/* Item 2: Moneda */}
-                                        <div className={`flex flex-col gap-0.5 p-2 ${term.is_divided_amount ? 'border-l border-slate-200 dark:border-slate-700/50' : ''}`}>
+                                        {/* Item 1: Moneda */}
+                                        <div className="flex flex-col gap-0.5 p-2">
                                             <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Moneda</span>
                                             <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-semibold text-sm">
                                                 <DollarSign className="w-3.5 h-3.5 text-sky-500" />
                                                 <span>{term.currency_original}</span>
                                             </div>
                                         </div>
-                                        {/* Item 3: Duración/Cuotas */}
+                                        {/* Item 2: Duración/Cuotas */}
                                         <div className="flex flex-col gap-0.5 p-2 border-l border-slate-200 dark:border-slate-700/50">
                                             <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Duración</span>
                                             <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-semibold text-sm">
                                                 <Hash className="w-3.5 h-3.5 text-sky-500" />
-                                                <span>{term.installments_count ? `${term.installments_count} ${term.is_divided_amount ? 'cuot.' : 'pagos'}` : '∞'}</span>
+                                                <span>{(() => {
+                                                    // If has installments count, show that
+                                                    if (term.installments_count) {
+                                                        return `${term.installments_count} ${term.is_divided_amount ? 'cuot.' : 'pagos'}`;
+                                                    }
+                                                    // If has effective_until, calculate duration in months
+                                                    if (term.effective_until) {
+                                                        const from = new Date(term.effective_from);
+                                                        const until = new Date(term.effective_until);
+                                                        const months = (until.getFullYear() - from.getFullYear()) * 12 +
+                                                            (until.getMonth() - from.getMonth()) + 1;
+                                                        return `${months} meses`;
+                                                    }
+                                                    // Truly indefinite
+                                                    return '∞';
+                                                })()}</span>
                                             </div>
                                         </div>
-                                        {/* Item 4: Día Vencimiento */}
+                                        {/* Item 3: Día Vencimiento */}
                                         <div className="flex flex-col gap-0.5 p-2 border-l border-slate-200 dark:border-slate-700/50">
                                             <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Día Pago</span>
                                             <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-semibold text-sm">
@@ -1398,6 +1465,18 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
                                                 <span>Día {term.due_day_of_month || '1'}</span>
                                             </div>
                                         </div>
+                                        {/* Item 4: Deuda Total (solo para cuotas) */}
+                                        {term.is_divided_amount && term.amount_original && (
+                                            <div className="flex flex-col gap-0.5 p-2 border-l border-slate-200 dark:border-slate-700/50">
+                                                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Deuda Total</span>
+                                                <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-sm tabular-nums">
+                                                    <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
+                                                    {term.currency_original === 'CLP'
+                                                        ? formatClp(term.amount_original)
+                                                        : `${term.currency_original} ${term.amount_original.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="px-3 py-2">
                                         {(() => {

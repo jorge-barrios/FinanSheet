@@ -45,13 +45,45 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
     // Local state for toggling "Manage Terms" mode
     const [isTermsEditing, setIsTermsEditing] = React.useState(false);
 
+    // Local commitment state to handle refreshes after term changes
+    const [localCommitment, setLocalCommitment] = React.useState<CommitmentWithTerm>(commitment);
+
+    // Sync with prop when commitment changes (e.g., different commitment selected)
+    React.useEffect(() => {
+        setLocalCommitment(commitment);
+    }, [commitment.id]);
+
+    // Refresh commitment data (to get updated all_terms)
+    const refreshCommitment = React.useCallback(async () => {
+        try {
+            // Fetch updated terms for this commitment
+            const updatedTerms = await TermService.getTerms(commitment.id);
+
+            // Determine active term (highest version, or where effective_until is null/future)
+            const now = new Date();
+            const activeTerm = updatedTerms
+                .sort((a, b) => b.version - a.version)
+                .find(t => !t.effective_until || new Date(t.effective_until) >= now)
+                || updatedTerms[0]; // Fallback to latest version
+
+            // Merge updated terms into local commitment
+            setLocalCommitment(prev => ({
+                ...prev,
+                all_terms: updatedTerms,
+                active_term: activeTerm || prev.active_term
+            }));
+        } catch (error) {
+            console.error('[CommitmentDetailModal] Error refreshing commitment:', error);
+        }
+    }, [commitment.id]);
+
     // Handlers for Direct Term Editing
     const handleTermCreate = async (termData: Partial<TermFormData>) => {
         try {
             // Cast to TermFormData as we know the form validates required fields
             await TermService.createTerm(commitment.id, termData as TermFormData);
             showToast('Término creado exitosamente', 'success');
-            await refreshHistory(); // Refresh local history
+            await Promise.all([refreshHistory(), refreshCommitment()]); // Refresh local history
         } catch (error) {
             console.error('Error creating term:', error);
             const msg = error instanceof Error ? error.message : 'Error desconocido';
@@ -63,7 +95,7 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
         try {
             await TermService.updateTerm(termId, termData);
             showToast('Término actualizado', 'success');
-            await refreshHistory();
+            await Promise.all([refreshHistory(), refreshCommitment()]);
         } catch (error) {
             console.error('Error updating term:', error);
             const msg = error instanceof Error ? error.message : 'Error desconocido';
@@ -75,7 +107,7 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
         try {
             await TermService.deleteTerm(termId);
             showToast('Término eliminado', 'success');
-            await refreshHistory();
+            await Promise.all([refreshHistory(), refreshCommitment()]);
         } catch (error) {
             console.error('Error deleting term:', error);
             const msg = error instanceof Error ? error.message : 'Error desconocido';
@@ -221,7 +253,7 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
                             </div>
 
                             <TermsListView
-                                commitment={commitment}
+                                commitment={localCommitment}
                                 payments={effectivePayments}
                                 isReadOnly={!isTermsEditing}
                                 hideTitle={true}

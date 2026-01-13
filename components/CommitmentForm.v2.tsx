@@ -10,7 +10,7 @@ import '../styles/commitmentFormAnimations.css';
 import { useLocalization } from '../hooks/useLocalization';
 import { useCurrency } from '../hooks/useCurrency';
 import { ArrowTrendingDownIcon, ArrowTrendingUpIcon, StarIcon } from './icons';
-import { Infinity, CalendarCheck, Hash, History, ChevronDown, ChevronUp, Link as LinkIcon } from 'lucide-react';
+import { Infinity, CalendarCheck, Hash, ChevronDown, Link as LinkIcon } from 'lucide-react';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { es } from 'date-fns/locale/es';
@@ -20,7 +20,7 @@ import {
     FlowType,
     Frequency,
 } from '../types.v2';
-import { TermsListView } from './TermsListView';
+// TermsListView removed - terms editing now in CommitmentDetailModal only
 import { TermService, PaymentService } from '../services/dataService.v2';
 import type { Term, Payment } from '../types.v2';
 // import { getPerPeriodAmount } from '../utils/financialUtils.v2';
@@ -50,8 +50,8 @@ interface CommitmentFormV2Props {
     onPaymentClick?: (commitment: CommitmentWithTerm, periodDate: string) => void;
 }
 
-const formInputClasses = "w-full h-[46px] bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-2xl px-4 py-3 text-[15px] focus:ring-4 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition-all duration-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 backdrop-blur-xl shadow-sm";
-const formLabelClasses = "block text-xs font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2 ml-1";
+const formInputClasses = "w-full h-[36px] bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-500 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500";
+const formLabelClasses = "block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider";
 const formSelectClasses = `${formInputClasses} appearance-none cursor-pointer pr-10`;
 
 export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
@@ -162,7 +162,10 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
 
     // When editing existing commitment: term fields are disabled unless reactivating
     // Also disable if manually showing terms history (e.g. for pausing)
-    const termFieldsDisabled = (commitmentToEdit && !isTerminated && hasTermsHistory) || showTermsHistory;
+    // When editing existing commitment: term fields are disabled unless reactivating
+    // Also disable if manually showing terms history (e.g. for pausing)
+    // FORCE ENABLE: We want to allow editing term fields directly
+    const termFieldsDisabled = false;
 
     // isActive state - for toggling pause/resume (only for editing)
     const [isActive, setIsActive] = useState(!isTerminated);
@@ -285,7 +288,12 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
             const originalInstallments = t.installments_count;
             const installmentsChanged = installmentsVal !== originalInstallments;
 
-            return amountChanged || currencyChanged || frequencyChanged || startChanged || dueDayChanged || endDateChanged || installmentsChanged;
+            // Division mode (Cuotas vs Definido)
+            const currentIsDivided = durationType === 'installments';
+            const originalIsDivided = !!t.is_divided_amount;
+            const divisionModeChanged = currentIsDivided !== originalIsDivided;
+
+            return amountChanged || currencyChanged || frequencyChanged || startChanged || dueDayChanged || endDateChanged || installmentsChanged || divisionModeChanged;
         }
 
         return false;
@@ -331,92 +339,8 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
         }
     };
 
-    // Handler for term updates from TermsListView
-    const handleTermUpdate = async (termId: string, updates: Partial<Term>) => {
-        // This throws on error, which TermsListView catches and displays
-        const result = await TermService.updateTerm(termId, updates);
-        if (!result) {
-            throw new Error('No se pudo actualizar el término');
-        }
-        // Reload commitment data (terms) and payments
-        await reloadCommitmentData();
-        await loadPayments();
-        onCommitmentUpdated?.();
-    };
-
-    // Handler for creating new terms from TermsListView
-    const handleTermCreate = async (termData: Partial<Term>) => {
-        if (!commitmentToEdit) return;
-        await TermService.createTerm(commitmentToEdit.id, termData as any);
-        // Reload commitment data (terms) and payments
-        await reloadCommitmentData();
-        await loadPayments();
-        onCommitmentUpdated?.();
-    };
-
-    // Handler for deleting terms from TermsListView
-    const handleTermDelete = async (termId: string) => {
-        // Smart Undo Logic:
-        // If deleting the most recent term, and it immediately follows the previous one (no gap),
-        // offer to reopen the previous term (remove effective_until) to restore continuity.
-        const terms = effectiveCommitment?.all_terms || [];
-        const termIndex = terms.findIndex(t => t.id === termId);
-        let termToReopenId: string | null = null;
-
-        // Only if deleting the most recent term (index 0) AND there is a previous term
-        if (termIndex === 0 && terms.length > 1) {
-            const currentTerm = terms[0];
-            const prevTerm = terms[1];
-
-            if (prevTerm.effective_until) {
-                const prevEndVals = prevTerm.effective_until.split('-').map(Number); // [YYYY, MM, DD]
-                const prevEndDate = new Date(prevEndVals[0], prevEndVals[1] - 1, 1); // 1st of end month
-
-                // Next month of previous term
-                prevEndDate.setMonth(prevEndDate.getMonth() + 1);
-                const nextMonthYM = `${prevEndDate.getFullYear()}-${String(prevEndDate.getMonth() + 1).padStart(2, '0')}`;
-
-                const currentStartYM = currentTerm.effective_from.substring(0, 7);
-
-                // Use strict continuity: current starts exactly next month or same month
-                if (currentStartYM <= nextMonthYM) {
-                    if (confirm(`El término anterior (V${prevTerm.version}) termina en ${prevTerm.effective_until}.\n\n¿Desea reabrirlo (quitar fecha de fin) para mantener la continuidad?`)) {
-                        termToReopenId = prevTerm.id;
-                    }
-                }
-            }
-        }
-
-        try {
-            // CRITICAL: Delete the current term FIRST to avoid overlap collision
-            await TermService.deleteTerm(termId);
-
-            // Then reopen the previous term if requested
-            if (termToReopenId) {
-                try {
-                    await TermService.updateTerm(termToReopenId, { effective_until: null });
-                } catch (e) {
-                    console.error('Error reopening previous term', e);
-                    // Non-blocking error, user can manually fix
-                    alert('El término se eliminó, pero hubo un error al reabrir el anterior. Por favor edítalo manualmente.');
-                }
-            }
-
-            // Reload commitment data (terms) and payments
-            await reloadCommitmentData();
-            await loadPayments();
-            onCommitmentUpdated?.();
-        } catch (e) {
-            console.error('Error deleting term', e);
-            alert('Error eliminando el término');
-        }
-    };
-
-    // Callback for TermsListView to refresh data
-    const handleRefresh = async () => {
-        await reloadCommitmentData();
-        await loadPayments();
-    };
+    // NOTE: Term handlers removed - terms are now edited in CommitmentDetailModal only
+    // Keeping reloadCommitmentData and loadPayments for potential future use
 
     // Load edit data - CommitmentWithTerm has fields directly + active_term
     // Load edit data - CommitmentWithTerm has fields directly + active_term
@@ -567,8 +491,11 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     const calculateInstallments = (start: string, end: string, freq: string): number => {
         const startDate = new Date(start);
         const endDate = new Date(end);
-        const diffTime = endDate.getTime() - startDate.getTime();
-        const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30.44));
+
+        // Precise month difference calculation
+        const years = endDate.getFullYear() - startDate.getFullYear();
+        const months = endDate.getMonth() - startDate.getMonth();
+        const diffMonths = years * 12 + months;
 
         switch (freq) {
             case 'MONTHLY': return Math.max(1, diffMonths + 1);
@@ -643,11 +570,20 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
 
     // Debounced: When endDate changes → recalculate installments
     // DISABLED when editing existing commitment (to prevent dividing amount when terminating)
+    // Debounced: When endDate changes → recalculate installments
     useEffect(() => {
         if (isInitialLoadRef.current) return;
-        if (commitmentToEdit) return; // Skip auto-calc when editing existing commitment
-        if (!endDate || !startDate || isOngoing || !frequency) return;
         if (lastEditedField !== 'endDate') return;
+
+        // Skip for existing commitments (preserve history/logic)
+        if (commitmentToEdit) return;
+
+        // FIX: If in "Installments" mode (divided amount), do NOT recalculate installments count
+        // when end date changes. This allows setting an early termination date 
+        // without changing the underlying loan structure (total installments).
+        if (durationType === 'installments') return;
+
+        if (!endDate || !startDate || isOngoing || !frequency) return;
 
         // Clear previous timer
         if (debounceEndDateRef.current) {
@@ -787,9 +723,9 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
 
                 termData = {
                     effective_from: startDate, // Use startDate directly - NO adjustment
-                    // Si hay installments_count, el trigger de Supabase calcula effective_until
-                    // Solo enviar effective_until para 'recurring' sin límite definido
-                    effective_until: hasInstallments ? null : (endDate || null),
+                    // Send explicit endDate if available, irrelevant of installments mode
+                    // This creates robustness if the backend trigger doesn't fire/calculate
+                    effective_until: endDate || null,
                     frequency,
                     // installments_count se guarda para AMBOS: "En cuotas" y "Definido"
                     // Esto permite que el trigger calcule effective_until correctamente
@@ -905,20 +841,24 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex justify-end">
+            {/* Backdrop */}
+            <div
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+                onClick={onClose}
+            />
+
+            {/* Sheet Content (Slide-in from right) */}
             <div className={`
-                w-full max-w-[600px]
-                bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl
-                rounded-3xl shadow-2xl shadow-black/50
-                border border-white/20 dark:border-slate-800
+                relative w-full sm:max-w-xl h-full 
+                bg-slate-50 dark:bg-slate-950/95 
+                shadow-2xl overflow-hidden
+                animate-in slide-in-from-right duration-300 
+                border-l border-slate-200 dark:border-slate-800/50
                 flex flex-col
-                max-h-[90vh]
-                overflow-hidden
-                transition-all duration-300 ease-out
-                ${isOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-4'}
             `}>
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-20 sticky top-0">
+                {/* Header with safe area for mobile notch */}
+                <div className="sticky top-0 z-20 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-white/5 px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-4 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white leading-none">
                             {commitmentToEdit ? t('form.editCommitment', 'Editar') : t('form.newCommitment', 'Nuevo')}
@@ -1106,189 +1046,199 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                             )}
 
                             {/* Separator - Edit Mode Logic */}
-                            {termFieldsDisabled ? (
-                                !showTermsHistory && (
-                                    <div className={`md:col-span-2 p-4 rounded-2xl border ${themeClasses.lightBg} ${themeClasses.border} flex items-center justify-between`}>
-                                        <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-xl ${themeClasses.iconBg}`}>
-                                                <History className="w-5 h-5" />
-                                            </div>
-                                            <div>
-                                                <p className={`font-bold text-sm ${themeClasses.text}`}>Historial de Términos</p>
-                                                <p className="text-xs text-slate-500">Edita condiciones anteriores aquí</p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowTermsHistory(true)}
-                                            className="px-4 py-2 bg-white dark:bg-slate-800 rounded-xl text-sm font-bold shadow-sm hover:shadow-md transition-all"
+                            {/* Card: Timing */}
+                            <div className="p-4 rounded-3xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 space-y-3 h-full">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <CalendarCheck className={`w-4 h-4 ${themeClasses.text}`} />
+                                    <h3 className="text-[11px] font-extrabold uppercase text-slate-400">Tiempo</h3>
+                                </div>
+                                <div>
+                                    <label className={formLabelClasses}>{t('form.frequency', 'Frecuencia')}</label>
+                                    <div className="relative">
+                                        <select
+                                            value={frequency}
+                                            onChange={(e) => setFrequency(e.target.value as Frequency)}
+                                            className={formSelectClasses}
                                         >
-                                            Ver Historial
-                                        </button>
-                                    </div>
-                                )
-                            ) : (
-                                <>
-                                    {/* Card: Timing */}
-                                    <div className="p-4 rounded-3xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 space-y-3 h-full">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <CalendarCheck className={`w-4 h-4 ${themeClasses.text}`} />
-                                            <h3 className="text-[11px] font-extrabold uppercase text-slate-400">Tiempo</h3>
-                                        </div>
-                                        <div>
-                                            <label className={formLabelClasses}>{t('form.frequency', 'Frecuencia')}</label>
-                                            <div className="relative">
-                                                <select
-                                                    value={frequency}
-                                                    onChange={(e) => setFrequency(e.target.value as Frequency)}
-                                                    className={formSelectClasses}
-                                                >
-                                                    <option value="MONTHLY">{t('frequency.monthly', 'Mensual')}</option>
-                                                    <option value="ONCE">{t('frequency.once', 'Una vez')}</option>
-                                                    <option value="BIMONTHLY">{t('frequency.bimonthly', 'Bimestral')}</option>
-                                                    <option value="QUARTERLY">{t('frequency.quarterly', 'Trimestral')}</option>
-                                                    <option value="ANNUALLY">{t('frequency.annually', 'Anual')}</option>
-                                                </select>
-                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                                    <ChevronDown className="w-4 h-4" />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <label className={formLabelClasses}>1er Vencimiento</label>
-                                        <div className="relative">
-                                            <DatePicker
-                                                selected={startDate ? new Date(startDate + 'T12:00:00') : new Date()}
-                                                onChange={(date: Date | null) => {
-                                                    if (date) {
-                                                        // Construct YYYY-MM-DD manually to avoid timezone issues
-                                                        const year = date.getFullYear();
-                                                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                                                        const day = String(date.getDate()).padStart(2, '0');
-                                                        const newDate = `${year}-${month}-${day}`;
-
-                                                        setStartDate(newDate);
-                                                        // Update dueDay from the selected date (use local date)
-                                                        setDueDay(String(date.getDate()));
-                                                    }
-                                                }}
-                                                dateFormat="dd/MM/yyyy"
-                                                locale="es"
-                                                shouldCloseOnSelect={true}
-                                                strictParsing
-                                                placeholderText="dd/mm/aaaa"
-                                                onKeyDown={(e) => {
-                                                    // 1. Allow standard navigation/editing keys
-                                                    const navKeys = ['Backspace', 'Delete', 'Tab', 'Enter', 'Escape', '/'];
-                                                    if (navKeys.includes(e.key)) {
-                                                        return;
-                                                    }
-
-                                                    // 2. Allow Arrow Keys for cursor navigation (default behavior)
-                                                    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                                                        return;
-                                                    }
-
-                                                    // 3. Block non-digits and enforce length 10
-                                                    if (!/^\d$/.test(e.key)) {
-                                                        e.preventDefault();
-                                                        return;
-                                                    }
-
-                                                    // Manual maxLength check
-                                                    const input = e.target as HTMLInputElement;
-                                                    if (input.value.length >= 10) {
-                                                        const selection = window.getSelection();
-                                                        if (!selection || selection.toString().length === 0) {
-                                                            e.preventDefault();
-                                                        }
-                                                    }
-                                                }}
-                                                className={formInputClasses}
-                                                wrapperClassName="w-full"
-                                                popperClassName="z-[9999]"
-                                                portalId="root"
-                                                autoFocus={false}
-                                                required
-                                            />
+                                            <option value="MONTHLY">{t('frequency.monthly', 'Mensual')}</option>
+                                            <option value="ONCE">{t('frequency.once', 'Una vez')}</option>
+                                            <option value="BIMONTHLY">{t('frequency.bimonthly', 'Bimestral')}</option>
+                                            <option value="QUARTERLY">{t('frequency.quarterly', 'Trimestral')}</option>
+                                            <option value="ANNUALLY">{t('frequency.annually', 'Anual')}</option>
+                                        </select>
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <ChevronDown className="w-4 h-4" />
                                         </div>
                                     </div>
+                                </div>
 
-                                    {/* Card: Duration */}
-                                    {!isTerminated && frequency !== 'ONCE' && (
-                                        <div className="p-4 rounded-3xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 space-y-3 h-full flex flex-col">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Infinity className={`w-4 h-4 ${themeClasses.text}`} />
-                                                <h3 className="text-[11px] font-extrabold uppercase text-slate-400">Duración</h3>
-                                            </div>
+                                <label className={formLabelClasses}>Primer Pago</label>
+                                <div className="relative">
+                                    <DatePicker
+                                        selected={startDate ? new Date(startDate + 'T12:00:00') : new Date()}
+                                        onChange={(date: Date | null) => {
+                                            if (date) {
+                                                // Construct YYYY-MM-DD manually to avoid timezone issues
+                                                const year = date.getFullYear();
+                                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                                const day = String(date.getDate()).padStart(2, '0');
+                                                const newDate = `${year}-${month}-${day}`;
 
-                                            {/* Compact Horizontal Buttons to save space and align with Tempo card */}
-                                            <div className="flex flex-col gap-2 flex-1">
-                                                {[
-                                                    { id: 'recurring', label: 'Indefinido', icon: Infinity },
-                                                    { id: 'endsOn', label: 'Definido', icon: CalendarCheck },
-                                                    { id: 'installments', label: 'Cuotas', icon: Hash },
-                                                ].map((type) => (
-                                                    <button
-                                                        key={type.id}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setDurationType(type.id as any);
-                                                            if (type.id === 'recurring') { setEndDate(''); setInstallments(''); }
-                                                            // Auto-focus input if defined/installments selected? 
-                                                            // Logic handled by rendering below
-                                                        }}
-                                                        className={`
+                                                setStartDate(newDate);
+                                                // Update dueDay from the selected date (use local date)
+                                                setDueDay(String(date.getDate()));
+                                            }
+                                        }}
+                                        dateFormat="dd/MM/yyyy"
+                                        locale="es"
+                                        shouldCloseOnSelect={true}
+                                        strictParsing
+                                        placeholderText="dd/mm/aaaa"
+                                        onKeyDown={(e) => {
+                                            // 1. Allow standard navigation/editing keys
+                                            const navKeys = ['Backspace', 'Delete', 'Tab', 'Enter', 'Escape', '/'];
+                                            if (navKeys.includes(e.key)) {
+                                                return;
+                                            }
+
+                                            // 2. Allow Arrow Keys for cursor navigation (default behavior)
+                                            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                                                return;
+                                            }
+
+                                            // 3. Block non-digits and enforce length 10
+                                            if (!/^\d$/.test(e.key)) {
+                                                e.preventDefault();
+                                                return;
+                                            }
+
+                                            // Manual maxLength check
+                                            const input = e.target as HTMLInputElement;
+                                            if (input.value.length >= 10) {
+                                                const selection = window.getSelection();
+                                                if (!selection || selection.toString().length === 0) {
+                                                    e.preventDefault();
+                                                }
+                                            }
+                                        }}
+                                        className={formInputClasses}
+                                        wrapperClassName="w-full"
+                                        popperClassName="z-[9999]"
+                                        portalId="root"
+                                        autoFocus={false}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Card: Duration */}
+                            {!isTerminated && frequency !== 'ONCE' && (
+                                <div className="p-4 rounded-3xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 space-y-3 h-full flex flex-col">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Infinity className={`w-4 h-4 ${themeClasses.text}`} />
+                                        <h3 className="text-[11px] font-extrabold uppercase text-slate-400">Duración</h3>
+                                    </div>
+
+                                    {/* Compact Horizontal Buttons to save space and align with Tempo card */}
+                                    <div className="flex flex-col gap-2 flex-1">
+                                        {[
+                                            { id: 'recurring', label: 'Indefinido', icon: Infinity },
+                                            { id: 'endsOn', label: 'Definido', icon: CalendarCheck },
+                                            { id: 'installments', label: 'Cuotas', icon: Hash },
+                                        ].map((type) => (
+                                            <button
+                                                key={type.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setDurationType(type.id as any);
+                                                    if (type.id === 'recurring') { setEndDate(''); setInstallments(''); }
+                                                    // Auto-focus input if defined/installments selected? 
+                                                    // Logic handled by rendering below
+                                                }}
+                                                className={`
                                                             flex items-center px-3 py-2.5 rounded-xl border transition-all text-left gap-3
                                                             ${durationType === type.id
-                                                                ? `${themeClasses.lightBg} ${themeClasses.border} ${themeClasses.text} ring-1 ${themeClasses.ring.replace('focus:', '')}`
-                                                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-300'
-                                                            }
+                                                        ? `${themeClasses.lightBg} ${themeClasses.border} ${themeClasses.text} ring-1 ${themeClasses.ring.replace('focus:', '')}`
+                                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-300'
+                                                    }
                                                         `}
-                                                    >
-                                                        <type.icon className="w-4 h-4 shrink-0" />
-                                                        <span className="text-xs font-bold leading-none">{type.label}</span>
-                                                        {/* Optional Checkmark for active state */}
-                                                        {durationType === type.id && (
-                                                            <span className="ml-auto w-1.5 h-1.5 rounded-full bg-current opacity-50" />
-                                                        )}
-                                                    </button>
-                                                ))}
+                                            >
+                                                <type.icon className="w-4 h-4 shrink-0" />
+                                                <span className="text-xs font-bold leading-none">{type.label}</span>
+                                                {/* Optional Checkmark for active state */}
+                                                {durationType === type.id && (
+                                                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-current opacity-50" />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Conditional Input */}
+                                    {durationType !== 'recurring' && (
+                                        <div className="pt-1 flex flex-col gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <div className="relative flex-1">
+                                                    <input
+                                                        type="number"
+                                                        value={installments}
+                                                        onChange={(e) => {
+                                                            setInstallments(e.target.value);
+                                                            setLastEditedField('installments');
+                                                        }}
+                                                        className={`${formInputClasses} !h-[40px] ${shakeField === 'installments' ? 'animate-shake' : ''}`}
+                                                        placeholder={durationType === 'endsOn' ? "N° Ocurrencias" : "N° de Cuotas"}
+                                                        min="1"
+                                                        autoFocus
+                                                    />
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold uppercase pointer-events-none">
+                                                        {durationType === 'endsOn' ? 'VECES' : 'CUOTAS'}
+                                                    </span>
+                                                </div>
                                             </div>
 
-                                            {/* Conditional Input */}
-                                            {durationType !== 'recurring' && (
-                                                <div className="pt-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <input
-                                                            type="number"
-                                                            value={installments}
-                                                            onChange={(e) => {
-                                                                setInstallments(e.target.value);
-                                                                setLastEditedField('installments');
-                                                            }}
-                                                            className={`${formInputClasses} !h-[40px] ${shakeField === 'installments' ? 'animate-shake' : ''}`}
-                                                            placeholder={durationType === 'endsOn' ? "N° Ocurrencias" : "N° de Cuotas"}
-                                                            min="1"
-                                                            autoFocus
-                                                        />
-                                                    </div>
+                                            {/* End Date Picker - Show ONLY for 'endsOn' mode (Defined Date) */}
+                                            {durationType === 'endsOn' && (
+                                                <div className="relative">
+                                                    <DatePicker
+                                                        selected={endDate ? new Date(endDate + 'T12:00:00') : null}
+                                                        onChange={(date: Date | null) => {
+                                                            if (date) {
+                                                                const year = date.getFullYear();
+                                                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                                                const day = String(date.getDate()).padStart(2, '0');
+                                                                const newDate = `${year}-${month}-${day}`;
+                                                                setEndDate(newDate);
+                                                                setLastEditedField('endDate');
+                                                            } else {
+                                                                setEndDate('');
+                                                                setLastEditedField('endDate');
+                                                            }
+                                                        }}
+                                                        dateFormat="dd/MM/yyyy"
+                                                        locale="es"
+                                                        shouldCloseOnSelect={true}
+                                                        strictParsing
+                                                        placeholderText="Fecha Término"
+                                                        className={`${formInputClasses} !h-[40px] text-sm font-bold text-sky-600`}
+                                                        wrapperClassName="w-full"
+                                                        popperClassName="z-[9999]"
+                                                        portalId="root"
+                                                    />
                                                 </div>
                                             )}
-
-                                            {/* Duration Legend */}
-                                            <div className="mt-1 min-h-[20px]">
-                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
-                                                    {durationType === 'recurring' && "Se repite indefinidamente hasta que decidas terminarlo."}
-                                                    {durationType === 'endsOn' && "Se repite la cantidad de veces especificada."}
-                                                    {durationType === 'installments' && "El monto total ingresado se divide equitativamente."}
-                                                </p>
-                                            </div>
                                         </div>
                                     )}
-                                </>
-                            )}
 
+                                    {/* Duration Legend */}
+                                    <div className="mt-1 min-h-[20px]">
+                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
+                                            {durationType === 'recurring' && "Se repite indefinidamente hasta que decidas terminarlo."}
+                                            {durationType === 'endsOn' && "Se repite la cantidad de veces especificada."}
+                                            {durationType === 'installments' && "El monto total ingresado se divide equitativamente."}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                             {/* Row 4: Link & Notes */}
                             <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {/* Link Commitment Selector */}
@@ -1345,7 +1295,6 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                             </div>
                         </div>
 
-
                         {/* Terms History removed - editing now done in CommitmentDetailModal */}
                     </form>
                 </div>
@@ -1379,7 +1328,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                     </button>
                     {/* Secondary Actions (Link) could go here if needed, but keeping it clean for now */}
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };

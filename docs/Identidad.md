@@ -468,31 +468,86 @@ Se adoptó la **Ruta 1: Claridad Celestial** como estándar visual:
 
 ## 12.2. Componentes UI Actualizados
 
-### Inputs de Fecha (DatePicker)
-- **Tecnología**: `react-datepicker` con locale `es` (español)
-- **Estilo**: Glassmorphism sobre Slate 900
-- **Interacción**: 
-  - Escritura directa con validación (`dd/mm/aaaa`)
-  - Click para abrir calendario visual
-  - Flechas del teclado para navegación de cursor (edición de texto)
-- **Archivos**: `PaymentRecorder.v2.tsx`, `CommitmentForm.v2.tsx`
+### Layout de Sheet (Slide-in Modal)
 
-### Modales
-- **Fondo**: Backdrop blur + Slate 900/80
-- **Cards internas**: Slate 800/30 con bordes Slate 700
-- **Botones**: Sky Blue para acciones primarias, Slate para secundarias
-- **Archivos**: `PaymentRecorder.v2.tsx`, `CommitmentForm.v2.tsx`, `TermsListView.tsx`
+Patrón adoptado para modales principales. Maximiza espacio en móvil:
+
+```css
+/* Contenedor */
+.sheet-container {
+    @apply fixed inset-0 z-50 flex justify-end;
+}
+
+/* Backdrop */
+.sheet-backdrop {
+    @apply absolute inset-0 bg-black/40 backdrop-blur-sm;
+}
+
+/* Content */
+.sheet-content {
+    @apply relative w-full sm:max-w-xl h-full 
+           bg-slate-50 dark:bg-slate-950/95 
+           overflow-hidden shadow-2xl
+           animate-in slide-in-from-right duration-300 
+           border-l border-slate-200 dark:border-slate-800/50
+           flex flex-col;
+}
+
+/* Header con Safe Area */
+.sheet-header {
+    @apply sticky top-0 z-20 
+           bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-xl 
+           border-b border-slate-200/50 dark:border-white/5 
+           px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-4 
+           flex items-center justify-between shadow-sm;
+}
+```
+
+**Archivos:** `CommitmentForm.v2.tsx`, `CommitmentDetailModal.tsx`
+
+### Estilos de Formulario Unificados
+
+Clases estandarizadas para consistencia entre `CommitmentForm.v2` y `TermsListView`:
+
+```typescript
+// Inputs compactos (altura 36px)
+const formInputClasses = "w-full h-[36px] bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-500 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500";
+
+// Labels compactos (11px uppercase)
+const formLabelClasses = "block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider";
+```
+
+### Dropdown Menu (CommitmentCard)
+
+Menú contextual con iconos y estilo dark:
+
+```tsx
+<DropdownMenu.Content
+    className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-xl p-1.5 shadow-2xl min-w-[160px] z-50"
+>
+    {/* Items con iconos */}
+    <DropdownMenu.Item className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-200 hover:bg-slate-700/50 rounded-lg cursor-pointer outline-none transition-colors">
+        <Edit2 className="w-4 h-4 text-slate-400" />
+        Editar
+    </DropdownMenu.Item>
+    <DropdownMenu.Item className="... text-sky-400 hover:bg-sky-500/10 ...">
+        <Eye className="w-4 h-4" />
+        Detalle
+    </DropdownMenu.Item>
+</DropdownMenu.Content>
+```
 
 ### Grid de Gastos
+
 - **Layout**: Bento Grid adaptativo (Desktop: tabla, Mobile: cards)
-- **Navegación de Fecha**: Picker clickeable con `showMonthYearPicker`
-- **Estados visuales**: 
-  - Pagado: Badge verde + checkmark
-  - Pendiente: Badge ámbar + reloj
-  - Vencido: Badge rojo + alerta
-- **Archivo**: `ExpenseGridVirtual.v2.tsx`
+- **Click en card** → Abre Detail Modal
+- **Menú "Editar"** → Abre Form (datos básicos)
+- **Menú "Detalle"** → Abre Detail Modal (términos/pagos)
+
+**Archivo:** `ExpenseGridVirtual.v2.tsx`
 
 ### Toasts (Notificaciones)
+
 - **Estilo**: Navy Ocean (Slate 800 + Sky Blue accents)
 - **Iconos**: Check, X, AlertTriangle, Info
 - **Archivo**: `ToastContainer.tsx`
@@ -508,14 +563,36 @@ Se adoptó la **Ruta 1: Claridad Celestial** como estándar visual:
 
 > **Nota:** Se usa Geist (Vercel) como fuente principal en lugar de Inter por su mejor rendimiento y estética tech moderna.
 
-## 12.4. Estilos CSS Centralizados
+## 12.4. Principios de Diseño Consolidados
+
+### Patrones de Layout
+
+| Patrón | Uso | Clases Clave |
+|--------|-----|--------------|
+| **Sheet lateral** | Modales principales (Form, Detail) | `w-full sm:max-w-xl h-full slide-in-from-right` |
+| **Bento Grid** | Dashboard, cards | `grid gap-4` con tarjetas modulares |
+| **Safe Area** | Headers móviles | `pt-[max(1rem,env(safe-area-inset-top))]` |
+
+### Flujo de Interacción
+
+| Acción | Resultado | Componente |
+|--------|-----------|------------|
+| Click en card | Detail Modal (términos + pagos) | `CommitmentDetailModal` |
+| Menú → Editar | Form básico (nombre, monto) | `CommitmentForm.v2` |
+| Menú → Detalle | Detail Modal | `CommitmentDetailModal` |
+| Menú → Pausar | Form con pause pre-abierto | `CommitmentForm.v2` |
+
+## 12.5. Estilos CSS Centralizados
 
 Los estilos personalizados se concentran en:
 - `styles/design-enhancements.css`: Glassmorphism, Dark Mode, DatePicker overrides
 - `styles/dashboard-theme.css`: Variables de tema y utilidades
 
-## 12.5. Próximos Pasos
+## 12.6. Próximos Pasos
 
 - [ ] Implementar animaciones de transición entre estados de pago
 - [ ] Agregar efectos de shimmer para estados de carga
 - [ ] Optimizar contraste WCAG AAA en todos los textos
+- [x] Unificar estilos de inputs entre Form y TermsListView
+- [x] Implementar layout de Sheet para Form
+

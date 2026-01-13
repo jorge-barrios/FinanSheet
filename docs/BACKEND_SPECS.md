@@ -1,7 +1,7 @@
 # FinanSheet - Especificaciones Backend (Supabase)
 
 > Documento de referencia para la lógica del backend. Basado en consultas reales a la base de datos.
-> Última actualización: 2026-01-10
+> Última actualización: 2026-01-13
 
 ---
 
@@ -552,6 +552,18 @@ LIMIT 1;
 | Editar término activo SIN pagos, cambiar `effective_from` | No preguntar (nada que trasladar) |
 | Editar término activo con pagos, NO cambiar `effective_from` | No preguntar (fechas no cambian) |
 | Términos cerrados (V1, V2) tienen pagos | NUNCA se tocan automáticamente |
+
+### Restricciones de Edición según Pagos Existentes
+
+**Principio:** Los pagos registrados bajo ciertas condiciones (monto, frecuencia, tipo) representan historia contable inmutable.
+
+| Condición del Término | Campo a Editar | Acción |
+|----------------------|----------------|--------|
+| SIN pagos | Cualquier campo | ✅ Edición directa |
+| CON pagos | `due_day_of_month` | ✅ Edición directa |
+| CON pagos | `effective_until` (extender) | ✅ Edición directa |
+| CON pagos | `is_divided_amount`, `amount_original`, `frequency` | ⚠️ Forzar: Cerrar V actual → Crear V+1 |
+| CON pagos | `effective_until` (acortar dejando pagos PAGADOS fuera) | ❌ Bloqueado |
 
 **Diagrama de decisión (frontend):**
 ```
