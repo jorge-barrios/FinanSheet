@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>FinanSheet - Sin Conexión</title>
+    <meta name="theme-color" content="#0b0d1a">
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0b0d1a 0%, #1a1f36 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: #e2e8f0;
+        }
+        
+        .container {
+            text-align: center;
+            max-width: 400px;
+        }
+        
+        .logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #2dd4bf 0%, #38bdf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 2rem;
+        }
+        
+        .icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            background: rgba(45, 212, 191, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .icon svg {
+            width: 40px;
+            height: 40px;
+            stroke: #2dd4bf;
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+        
+        p {
+            color: #94a3b8;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+        
+        .button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%);
+            color: #0f172a;
+            font-weight: 600;
+            padding: 0.875rem 1.5rem;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(45, 212, 191, 0.3);
+        }
+        
+        .button:active {
+            transform: translateY(0);
+        }
+        
+        .status {
+            margin-top: 2rem;
+            padding: 0.75rem 1rem;
+            background: rgba(45, 212, 191, 0.1);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            color: #2dd4bf;
+            display: none;
+        }
+        
+        .status.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">FinanSheet</div>
+        
+        <div class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+        </div>
+        
+        <h1>Sin conexión</h1>
+        <p>No hay conexión a internet. Verifica tu conexión y vuelve a intentarlo.</p>
+        
+        <button class="button" onclick="retry()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            Reintentar
+        </button>
+        
+        <div id="status" class="status">Verificando conexión...</div>
+    </div>
+    
+    <script>
+        function retry() {
+            const status = document.getElementById('status');
+            status.classList.add('show');
+            status.textContent = 'Verificando conexión...';
+            
+            // Try to fetch the main page
+            fetch('/')
+                .then(response => {
+                    if (response.ok) {
+                        status.textContent = '¡Conexión restaurada! Redirigiendo...';
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 500);
+                    } else {
+                        throw new Error('Still offline');
+                    }
+                })
+                .catch(() => {
+                    status.textContent = 'Aún sin conexión. Intenta de nuevo.';
+                    setTimeout(() => {
+                        status.classList.remove('show');
+                    }, 3000);
+                });
+        }
+        
+        // Auto-retry when online
+        window.addEventListener('online', () => {
+            retry();
+        });
+    </script>
+</body>
+</html>

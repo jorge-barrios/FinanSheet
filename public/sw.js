@@ -1,10 +1,11 @@
 // FinanSheet Service Worker
 // Provides offline support and caching
 
-const CACHE_NAME = 'finansheet-v1';
+const CACHE_NAME = 'finansheet-v2';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
+    '/offline.html',
     '/index.css',
     '/styles/dashboard-theme.css',
     '/styles/design-enhancements.css',
@@ -38,13 +39,16 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
-// Fetch event - network first, fallback to cache
+// Fetch event - network first, fallback to cache, then offline page
 self.addEventListener('fetch', (event) => {
     // Skip non-GET requests
     if (event.request.method !== 'GET') return;
 
     // Skip API requests (Supabase)
     if (event.request.url.includes('supabase.co')) return;
+
+    // Check if this is a navigation request (HTML page)
+    const isNavigationRequest = event.request.mode === 'navigate';
 
     event.respondWith(
         fetch(event.request)
@@ -60,7 +64,17 @@ self.addEventListener('fetch', (event) => {
             })
             .catch(() => {
                 // Fallback to cache
-                return caches.match(event.request);
+                return caches.match(event.request).then((cachedResponse) => {
+                    if (cachedResponse) {
+                        return cachedResponse;
+                    }
+                    // For navigation requests, show offline page
+                    if (isNavigationRequest) {
+                        return caches.match('/offline.html');
+                    }
+                    // For other requests, just fail
+                    return new Response('Offline', { status: 503 });
+                });
             })
     );
 });
