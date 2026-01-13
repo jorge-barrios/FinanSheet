@@ -85,6 +85,7 @@ import CategoryManager from './components/CategoryManager';
 import ConfirmationModal from './components/ConfirmationModal';
 import { CommitmentDetailModal } from './components/CommitmentDetailModal';
 import { PWAUpdateNotifier } from './components/PWAUpdateNotifier';
+import { AppLoadingSkeleton } from './components/AppLoadingSkeleton';
 import { Expense, PaymentStatus, ExpenseType, View, PaymentDetails, PaymentFrequency, PaymentUnit } from './types';
 import type { CommitmentWithTerm } from './types.v2';
 import type { Category } from './services/categoryService.v2';
@@ -1110,7 +1111,7 @@ const App: React.FC = () => {
     ) : null;
 
     if (loading) {
-        return <div className="flex items-center justify-center h-screen bg-slate-900 text-white">{t('loading')}...</div>;
+        return <AppLoadingSkeleton />;
     }
 
     return (
