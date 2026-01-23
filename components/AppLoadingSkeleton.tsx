@@ -4,7 +4,7 @@
  * AppLoadingSkeleton
  * 
  * A branded skeleton loading screen that mimics the actual app layout.
- * Uses pulse animation on slate-colored placeholders with teal accents.
+ * Uses pulse animation on slate-colored placeholders with sky-blue accents.
  * Based on 2025 UX best practices: skeleton loaders improve perceived
  * performance by 20-30% compared to simple spinners.
  */
@@ -17,7 +17,7 @@ export function AppLoadingSkeleton() {
                 <header className="h-16 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 bg-white dark:bg-slate-900/80">
                     {/* Logo */}
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500/30 to-teal-600/30 animate-pulse" />
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500/30 to-sky-600/30 animate-pulse" />
                         <div className="w-24 h-5 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
                     </div>
 
@@ -30,7 +30,7 @@ export function AppLoadingSkeleton() {
 
                     {/* Right actions */}
                     <div className="flex items-center gap-3">
-                        <div className="w-32 h-9 bg-teal-500/20 rounded-xl animate-pulse" />
+                        <div className="w-32 h-9 bg-sky-500/20 rounded-xl animate-pulse" />
                         <div className="w-9 h-9 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse" />
                     </div>
                 </header>
@@ -59,7 +59,7 @@ export function AppLoadingSkeleton() {
                                                 <div className="w-24 h-3 bg-slate-200 dark:bg-slate-600 rounded animate-pulse mb-2" />
                                                 <div className="w-16 h-3 bg-slate-200 dark:bg-slate-600 rounded animate-pulse" />
                                             </div>
-                                            <div className="w-16 h-5 bg-teal-500/20 rounded animate-pulse" />
+                                            <div className="w-16 h-5 bg-sky-500/20 rounded animate-pulse" />
                                         </div>
                                     ))}
                                 </div>
@@ -77,7 +77,7 @@ export function AppLoadingSkeleton() {
                                             <div className="w-6 h-6 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
                                         </div>
                                         <div className="w-32 h-8 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mb-2" />
-                                        <div className="w-16 h-3 bg-teal-500/20 rounded animate-pulse" />
+                                        <div className="w-16 h-3 bg-sky-500/20 rounded animate-pulse" />
                                     </div>
                                 ))}
                             </div>
@@ -97,7 +97,7 @@ export function AppLoadingSkeleton() {
                                     {[60, 80, 45, 90, 70, 85, 55, 75, 65, 80, 50, 95].map((h, i) => (
                                         <div
                                             key={i}
-                                            className="flex-1 bg-gradient-to-t from-teal-500/30 to-teal-500/10 rounded-t animate-pulse"
+                                            className="flex-1 bg-gradient-to-t from-sky-500/30 to-sky-500/10 rounded-t animate-pulse"
                                             style={{ height: `${h}%`, animationDelay: `${i * 50}ms` }}
                                         />
                                     ))}
@@ -129,8 +129,8 @@ export function AppLoadingSkeleton() {
             </div>
 
             {/* Floating brand indicator */}
-            <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800/90 backdrop-blur-sm border border-teal-500/30 shadow-lg shadow-teal-500/10">
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 animate-pulse" />
+            <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800/90 backdrop-blur-sm border border-sky-500/30 shadow-lg shadow-sky-500/10">
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-sky-400 to-sky-600 animate-pulse" />
                 <span className="text-sm text-slate-300 font-medium">Cargando FinanSheet...</span>
             </div>
         </div>

@@ -186,6 +186,18 @@
 }
 
 /* =============================================================================
+   ALTERNATIVE THEME: "Ocean Teal" (Explicit class for toggle)
+   Same as default palette, but as explicit class for theme switching
+   ============================================================================= */
+.theme-ocean-teal {
+  /* Light Mode - uses default :root values, no overrides needed */
+}
+
+.theme-ocean-teal.dark {
+  /* Dark Mode - uses default .dark values, no overrides needed */
+}
+
+/* =============================================================================
    DASHBOARD LAYOUT
    ============================================================================= */
 .dashboard-container {
@@ -250,7 +262,9 @@
 }
 
 .kpi-card--hero:hover {
-  box-shadow: var(--dashboard-shadow-glow-accent);
+  /* Sharp Technical: No Glow, just definition */
+  box-shadow: none;
+  border-color: var(--dashboard-accent);
 }
 
 /* Positive Card - Income */
@@ -259,7 +273,8 @@
 }
 
 .kpi-card--positive:hover {
-  box-shadow: var(--dashboard-shadow-glow-positive);
+  box-shadow: none;
+  border-color: var(--dashboard-positive);
 }
 
 /* Negative Card - Expenses */
@@ -268,7 +283,8 @@
 }
 
 .kpi-card--negative:hover {
-  box-shadow: var(--dashboard-shadow-glow-negative);
+  box-shadow: none;
+  border-color: var(--dashboard-negative);
 }
 
 /* Neutral Card - Savings Rate */

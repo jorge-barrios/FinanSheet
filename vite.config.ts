@@ -81,8 +81,9 @@ export default defineConfig(({ mode }) => {
               handler: 'NetworkOnly'
             }
           ],
-          // Fallback to offline page for navigation requests
-          navigateFallback: '/offline.html',
+          // Fallback to index.html for navigation requests (SPA)
+          // This ensures OAuth callbacks (/?code=...) are handled by the app
+          navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api/]
         }
       })

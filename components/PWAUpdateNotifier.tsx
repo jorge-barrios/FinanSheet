@@ -26,11 +26,11 @@ export function PWAUpdateNotifier() {
 
     return (
         <div className="fixed bottom-4 left-4 right-4 z-[100] md:left-auto md:right-4 md:max-w-sm">
-            <div className="bg-slate-900/95 backdrop-blur-xl border border-teal-500/30 rounded-2xl shadow-2xl shadow-teal-500/10 p-4 animate-in slide-in-from-bottom duration-300">
+            <div className="bg-slate-900/95 backdrop-blur-xl border border-sky-500/30 rounded-2xl shadow-2xl shadow-sky-500/10 p-4 animate-in slide-in-from-bottom duration-300">
                 <div className="flex items-start gap-3">
                     {/* Icon */}
-                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-teal-500/20 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-teal-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-sky-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                         </svg>
                     </div>
@@ -60,7 +60,7 @@ export function PWAUpdateNotifier() {
                 <div className="mt-3 flex gap-2">
                     <button
                         onClick={() => updateServiceWorker(true)}
-                        className="flex-1 bg-teal-500 hover:bg-teal-400 text-slate-900 font-semibold text-sm py-2 px-4 rounded-xl transition-colors"
+                        className="flex-1 bg-sky-500 hover:bg-sky-400 text-slate-900 font-semibold text-sm py-2 px-4 rounded-xl transition-colors"
                     >
                         Actualizar ahora
                     </button>

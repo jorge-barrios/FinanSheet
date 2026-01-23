@@ -46,6 +46,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     console.log('[AuthContext] 🔄 Initializing auth listener...');
 
+    // Check for auth code in URL (Google OAuth redirect)
+    const params = new URLSearchParams(window.location.search);
+    const authCode = params.get('code');
+    const hasAuthCode = !!authCode;
+
     // Listen for auth changes
     // onAuthStateChange fires immediately with the current session (INITIAL_SESSION)
     const {
@@ -58,12 +63,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
+
+      // LOGIC: If we found an auth code in URL but no session yet, 
+      // keep loading true until the manual exchange finishes or fails.
+      // This prevents "Login" screen flash while processing the redirect.
+      if (hasAuthCode && !session && event !== 'SIGNED_OUT') {
+        console.log('[AuthContext] ⏳ Keeping loading state active while exchanging code...');
+      } else {
+        setLoading(false);
+      }
 
       if (event === 'PASSWORD_RECOVERY') {
         setIsPasswordRecovery(true);
       }
     });
+
+    // Manually handle OAuth Code Exchange (Option B)
+    // This ensures reliable login even if the auto-detect fails
+    if (hasAuthCode) {
+      console.log('[AuthContext] 🔄 Detected OAuth code in URL, attempting manual exchange...');
+      supabase.auth.exchangeCodeForSession(authCode).then(({ data, error }) => {
+        if (error) {
+          console.error('[AuthContext] ❌ Error exchanging code for session:', error);
+          // If exchange failed, stop loading so user sees login screen (and error potentially)
+          setLoading(false);
+        } else if (data.session) {
+          console.log('[AuthContext] ✅ OAuth session established successfully from code');
+          // Clean URL (remove ?code=... from address bar) without reload
+          window.history.replaceState({}, document.title, window.location.pathname);
+          // Note: onAuthStateChange will have fired with SIGNED_IN event, setting loading=false
+        }
+      });
+    }
 
     return () => {
       console.log('[AuthContext] 🧹 Cleaning up auth listener');

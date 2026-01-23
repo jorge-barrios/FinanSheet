@@ -208,16 +208,27 @@ const periodDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart
 | Vista | Archivo | Descripción |
 |-------|---------|-------------|
 | Dashboard | `DashboardFull.v2.tsx` | KPIs, gráficos, resumen mensual |
-| Grid | `ExpenseGridVirtual.v2.tsx` | Vista de calendario virtualizada |
+| Grid | `ExpenseGridVirtual.v2.tsx` | Vista de calendario virtualizada (3 densidades) |
 | Inventario | `InventoryView.tsx` | Lista de todos los commitments |
+
+### Sistema de Densidades (Grid)
+
+| Densidad | Meses | Celda | Contenido Visible |
+|----------|-------|-------|-------------------|
+| **Mínima** | 9 | 40px | Solo monto + icono estado (✓/⏱/⚠), tooltip con detalles |
+| **Compacta** | 12 | 48px | Monto en pill badge, tooltip con detalles completos |
+| **Detallada** | 6 | 100px | Monto grande + fecha + estado + cuota, todo visible |
+
+El selector de densidad está disponible solo en desktop (`hidden lg:flex`).
+Estado persistido en localStorage con key `gridDensity`.
 
 ### Componentes de UI
 
 | Componente | Descripción |
 |------------|-------------|
 | `BentoGrid.tsx` | Sistema de grid modular responsivo |
-| `BentoCard.tsx` | Card con glassmorphism para BentoGrid |
-| `CommitmentCard.tsx` | Card de commitment con dropdown menu |
+| `BentoCard.tsx` | Card con glassmorphism para BentoGrid (prop `compact` para mobile) |
+| `CommitmentCard.tsx` | Card de commitment con dropdown menu, modo compacto para mobile (88px vs 140px) |
 | `CommitmentForm.v2.tsx` | Formulario de commitment (sheet lateral) |
 | `CommitmentDetailModal.tsx` | Modal de detalle con términos/pagos |
 | `PaymentRecorder.v2.tsx` | Registro de pagos |

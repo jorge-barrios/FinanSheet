@@ -588,11 +588,195 @@ Los estilos personalizados se concentran en:
 - `styles/design-enhancements.css`: Glassmorphism, Dark Mode, DatePicker overrides
 - `styles/dashboard-theme.css`: Variables de tema y utilidades
 
-## 12.6. Próximos Pasos
+## 12.7. Estructura de Header Unificada y Bento Grid (Actualización Ene 2026)
 
+### L-Frame Glassmorphism (Implementado)
+
+El header y la columna sticky izquierda forman una "L" estructural con efecto glassmorphism:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ bg-slate-900/95 backdrop-blur-xl (GLASS L-FRAME)                │
+│ ╔════════════════════════════════════════════════════════════╗  │
+│ ║ COMPROMISO │ Dic 2025 │ Ene 2026 │ Feb 2026 │ Mar 2026 │...║  │
+│ ║            │ $1.89M   │ $2.04M   │ $14.990  │    —     │   ║  │
+│ ╚════════════════════════════════════════════════════════════╝  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Características:**
+- Header row: `bg-slate-900/95 backdrop-blur-xl`
+- Columna sticky: `bg-slate-900/95 backdrop-blur-xl` con sombra lateral
+- Celdas de mes: Cápsula continua con `rounded-l-2xl` y `rounded-r-2xl` en extremos
+- Mes actual: `ring-2 ring-inset ring-sky-500/40 bg-slate-700/90`
+
+### Jerarquía Visual Optimizada (Standard "Funnel UI")
+
+Se ha reestructurado la navegación principal siguiendo el principio de "Embudo de Información" (Contexto → Métricas → Filtros → Datos):
+
+1. **Row 1: Contexto de Navegación**
+   - Selector de Mes + Año (Estilo Glassmorphism)
+   - Acceso rápido a Inventario
+   - Selector de Densidad (Mínima / Compacta / Detallada)
+   - Fondo: `bg-slate-900/95` con `backdrop-blur-xl`
+
+2. **Row 2: Métricas Bento (Grilla Unificada)**
+   - Diseño adaptable: 4x1 en Desktop, 2x2 en Mobile
+   - **Ingresos**: Emerald (Estilo KPI Principal)
+   - **Comprometido**: Slate (Neutro)
+   - **Pagado**: Sky Blue (Acción positiva)
+   - **Pendiente**: Amber (Alerta suave)
+   - Interacción: Click para filtrar por estado
+
+3. **Row 3: Filtros Globales**
+   - Scrollable horizontal container
+   - Pills unificados para Desktop/Mobile
+   - Estilo: `rounded-lg` con badges de color semántico
+
+### Sistema de Densidades (3 Vistas)
+
+| Densidad | Meses Visibles | Altura Celda | Contenido | Uso |
+|----------|----------------|--------------|-----------|-----|
+| **Mínima** | 9 meses | 40px | Monto + icono estado | Máxima visibilidad temporal |
+| **Compacta** | 12 meses | 48px | Monto + badge hover | Vista anual estándar |
+| **Detallada** | 6 meses | 100px | Todo expandido | Análisis detallado |
+
+### Estándares de Celda (Bento Grid)
+
+Para mantener la consistencia visual en todas las densidades de la grilla principal:
+
+- **Contenedor Interno**:
+  - Mínima: `px-1 py-0.5 min-h-[40px]`
+  - Compacta: `px-1.5 py-1 min-h-[48px]`
+  - Detallada: `px-2 py-2 min-h-[100px]`
+- **Bordes**: `rounded-lg` mandatorio para efecto "tarjeta flotante"
+- **Fondos**:
+  - Headers: `bg-slate-800/90` dentro de cápsula continua
+  - Mes Actual: `bg-slate-700/90 ring-2 ring-inset ring-sky-500/40` (Highlight)
+  - Datos Vencidos: `ring-1 ring-rose-500/20 border-rose-500`
+- **Tipografía**:
+  - Labels Estructurales: `uppercase tracking-wider font-bold text-xs`
+  - Montos: `font-mono tabular-nums` para alineación perfecta
+
+## 12.8. Actualización Estética "Sharp Technical" (Ene 2026)
+
+Se ha abandonado el uso excesivo de efectos "Glow" difusos en favor de una estética de precisión técnica, alineada con el principio de "Quiet Confidence".
+
+### Adios al "Glow" Difuso
+- **Antes**: `shadow-[0_0_15px_rgba(14,165,233,0.2)]` (Sombras resplandecientes)
+- **Ahora**: `ring-1` o `ring-2` con `border` sólido (Definición nítida)
+- **Motivo**: El glow generaba "ruido visual" y sensación de desenfoque. La nitidez transmite mayor estabilidad y precisión financiera.
+
+### Sistema de Contraste Jerárquico (Niveles 1-4)
+Para gestionar la densidad de información en la grilla sin saturar:
+
+1.  **Nivel 1: Sólido Estructural (Contexto)**
+    - Uso: Columnas Sticky, Headers Principales.
+    - Color: `bg-slate-50` (Light) / `bg-slate-800` (Dark).
+    - Propósito: Anclaje visual, flota sobre el fondo 950. Máxima opacidad.
+
+2.  **Nivel 2: Estándar (Contenido)**
+    - Uso: Celdas de datos regulares.
+    - Color: `bg-white` (Light) / `bg-slate-800/40` o Transparente (Dark).
+    - Propósito: Legibilidad limpia, permite ver sutilmente el fondo del contenedor.
+
+3.  **Nivel 3: Deshabilitado/Pasivo (Ruido Bajo)**
+    - Uso: Celdas vacías, meses pasados inactivos.
+    - Color: Opacidad reducida (30-50%), sin bordes o bordes muy sutiles (`border-transparent`).
+    - Propósito: Retroceder en el plano visual para no competir con datos activos.
+
+4.  **Nivel 4: Highlight (Foco Activo)**
+    - Uso: Mes actual, celda seleccionada.
+    - Color: `bg-slate-800/60` + `ring-2 ring-sky-500/20` + Texto Brillante.
+    - Propósito: Atraer la atención sin usar sombras difusas.
+
+## 12.9. Tipografía Expandida
+
+Se oficializa el uso de **Space Grotesk** más allá del logotipo:
+
+- **Títulos de Sección / Modales**: `font-brand` (Space Grotesk).
+- **Cuerpo / Datos**: `font-sans` (Geist/Inter) con `tabular-nums`.
+
+Esta combinación refuerza la identidad "Tech" en los puntos de entrada (Títulos) mientras mantiene la legibilidad utilitaria en los datos.
+
+## 12.9.1. Compact Glass Cards Mobile (Ene 2026)
+
+Rediseño de las cards de commitment en vista mobile para mayor densidad y jerarquía visual clara.
+
+### Estructura Visual
+
+```
+┌─────────────────────────────────────────────────────┐
+│ [🏠]  Dividendo de prueba            [CUOTA 10/240] │
+│ 32px  HOGAR                                    ⋮    │
+│       $496.903                                      │
+│       ▲ Vencido hace 20d                           │
+│ ════════════════════════════════════════════════════│
+│ ↑ Barra inferior de estado (4px, colored)          │
+└─────────────────────────────────────────────────────┘
+```
+
+**Altura estimada: ~88px** (vs ~140px anterior) = **37% más compacto**
+
+### Cambios Implementados
+
+| Propiedad | Antes | Después | Archivo |
+|-----------|-------|---------|---------|
+| Icono categoría | 40px (w-10 h-10) | 32px (w-8 h-8) | CommitmentCard.tsx |
+| Padding card | p-4 | p-3 | BentoCard.tsx (compact prop) |
+| Gap interno | gap-3 | gap-2.5 | CommitmentCard.tsx |
+| Gap entre cards | space-y-4 | space-y-2.5 | ExpenseGridVirtual.v2.tsx |
+| Barra de estado | Izquierda (3px) | Inferior (4px) | CommitmentCard.tsx |
+| Badge CLP | Visible | Eliminado | CommitmentCard.tsx |
+| Fondo vencido | Sin tinte | bg-rose-950/30 | CommitmentCard.tsx |
+
+### Barra de Estado Inferior
+
+Reemplaza la barra lateral izquierda con una barra inferior más visible (4px):
+
+```tsx
+// Estados con color semántico
+<div className={`absolute left-0 right-0 bottom-0 h-1 rounded-b-xl ${
+  isOverdue ? 'bg-rose-500' :      // Vencido
+  isPending ? 'bg-amber-400' :     // Pendiente
+  isPaid ? 'bg-emerald-500' :      // Pagado
+  'bg-slate-600'                   // Default
+}`} />
+```
+
+### Tinte de Fondo para Vencidos
+
+Cards con estado vencido muestran un tinte rojo sutil:
+
+```tsx
+<BentoCard className={`... ${isOverdue ? 'bg-rose-950/30' : ''}`} compact>
+```
+
+### Uso
+
+```tsx
+// Mobile view container
+<div className="lg:hidden p-3 space-y-2.5 pb-28">
+  {commitments.map(c => (
+    <CommitmentCard
+      commitment={c}
+      compact // Activa modo compacto
+    />
+  ))}
+</div>
+```
+
+## 12.10. Próximos Pasos
+
+- [x] Definir estrategia final para la estructura del Header → **L-Frame Glassmorphism**
+- [x] Implementar 3 densidades de vista (Mínima/Compacta/Detallada)
+- [x] Rediseñar cards mobile → **Compact Glass Cards** (37% más compactas)
 - [ ] Implementar animaciones de transición entre estados de pago
 - [ ] Agregar efectos de shimmer para estados de carga
-- [ ] Optimizar contraste WCAG AAA en todos los textos
 - [x] Unificar estilos de inputs entre Form y TermsListView
 - [x] Implementar layout de Sheet para Form
+- [x] Reordenar Header: Navigation > Metrics > Filters > Grid (Funnel UI)
+- [x] Unificar componentes Mobile/Desktop (Metrics Bento, Filters)
+- [x] Mejorar contraste de filtros y badges de conteo
+- [x] Unificar iconos en métricas Bento (TrendingUp, Wallet, CheckCircle, Clock)
 

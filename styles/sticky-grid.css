@@ -26,53 +26,70 @@
   position: relative;
 }
 
-/* Headers fijos (scroll vertical) - Z-index hierarchy crítica */
+/* Headers fijos (scroll vertical) - L-Frame Glassmorphism */
 .expense-grid thead th {
   position: sticky !important;
   top: 0 !important;
-  background: rgb(248 250 252) !important;
-  /* slate-50 - FORZAR OPACIDAD TOTAL */
-  background-color: rgb(248 250 252) !important;
+  background: transparent !important;
+  background-color: transparent !important;
   z-index: 100 !important;
-  /* ALTO PERO MENOR QUE ESQUINA */
-  border-bottom: 2px solid rgb(203 213 225) !important;
-  /* slate-300 */
+  border-bottom: none !important;
   opacity: 1 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+}
+
+/* Header row gets the glassmorphism effect */
+.expense-grid thead tr {
+  background: rgba(248, 250, 252, 0.95) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
 }
 
 .dark .expense-grid thead th {
-  background: rgb(30 41 59) !important;
-  /* slate-800 - FORZAR OPACIDAD TOTAL */
-  background-color: rgb(30 41 59) !important;
-  border-bottom-color: rgb(71 85 105) !important;
-  /* slate-600 */
+  /* Background comes from Tailwind classes for capsule styling */
+  border-bottom: none !important;
   opacity: 1 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
 }
 
-/* Primera columna fija (scroll horizontal) */
+.dark .expense-grid thead tr {
+  background: rgb(30, 41, 59) !important; /* slate-800 */
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+/* Header Capsule - rounded corners on first and last cells */
+.expense-grid thead th:first-child {
+  border-radius: 12px 0 0 12px !important;
+}
+
+.expense-grid thead th:last-child {
+  border-radius: 0 12px 12px 0 !important;
+}
+
+/* Primera columna fija (scroll horizontal) - L-Frame Glass */
 .expense-grid tbody td:first-child,
 .expense-grid tbody th:first-child {
   position: sticky;
   left: 0;
-  background-color: white !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
   z-index: 10;
   opacity: 1 !important;
-  backdrop-filter: none;
+  box-shadow: 4px 0 12px -4px rgba(0, 0, 0, 0.08) !important;
 }
 
 .dark .expense-grid tbody td:first-child,
 .dark .expense-grid tbody th:first-child {
-  background-color: rgb(15 23 42) !important;
-  /* slate-900 */
+  background: rgba(15, 23, 42, 0.95) !important; /* slate-900/95 */
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
   opacity: 1 !important;
-  backdrop-filter: none;
+  box-shadow: 4px 0 12px -4px rgba(0, 0, 0, 0.3) !important;
 }
 
-/* CRÍTICO: Celda de esquina superior izquierda - Z-index más alto */
+/* CRÍTICO: Celda de esquina superior izquierda - Sticky positioning */
 /* Múltiples selectores para máxima especificidad */
 .expense-grid thead th:first-child,
 table.expense-grid thead tr th:first-child,
@@ -81,30 +98,21 @@ table.expense-grid thead tr th:first-child,
   top: 0 !important;
   left: 0 !important;
   z-index: 999 !important;
-  /* MÁXIMA PRIORIDAD ABSOLUTA */
-  background: rgb(248 250 252) !important;
-  /* slate-50 - FORZAR OPACIDAD TOTAL */
-  background-color: rgb(248 250 252) !important;
+  /* Background comes from Tailwind classes for capsule continuity */
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
   opacity: 1 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.15) !important;
-  border-right: 1px solid rgb(203 213 225) !important;
-  border-bottom: 2px solid rgb(203 213 225) !important;
+  box-shadow: 4px 0 12px -4px rgba(0, 0, 0, 0.1) !important;
 }
 
 .dark .expense-grid thead th:first-child,
 .dark table.expense-grid thead tr th:first-child,
 .dark .expense-grid-container .expense-grid thead th:first-child {
-  background: rgb(30 41 59) !important;
-  /* slate-800 - FORZAR OPACIDAD TOTAL */
-  background-color: rgb(30 41 59) !important;
+  /* Uses Tailwind bg from component - slate-800/90 for capsule continuity */
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
   opacity: 1 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4) !important;
-  border-right-color: rgb(71 85 105) !important;
-  border-bottom-color: rgb(71 85 105) !important;
+  box-shadow: 4px 0 12px -4px rgba(0, 0, 0, 0.4) !important;
 }
 
 /* Filas de categoría - NO sticky vertically, only first cell sticky horizontally */

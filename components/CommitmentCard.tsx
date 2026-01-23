@@ -266,25 +266,26 @@ export function CommitmentCard({
         <BentoCard
             variant={variant}
             interactive
+            compact
             onClick={onClick}
             className={`h-full relative overflow-hidden ${customClasses} ${isInactive ? 'opacity-60 grayscale' : ''}`}
         >
-            {/* Left Accent Bar - Status Indicator */}
-            <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${getAccentColor()}`} />
+            {/* Bottom Accent Bar - Status Indicator (more visible than lateral) */}
+            <div className={`absolute left-0 right-0 bottom-0 h-1 rounded-b-xl ${getAccentColor()}`} />
 
-            <div className="flex justify-between items-start pl-1">
-                <div className="flex items-center gap-3">
-                    {/* Avatar - Neutral BG, Colored Icon for differentiation */}
+            <div className="flex justify-between items-start">
+                <div className="flex items-center gap-2.5">
+                    {/* Avatar - Compact size (32px) */}
                     <div className={`
-                        w-10 h-10 rounded-xl flex items-center justify-center
+                        w-8 h-8 rounded-lg flex items-center justify-center
                         shrink-0
-                        bg-slate-100 dark:bg-slate-800 
+                        bg-slate-100 dark:bg-slate-800
                         border border-slate-200 dark:border-slate-700
                         ${commitment.flow_type === 'INCOME'
                             ? 'text-emerald-600 dark:text-emerald-400'
                             : 'text-rose-600 dark:text-rose-400'}
                     `}>
-                        <CategoryIconComponent className="w-5 h-5" />
+                        <CategoryIconComponent className="w-4 h-4" />
                     </div>
 
                     {/* Name + Category */}
@@ -383,23 +384,18 @@ export function CommitmentCard({
                 </div>
             </div>
 
-            {/* Amount Row - Tighter spacing and Premium Typography */}
-            <div className="mt-2 flex items-baseline justify-between">
-                <div className="flex items-baseline gap-1">
-                    <span className="text-xl font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)]">
-                        {summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
-                    </span>
-                    <span className="text-[10px] font-bold text-[var(--dashboard-text-muted)] uppercase">
-                        CLP
-                    </span>
-                </div>
+            {/* Amount Row - Compact typography */}
+            <div className="mt-1.5 flex items-baseline justify-between">
+                <span className="text-lg font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)]">
+                    {summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
+                </span>
 
                 {/* Contextual Payment Progress */}
                 {getPaymentProgress()}
             </div>
 
             {/* Simplified Footer: Just status text + date, no heavy badges */}
-            <div className="mt-3 pt-2 border-t border-slate-200/30 dark:border-slate-700/30 flex items-center justify-between text-xs">
+            <div className="mt-2 pt-1.5 border-t border-slate-200/30 dark:border-slate-700/30 flex items-center justify-between text-xs">
                 {/* Left: Status as simple text (color from left bar reinforces this) */}
                 {financial ? (
                     <span className={`font-medium ${financial.style.text}`}>

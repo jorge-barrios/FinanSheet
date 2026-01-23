@@ -20,11 +20,12 @@ import { useCommitments } from '../context/CommitmentsContext';
 import { es as esTranslations } from '../locales/es';
 import { en as enTranslations } from '../locales/en';
 import {
-    ArrowTrendingDownIcon, ArrowTrendingUpIcon, CalendarIcon, StarIcon,
+    ArrowTrendingDownIcon, ArrowTrendingUpIcon, CalendarIcon,
     ExclamationTriangleIcon, ClockIcon, CheckCircleIcon
 } from './icons';
 import { FlowType, periodToString } from '../types.v2';
 import { getPerPeriodAmount } from '../utils/financialUtils.v2';
+import { getCommitmentSummary } from '../utils/commitmentStatusUtils';
 import { PullToRefresh } from './PullToRefresh';
 
 Chart.register(...registerables);
@@ -119,7 +120,6 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
         error,
         setDisplayYear,
         setDisplayMonth,
-        getUpcomingPayments,
         getMonthlyData,
         refresh
     } = useCommitments();
@@ -177,9 +177,81 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
     // ==========================================================================
 
     // Get upcoming payments for current and next month
+    // Get upcoming payments for current and next month
+    // REFACTORED: Use centralized getCommitmentSummary for logic consistency
     const upcomingPayments = useMemo(() => {
-        return getUpcomingPayments(displayMonth);
-    }, [getUpcomingPayments, displayMonth]);
+        const today = new Date();
+        const currentYear = displayYear;
+        const currentMonth = displayMonth; // 0-indexed
+
+        return commitments
+            .map(c => {
+                const summary = getCommitmentSummary(c, payments.get(c.id) || []);
+
+                // Only interested in OVERDUE or PENDING items
+                if (summary.estado !== 'overdue' && summary.estado !== 'pending') {
+                    return null;
+                }
+
+                // Determine precise due date
+                let dueDate: Date;
+                let urgencyGroup: 'overdue' | 'next7days' | 'restOfMonth' = 'restOfMonth';
+                let daysUntilDue = 0;
+
+                if (summary.estado === 'overdue') {
+                    // Use first overdue period
+                    dueDate = summary.firstOverduePeriod || new Date(); // Fallback to today if null
+                    urgencyGroup = 'overdue';
+                    // Days overdue (negative or 0)
+                    const diffTime = dueDate.getTime() - today.getTime();
+                    daysUntilDue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                } else {
+                    // Pending - use next payment date
+                    if (!summary.nextPaymentDate) return null;
+                    dueDate = summary.nextPaymentDate;
+
+                    // Calculate days difference
+                    const diffTime = dueDate.getTime() - today.getTime();
+                    daysUntilDue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    if (daysUntilDue <= 7) urgencyGroup = 'next7days';
+                    else urgencyGroup = 'restOfMonth';
+                }
+
+                // Filter: Only show items relevant to current view OR significantly overdue
+                // Logic: Show all overdue. For pending, show if in current month view.
+                if (urgencyGroup !== 'overdue') {
+                    if (dueDate.getMonth() !== currentMonth || dueDate.getFullYear() !== currentYear) {
+                        // Only show if it's "next 7 days" overlapping into view? 
+                        // Or straightforward: The sidebar is "Pagos por Vencer" broadly.
+                        // Let's keep it focused: Overdue + Pending in THIS month.
+                        if (dueDate.getMonth() !== currentMonth) return null;
+                    }
+                }
+
+                return {
+                    commitmentId: c.id,
+                    commitmentName: c.name,
+                    amount: summary.perPeriodAmount || 0, // Use calculated amount
+                    dueDay: dueDate.getDate(),
+                    dueMonth: dueDate.getMonth(),
+                    dueYear: dueDate.getFullYear(),
+                    urgencyGroup,
+                    daysUntilDue,
+                    cuotaNumber: summary.isInstallmentBased ? summary.paymentCount + 1 : undefined,
+                    totalCuotas: summary.installmentsCount || undefined
+                };
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null)
+            .sort((a, b) => {
+                // Sort by urgency group then date
+                const urgencyOrder = { overdue: 0, next7days: 1, restOfMonth: 2 };
+                if (urgencyOrder[a.urgencyGroup] !== urgencyOrder[b.urgencyGroup]) {
+                    return urgencyOrder[a.urgencyGroup] - urgencyOrder[b.urgencyGroup];
+                }
+                return new Date(a.dueYear, a.dueMonth, a.dueDay).getTime() - new Date(b.dueYear, b.dueMonth, b.dueDay).getTime();
+            });
+    }, [commitments, payments, displayMonth, displayYear]);
 
     // Monthly data for chart
     const monthlyData = useMemo(() => {
@@ -495,7 +567,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                 data: monthlyData.map(d =>
                     (d.hasIncomeData || d.hasExpenseData) ? d.balance : null
                 ),
-                borderColor: 'rgba(13, 148, 136, 1)', // Teal accent
+                borderColor: 'rgba(14, 165, 233, 1)', // Sky Blue accent (#0ea5e9)
                 backgroundColor: (context: any) => {
                     const chart = context.chart;
                     const { ctx, chartArea } = chart;
@@ -503,9 +575,9 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
 
                     // Gradient fill under line
                     const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-                    gradient.addColorStop(0, 'rgba(13, 148, 136, 0)');
-                    gradient.addColorStop(0.5, 'rgba(13, 148, 136, 0.1)');
-                    gradient.addColorStop(1, 'rgba(13, 148, 136, 0.25)');
+                    gradient.addColorStop(0, 'rgba(14, 165, 233, 0)');
+                    gradient.addColorStop(0.5, 'rgba(14, 165, 233, 0.1)');
+                    gradient.addColorStop(1, 'rgba(14, 165, 233, 0.25)');
                     return gradient;
                 },
                 fill: true,
@@ -516,7 +588,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                         : 0
                 ),
                 pointBackgroundColor: monthlyData.map((_, i) =>
-                    i === currentMonthIdx ? 'rgba(13, 148, 136, 1)' : 'rgba(13, 148, 136, 0.8)'
+                    i === currentMonthIdx ? 'rgba(14, 165, 233, 1)' : 'rgba(14, 165, 233, 0.8)'
                 ),
                 pointBorderColor: monthlyData.map((_, i) =>
                     i === currentMonthIdx ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.6)'
@@ -524,7 +596,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                 pointBorderWidth: monthlyData.map((_, i) => i === currentMonthIdx ? 3 : 1.5),
                 pointHoverRadius: 10,
                 pointHoverBorderWidth: 3,
-                pointHoverBackgroundColor: 'rgba(13, 148, 136, 1)',
+                pointHoverBackgroundColor: 'rgba(14, 165, 233, 1)',
                 pointHoverBorderColor: 'rgba(255, 255, 255, 1)',
                 tension: 0.4,
                 spanGaps: false,
@@ -923,7 +995,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
                             <div className="kpi-card kpi-card--hero kpi-card-hero-glow animate-fade-in-up group">
                                 <div className="flex items-center justify-between mb-3">
                                     <span className="kpi-label mb-0">Balance Mensual</span>
-                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-teal-500 to-cyan-600 transition-transform duration-300 group-hover:scale-110">
+                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-sky-500 to-blue-600 transition-transform duration-300 group-hover:scale-110">
                                         <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>

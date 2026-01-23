@@ -28,6 +28,8 @@ interface BentoCardProps {
     title?: string;
     /** Subtitle or meta info */
     subtitle?: string;
+    /** Compact mode - reduced padding for mobile cards */
+    compact?: boolean;
 }
 
 const variantStyles: Record<BentoCardVariant, {
@@ -89,6 +91,7 @@ export function BentoCard({
     header,
     title,
     subtitle,
+    compact = false,
 }: BentoCardProps) {
     const styles = variantStyles[variant];
     const isClickable = onClick || interactive;
@@ -116,8 +119,8 @@ export function BentoCard({
             {/* Glass shine effect on hover (optional, enhances hybrid feel) */}
             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none bg-gradient-to-tr from-white/0 via-white/5 to-white/0" />
 
-            {/* Content - Compact padding */}
-            <div className="relative p-4">
+            {/* Content - Responsive padding */}
+            <div className={`relative ${compact ? 'p-3' : 'p-4'}`}>
                 {(header || title) && (
                     <div className="mb-3">
                         {header && <div className="mb-2">{header}</div>}

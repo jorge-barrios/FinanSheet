@@ -504,6 +504,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                             <option value="USD">USD</option>
                                             <option value="EUR">EUR</option>
                                             <option value="UF">UF</option>
+                                            <option value="UTM">UTM</option>
                                         </select>
                                         <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>

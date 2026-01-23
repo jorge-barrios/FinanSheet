@@ -21,17 +21,17 @@ import { useCommitments } from '../context/CommitmentsContext';
 import {
     EditIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon,
     CheckCircleIcon, ExclamationTriangleIcon, ClockIcon,
-    CalendarIcon, InfinityIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon,
-    SubscriptionIcon, MiscIcon, CategoryIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon,
-    StarIcon, IconProps, PauseIcon, PlusIcon, InfoIcon, MoreVertical, Link2,
-    FunnelIcon, FolderIcon
+    CalendarIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon,
+    SubscriptionIcon, MiscIcon, CategoryIcon,
+    StarIcon, IconProps, PauseIcon, PlusIcon, MoreVertical, Link2,
+    FunnelIcon, FolderIcon, HashIcon
 } from './icons';
 import type { CommitmentWithTerm, Payment } from '../types.v2';
 import { parseDateString, extractYearMonth, getPerPeriodAmount } from '../utils/financialUtils.v2';
 import { findTermForPeriod } from '../utils/termUtils';
-import { getTerminationReason, isCommitmentTerminated } from '../utils/commitmentStatusUtils';
+import { getCommitmentSummary } from '../utils/commitmentStatusUtils';
 import { CommitmentCard } from './CommitmentCard';
-import { Sparkles, Home, Minus } from 'lucide-react';
+import { Sparkles, Home, Minus, RefreshCw, TrendingUp, Wallet } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 
@@ -44,7 +44,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 
 const DateCustomInput = forwardRef<HTMLButtonElement, any>(({ value, onClick }, ref) => (
     <button
-        className="h-full flex items-center justify-center px-3 sm:px-4 text-center min-w-[100px] sm:min-w-[140px] text-sm font-semibold text-slate-900 dark:text-white capitalize hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-full outline-none border-x border-slate-200 dark:border-slate-600"
+        className="h-full flex items-center justify-center px-3 sm:px-4 text-center min-w-[100px] sm:min-w-[140px] text-sm font-semibold text-slate-900 dark:text-white capitalize hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors w-full outline-none border-x border-slate-200 dark:border-slate-700"
         onClick={onClick}
         ref={ref}
     >
@@ -163,9 +163,10 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         setDisplayMonth(month);
     }, [focusedDate, setDisplayYear, setDisplayMonth]);
 
-    const [density, setDensity] = usePersistentState<'compact' | 'medium'>(
+    // Density: minimal (9 months, 40px), compact (12 months, 48px), detailed (6 months, 100px)
+    const [density, setDensity] = usePersistentState<'minimal' | 'compact' | 'detailed'>(
         'gridDensity',
-        'medium' // Default to detailed/standard view
+        'compact' // Default to compact view (12 months)
     );
 
     // Show/hide terminated commitments (default: hidden)
@@ -183,7 +184,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     const [viewMode, setViewMode] = useState<ViewMode>('monthly');
 
     const pad = useMemo(() =>
-        density === 'compact' ? 'p-1' : 'p-3',
+        density === 'minimal' ? 'p-0.5' : density === 'compact' ? 'p-1' : 'p-3',
         [density]
     );
 
@@ -245,11 +246,10 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     // COMPUTED DATA
     // ==========================================================================
 
-    // Visible months centered on focused date - now controlled by density
-    // compact=12 (Año), medium=6 (Semestre), comfortable=3 (Trimestre)
-    // Compact: 12 months, Detailed: 6 months
-    const densityMonthCount = density === 'compact' ? 12 : 6;
-    const effectiveMonthCount = densityMonthCount; // Density overrides visibleMonthsCount
+    // Visible months centered on focused date - controlled by density
+    // minimal=12 (solo iconos, máxima densidad), compact=9 (balance), detailed=6 (análisis)
+    const densityMonthCount = density === 'minimal' ? 12 : density === 'compact' ? 9 : 6;
+    const effectiveMonthCount = densityMonthCount;
 
     const visibleMonths = useMemo(() => {
         const count = effectiveMonthCount;
@@ -373,47 +373,46 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         };
     }, [payments]);
 
-    // Smart Sort Function - Uses CURRENT month for stable sorting across navigation
-    // This prevents items from "jumping" when changing the viewed month
+    // Smart Sort Function - Uses centralized getCommitmentSummary for consistent logic
     const getCommitmentSortData = useCallback((c: CommitmentWithTerm) => {
-        // Always use TODAY for sorting, not the viewed month
-        const today = new Date();
-        const currentMonthDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        const summary = getCommitmentSummary(c, payments.get(c.id) || []);
 
-        const term = c.active_term; // Use active term, not term for period
-        const dueDay = term?.due_day_of_month ?? 32; // 32 = end of list if no active term
-        const { isPaid } = getPaymentStatus(c.id, currentMonthDate, dueDay);
-
-        const dueDate = new Date(today.getFullYear(), today.getMonth(), dueDay);
+        // Use active term or defaults
+        const term = c.active_term;
+        const dueDay = term?.due_day_of_month ?? 32;
+        const amount = summary.perPeriodAmount || 0;
 
         // Check for recently created (Last 5 minutes)
+        const today = new Date();
         const createdAt = new Date(c.created_at);
         const isRecentlyCreated = (today.getTime() - createdAt.getTime()) < 5 * 60 * 1000;
 
-        // Status Priority (based on CURRENT month, not viewed month):
+        // Status Priority Alignment with Dashboard:
         // -2: Recently Created
-        // -1: Important
-        // 0: Overdue (past due in current month)
-        // 1: Pending
-        // 2: Paid (in current month)
+        // -1: Important & Overdue/Pending
+        // 0: Overdue
+        // 1: Pending (Next 7 Days or This Month)
+        // 2: Paid / Future / Others
 
-        let statusPriority = 1; // Default to Pending
+        let statusPriority = 1; // Default Pending
+
+        const isPaid = summary.estado === 'ok' || summary.estado === 'completed' || summary.estado === 'paused' || summary.estado === 'terminated' || summary.estado === 'no_payments';
+        const isOverdue = summary.estado === 'overdue';
 
         if (isRecentlyCreated && !isPaid) {
             statusPriority = -2;
         } else if (c.is_important && !isPaid) {
             statusPriority = -1;
+        } else if (isOverdue) {
+            statusPriority = 0;
         } else if (isPaid) {
             statusPriority = 2;
-        } else if (dueDate < today) {
-            statusPriority = 0; // Overdue
+        } else {
+            statusPriority = 1; // Pending
         }
 
-        // Amount from active term
-        const amount = term?.amount_in_base ?? term?.amount_original ?? 0;
-
         return { statusPriority, dueDay, amount, name: c.name, id: c.id };
-    }, [getPaymentStatus]);
+    }, [payments]);
 
     const performSmartSort = useCallback((a: CommitmentWithTerm, b: CommitmentWithTerm) => {
         const dataA = getCommitmentSortData(a);
@@ -583,17 +582,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         return categories;
     }, [commitments, viewMode, visibleMonths, language]);
 
-    // Count of terminated commitments (for stats)
-    const terminatedCount = useMemo(() => {
-        return commitments.filter(c => {
-            const term = c.active_term;
-            if (!term?.effective_until) return false;
-            const endDate = new Date(term.effective_until);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            return endDate < today;
-        }).length;
-    }, [commitments]);
+
 
     // Format CLP
     const formatClp = (amount: number) => {
@@ -671,7 +660,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     if (loading) {
         return (
             <div className="flex items-center justify-center h-96">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500" />
             </div>
         );
     }
@@ -765,7 +754,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             </>
                         ) : (
                             /* Inventory Mode Badge - Replaces month selector */
-                            <div className="h-9 flex items-center gap-2 bg-indigo-600 text-white px-4 rounded-lg shadow-md">
+                            <div className="h-9 flex items-center gap-2 bg-sky-600 text-white px-4 rounded-lg shadow-md">
                                 <FolderIcon className="w-4 h-4" />
                                 <span className="text-sm font-semibold">Inventario</span>
                                 <span className="text-xs opacity-80">({commitments.length} compromisos)</span>
@@ -783,186 +772,190 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                     </div>
 
                     {/* Center: Totals (lg+ only, inline) */}
-                    {(() => {
-                        const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
-                        return (
-                            <div className="hidden lg:flex items-center gap-4 xl:gap-6 px-4 border-x border-slate-200 dark:border-slate-700">
-                                <div className="flex flex-col items-center">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ingresos</span>
-                                    <span className="text-sm font-black tabular-nums tracking-tight text-emerald-600 dark:text-emerald-500">
-                                        {formatClp(totals.ingresos)}
-                                    </span>
-                                </div>
-                                <div className="flex flex-col items-center">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Comprometido</span>
-                                    <span className="text-sm font-black tabular-nums tracking-tight text-slate-700 dark:text-slate-200">
-                                        {formatClp(totals.comprometido)}
-                                    </span>
-                                </div>
-                                <div className="flex flex-col items-center">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pagado</span>
-                                    <span className="text-sm font-black tabular-nums tracking-tight text-indigo-600 dark:text-indigo-400">
-                                        {formatClp(totals.pagado)}
-                                    </span>
-                                </div>
-                                <div className="flex flex-col items-center">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pendiente</span>
-                                    <span className="text-sm font-black tabular-nums tracking-tight text-amber-500 dark:text-amber-400">
-                                        {formatClp(totals.pendiente)}
-                                    </span>
-                                </div>
-                            </div>
-                        );
-                    })()}
-
                     {/* Right: Display Options (Desktop Only) */}
                     <div className="hidden lg:flex items-center gap-3">
 
-                        {/* Density Selector */}
+                        {/* Density Selector - 3 options with icons */}
                         <div className="h-9 flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                            {(['compact', 'medium'] as const).map((d) => (
+                            {(['minimal', 'compact', 'detailed'] as const).map((d) => (
                                 <button
                                     key={d}
                                     onClick={() => setDensity(d)}
-                                    className={`h-full flex items-center px-3.5 text-sm font-bold rounded-[6px] transition-all duration-200 ${density === d
+                                    title={d === 'minimal' ? 'Vista mínima (9 meses)' : d === 'compact' ? 'Vista compacta (12 meses)' : 'Vista detallada (6 meses)'}
+                                    className={`h-full flex items-center gap-1.5 px-3 text-sm font-semibold rounded-[6px] transition-all duration-200 ${density === d
                                         ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-500'
                                         : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
                                         }`}
                                 >
-                                    {d === 'compact' ? 'Compacta' : 'Detallada'}
+                                    {/* Density icon - horizontal lines */}
+                                    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                        {d === 'minimal' ? (
+                                            // Minimal: 2 lines, widely spaced
+                                            <>
+                                                <line x1="2" y1="5" x2="14" y2="5" />
+                                                <line x1="2" y1="11" x2="14" y2="11" />
+                                            </>
+                                        ) : d === 'compact' ? (
+                                            // Compact: 3 lines, medium spacing
+                                            <>
+                                                <line x1="2" y1="4" x2="14" y2="4" />
+                                                <line x1="2" y1="8" x2="14" y2="8" />
+                                                <line x1="2" y1="12" x2="14" y2="12" />
+                                            </>
+                                        ) : (
+                                            // Detailed: 4 lines, close spacing
+                                            <>
+                                                <line x1="2" y1="3" x2="14" y2="3" />
+                                                <line x1="2" y1="6" x2="14" y2="6" />
+                                                <line x1="2" y1="10" x2="14" y2="10" />
+                                                <line x1="2" y1="13" x2="14" y2="13" />
+                                            </>
+                                        )}
+                                    </svg>
+                                    <span className="hidden xl:inline">
+                                        {d === 'minimal' ? 'Mínima' : d === 'compact' ? 'Compacta' : 'Detallada'}
+                                    </span>
                                 </button>
                             ))}
                         </div>
                     </div>
                 </div>
 
-                {/* Row 2: KPIs Mobile - Bento Grid + Glassmorphism */}
+                {/* Row 2: Unified Metrics Bento Grid (Responsive) - Glassmorphism Style */}
                 {(() => {
                     const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
                     return (
-                        <div className="lg:hidden border-b border-slate-200/50 dark:border-white/5">
-                            {/* Hero Card: Pendiente - Neutral with subtle accent when selected */}
-                            <div className="px-3 pt-3 pb-2">
-                                <button
-                                    onClick={() => {
-                                        setSelectedStatus(selectedStatus === 'pendiente' ? 'all' : 'pendiente');
-                                        setSelectedCategory('all');
-                                    }}
-                                    className={`relative w-full overflow-hidden rounded-2xl p-4 text-center backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'pendiente'
-                                        ? 'bg-white dark:bg-slate-800 border-2 border-amber-400/60 dark:border-amber-500/50 shadow-lg'
-                                        : 'bg-white/80 dark:bg-slate-800/60 border border-slate-200/50 dark:border-white/10 hover:bg-white dark:hover:bg-slate-800'
-                                        }`}
-                                >
-                                    {/* Decorative Background Icon - Very subtle */}
-                                    <div className="absolute top-1/2 right-4 -translate-y-1/2 opacity-[0.04] pointer-events-none">
-                                        <ClockIcon className="w-24 h-24 text-slate-900 dark:text-slate-100" />
+                        <div className="px-3 py-3 lg:px-6 border-b border-slate-200/50 dark:border-white/10">
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+                                {/* Card 1: Ingresos */}
+                                <div className="p-4 rounded-2xl bg-white dark:bg-white/5 backdrop-blur-xl border border-emerald-200/50 dark:border-emerald-500/20 shadow-sm dark:shadow-none ring-1 ring-emerald-500/10">
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <TrendingUp className="w-4 h-4 text-emerald-500/60" />
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Ingresos</p>
                                     </div>
+                                    <p className="text-xl lg:text-2xl font-black font-mono tabular-nums tracking-tight text-emerald-600 dark:text-emerald-400">
+                                        {formatClp(totals.ingresos || 0)}
+                                    </p>
+                                </div>
 
-                                    <div className="relative z-10">
-                                        <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${selectedStatus === 'pendiente'
-                                            ? 'text-amber-600 dark:text-amber-400'
-                                            : 'text-slate-500 dark:text-slate-400'
-                                            }`}>
-                                            Pendiente por pagar
-                                        </p>
-                                        <p className={`text-3xl font-black font-mono tracking-tighter ${selectedStatus === 'pendiente'
-                                            ? 'text-amber-700 dark:text-amber-300'
-                                            : 'text-slate-900 dark:text-white'
-                                            }`}>
-                                            {formatClp(totals.pendiente)}
-                                        </p>
-                                    </div>
-                                </button>
-                            </div>
-
-                            {/* Secondary KPIs Row: Comprometido + Pagado - Neutral base */}
-                            <div className="px-3 pb-2 grid grid-cols-2 gap-2">
-                                {/* Comprometido - Shows all */}
+                                {/* Card 2: Comprometido */}
                                 <button
                                     onClick={() => {
                                         setSelectedStatus('all');
                                         setSelectedCategory('all');
                                     }}
-                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.97] ${selectedStatus === 'all' && selectedCategory === 'all'
-                                        ? 'bg-white dark:bg-slate-800 border-2 border-sky-400/50 dark:border-sky-500/40 shadow-md'
-                                        : 'bg-white/70 dark:bg-slate-800/50 border border-slate-200/50 dark:border-white/10 hover:bg-white dark:hover:bg-slate-800'
+                                    className={`text-left p-4 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'all' && selectedCategory === 'all'
+                                        ? 'bg-sky-500/10 dark:bg-sky-500/20 border-2 border-sky-500/50 shadow-lg shadow-sky-500/10 ring-1 ring-sky-500/30'
+                                        : 'bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm dark:shadow-none ring-1 ring-slate-900/5 dark:ring-white/5 hover:border-sky-300 dark:hover:border-sky-500/30'
                                         }`}
                                 >
-                                    <p className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${selectedStatus === 'all' && selectedCategory === 'all' ? 'text-sky-600 dark:text-sky-400' : 'text-slate-500 dark:text-slate-400'
-                                        }`}>Comprometido</p>
-                                    <p className={`text-lg font-extrabold font-mono tracking-tight ${selectedStatus === 'all' && selectedCategory === 'all' ? 'text-sky-700 dark:text-sky-300' : 'text-slate-900 dark:text-white'
-                                        }`}>{formatClp(totals.comprometido)}</p>
-                                </button>
-
-                                {/* Pagado - Neutral with teal accent when selected */}
-                                <button
-                                    onClick={() => {
-                                        setSelectedStatus(selectedStatus === 'pagado' ? 'all' : 'pagado');
-                                        setSelectedCategory('all');
-                                    }}
-                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.97] ${selectedStatus === 'pagado'
-                                        ? 'bg-white dark:bg-slate-800 border-2 border-emerald-400/50 dark:border-emerald-500/40 shadow-md'
-                                        : 'bg-white/70 dark:bg-slate-800/50 border border-slate-200/50 dark:border-white/10 hover:bg-white dark:hover:bg-slate-800'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-1 mb-0.5">
-                                        <CheckCircleIcon className={`w-3.5 h-3.5 ${selectedStatus === 'pagado' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`} />
-                                        <p className={`text-[9px] font-bold uppercase tracking-wider ${selectedStatus === 'pagado' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>Pagado</p>
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <Wallet className={`w-4 h-4 ${selectedStatus === 'all' && selectedCategory === 'all' ? 'text-sky-500' : 'text-sky-500/60'}`} />
+                                        <p className={`text-[10px] font-bold uppercase tracking-wider ${selectedStatus === 'all' && selectedCategory === 'all' ? 'text-sky-600 dark:text-sky-400' : 'text-slate-500 dark:text-slate-400'
+                                            }`}>Comprometido</p>
                                     </div>
-                                    <p className={`text-lg font-extrabold font-mono tracking-tight ${selectedStatus === 'pagado' ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>{formatClp(totals.pagado)}</p>
+                                    <p className={`text-xl lg:text-2xl font-black font-mono tabular-nums tracking-tight ${selectedStatus === 'all' && selectedCategory === 'all' ? 'text-sky-600 dark:text-sky-300' : 'text-slate-900 dark:text-white'
+                                        }`}>
+                                        {formatClp(totals.comprometido)}
+                                    </p>
                                 </button>
-                            </div>
 
-                            {/* Category Filter Pills - Mutually exclusive with status */}
-                            <div className="px-3 pb-3">
-                                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                                    {/* Funnel Icon - Shows when filters are active, clears on click */}
-                                    {selectedCategory !== 'all' && (
-                                        <button
-                                            onClick={() => setSelectedCategory('all')}
-                                            className="flex-shrink-0 p-2 rounded-xl backdrop-blur-lg
-                                                bg-indigo-500/20 text-indigo-600 dark:text-indigo-400
-                                                border border-indigo-300/50 dark:border-indigo-500/30
-                                                hover:bg-indigo-500/30 transition-all min-h-[36px]"
-                                            title="Limpiar filtros"
-                                        >
-                                            <FunnelIcon className="w-4 h-4" />
-                                        </button>
-                                    )}
+                                {/* Card 3: Pagado */}
+                                <button
+                                    onClick={() => setSelectedStatus(selectedStatus === 'pagado' ? 'all' : 'pagado')}
+                                    className={`text-left p-4 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'pagado'
+                                        ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/50 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/30'
+                                        : 'bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm dark:shadow-none ring-1 ring-slate-900/5 dark:ring-white/5 hover:border-emerald-300 dark:hover:border-emerald-500/30'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <CheckCircleIcon className={`w-4 h-4 ${selectedStatus === 'pagado' ? 'text-emerald-500' : 'text-emerald-500/60'}`} />
+                                        <p className={`text-[10px] font-bold uppercase tracking-wider ${selectedStatus === 'pagado' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
+                                            }`}>Pagado</p>
+                                    </div>
+                                    <p className={`text-xl lg:text-2xl font-black font-mono tabular-nums tracking-tight ${selectedStatus === 'pagado' ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-900 dark:text-white'
+                                        }`}>
+                                        {formatClp(totals.pagado)}
+                                    </p>
+                                </button>
 
-                                    {/* Category pills - exclude 'all' from display */}
-                                    {availableCategories.filter(cat => cat !== 'all').map(cat => (
-                                        <button
-                                            key={cat}
-                                            onClick={() => {
-                                                if (selectedCategory === cat) {
-                                                    setSelectedCategory('all');
-                                                } else {
-                                                    setSelectedCategory(cat);
-                                                    setSelectedStatus('all'); // Reset status when selecting category
-                                                }
-                                            }}
-                                            className={`
-                                                flex-shrink-0 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap
-                                                backdrop-blur-lg transition-all duration-200 min-h-[36px]
-                                                ${selectedCategory === cat
-                                                    ? 'bg-slate-800/90 dark:bg-white/90 text-white dark:text-slate-900 shadow-md'
-                                                    : 'bg-white/60 dark:bg-white/5 text-slate-600 dark:text-slate-400 border border-white/40 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/10'
-                                                }
-                                            `}
-                                        >
-                                            {cat === 'FILTER_IMPORTANT' ? <><StarIcon className="w-4 h-4 fill-current inline mr-1" />Imp.</> : cat}
-                                        </button>
-                                    ))}
-                                </div>
+                                {/* Card 4: Pendiente */}
+                                <button
+                                    onClick={() => setSelectedStatus(selectedStatus === 'pendiente' ? 'all' : 'pendiente')}
+                                    className={`text-left p-4 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'pendiente'
+                                        ? 'bg-amber-500/10 dark:bg-amber-500/20 border-2 border-amber-500/50 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/30'
+                                        : 'bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm dark:shadow-none ring-1 ring-slate-900/5 dark:ring-white/5 hover:border-amber-300 dark:hover:border-amber-500/30'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <ClockIcon className={`w-4 h-4 ${selectedStatus === 'pendiente' ? 'text-amber-500' : 'text-amber-500/60'}`} />
+                                        <p className={`text-[10px] font-bold uppercase tracking-wider ${selectedStatus === 'pendiente' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'
+                                            }`}>Pendiente</p>
+                                    </div>
+                                    <p className={`text-xl lg:text-2xl font-black font-mono tabular-nums tracking-tight ${selectedStatus === 'pendiente' ? 'text-amber-600 dark:text-amber-300' : 'text-slate-900 dark:text-white'
+                                        }`}>
+                                        {formatClp(totals.pendiente)}
+                                    </p>
+                                </button>
                             </div>
                         </div>
                     );
                 })()}
+
+                {/* Row 3: Unified Filter Bar (Responsive) */}
+                <div className="sticky top-[58px] z-30 px-3 py-2 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800 transition-all">
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
+                        <span className="hidden lg:inline text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-2">Filtrar:</span>
+
+                        {selectedCategory !== 'all' && (
+                            <button
+                                onClick={() => setSelectedCategory('all')}
+                                className="flex-shrink-0 p-1.5 rounded-lg bg-slate-200/50 dark:bg-slate-800 text-slate-500 hover:bg-slate-300/50 dark:hover:bg-slate-700 transition"
+                                title="Limpiar filtros"
+                            >
+                                <FunnelIcon className="w-3.5 h-3.5" />
+                            </button>
+                        )}
+
+                        {availableCategories.map(cat => (
+                            <button
+                                key={cat}
+                                onClick={() => {
+                                    if (selectedCategory === cat) {
+                                        setSelectedCategory('all');
+                                    } else {
+                                        setSelectedCategory(cat);
+                                        setSelectedStatus('all');
+                                    }
+                                }}
+                                className={`
+                                    flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-200
+                                    ${selectedCategory === cat
+                                        ? 'bg-sky-500 text-white shadow-md ring-1 ring-sky-400/50'
+                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:border-sky-300 dark:hover:border-sky-500/50 hover:bg-slate-50 dark:hover:bg-slate-750'
+                                    }
+                                `}
+                            >
+                                <span className="flex items-center gap-1.5">
+                                    {cat === 'FILTER_IMPORTANT' && <StarIcon className="w-3 h-3 fill-current" />}
+                                    <span>{cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? 'Imp.' : cat}</span>
+                                    <span className={`text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded ${selectedCategory === cat ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
+                                        ({cat === 'all'
+                                            ? commitments.filter(c => viewMode === 'inventory' || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
+                                            : cat === 'FILTER_IMPORTANT'
+                                                ? commitments.filter(c => c.is_important).length
+                                                : commitments.filter(c => getTranslatedCategoryName(c) === cat).length
+                                        })
+                                    </span>
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
 
-            {/* Mobile View */}
-            <div className="lg:hidden p-4 space-y-4 pb-32">
+            {/* Mobile View - Compact Cards */}
+            <div className="lg:hidden p-3 space-y-2.5 pb-28">
                 {(() => {
                     const filteredCommitments = commitments.filter(c => {
                         // In inventory mode, show ALL commitments (including terminated)
@@ -1074,8 +1067,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         <div className="text-center py-20 px-6 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
                             {commitments.length === 0 ? (
                                 <div className="flex flex-col items-center gap-4">
-                                    <div className="w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mb-2">
-                                        <Sparkles className="w-8 h-8 text-indigo-500 dark:text-indigo-400" />
+                                    <div className="w-16 h-16 rounded-full bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center mb-2">
+                                        <Sparkles className="w-8 h-8 text-sky-500 dark:text-sky-400" />
                                     </div>
                                     <div>
                                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
@@ -1084,7 +1077,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                         <p className="text-slate-500 dark:text-slate-400 max-w-xs mx-auto mb-6">
                                             Aún no tienes compromisos registrados. Comienza agregando tus ingresos y gastos fijos.
                                         </p>
-                                        <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 py-2 px-4 rounded-full inline-block">
+                                        <p className="text-sm font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 py-2 px-4 rounded-full inline-block">
                                             ✨ Tip: Usa el botón "+" arriba a la derecha
                                         </p>
                                     </div>
@@ -1106,46 +1099,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
             {/* Desktop View Content */}
             < div className="hidden lg:block px-4" >
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-xl shadow-slate-200/50 dark:shadow-black/30 overflow-x-hidden mt-2">
-                    {/* Simplified Header - Only Tabs */}
-                    <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30">
-                        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                            <span className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide mr-2">
-                                Filtrar:
-                            </span>
-                            {availableCategories.map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => setSelectedCategory(cat)}
-                                    className={`
-                                        px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap
-                                        transition-all duration-200
-                                        ${selectedCategory === cat
-                                            ? 'bg-sky-500 text-white shadow-sm'
-                                            : 'bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'
-                                        }
-                                    `}
-                                >
-                                    {cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? 'Importantes' : cat}
-                                    <span className={`ml-1.5 text-xs ${selectedCategory === cat ? 'opacity-80' : 'opacity-50'}`}>
-                                        ({cat === 'all'
-                                            ? commitments.filter(c => viewMode === 'inventory' || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
-                                            : cat === 'FILTER_IMPORTANT'
-                                                ? commitments.filter(c => {
-                                                    const isActive = viewMode === 'inventory' || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
-                                                    return isActive && c.is_important;
-                                                }).length
-                                                : commitments.filter(c => {
-                                                    const categoryName = getTranslatedCategoryName(c);
-                                                    const isActive = viewMode === 'inventory' || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date();
-                                                    return isActive && categoryName === cat;
-                                                }).length
-                                        })
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+                <div className="mt-4">
+
 
                     {/* Grid */}
                     <div className="relative mb-2">
@@ -1154,77 +1109,68 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
                         <div
                             ref={scrollAreaRef}
-                            className="relative overflow-x-auto overflow-y-auto scrollbar-thin pr-1"
+                            className="relative overflow-x-auto overflow-y-auto scrollbar-thin pr-1 rounded-tl-3xl"
                             style={{ height: `${availableHeight}px` }}
                         >
                             <table className="w-full border-collapse">
-                                <thead className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm">
-                                    <tr>
-                                        <th className={`sticky left-0 z-50 bg-slate-50 dark:bg-slate-800 text-left font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-200 dark:border-slate-700 ${density === 'compact' ? 'px-3 py-2 min-w-[140px] max-w-[300px] w-auto text-sm' : 'p-3 min-w-[220px]'}`}>
-                                            Compromiso
+                                <thead className="sticky top-0 z-40">
+                                    {/* Month Header - Continuous Capsule (border-collapse) */}
+                                    <tr className="bg-slate-800 backdrop-blur-xl">
+                                        {/* COMPROMISO - Left end */}
+                                        <th className="sticky left-0 z-50 backdrop-blur-xl p-0 min-w-[160px] max-w-[200px] w-[180px] align-middle bg-slate-800 border border-slate-600/80">
+                                            <div className="flex flex-col items-center justify-center py-3 px-4 min-h-[52px]">
+                                                <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">
+                                                    Compromiso
+                                                </span>
+                                            </div>
                                         </th>
+                                        {/* Month cells */}
                                         {visibleMonths.map((month, i) => (
                                             <th
                                                 key={i}
-                                                id={`month-header-${i}`}
-                                                className={`text-center font-semibold border-r border-slate-200 dark:border-slate-700 last:border-r-0 ${density === 'compact' ? 'px-2 py-2 min-w-[55px] text-sm' : 'p-2.5 min-w-[90px] lg:min-w-[120px]'} ${isCurrentMonth(month)
-                                                    ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 ring-2 ring-inset ring-sky-500/40 font-bold'
-                                                    : 'text-slate-700 dark:text-slate-300'
-                                                    }`}
+                                                className={`relative min-w-[85px] w-auto p-0 text-center align-middle transition-all duration-300 border border-slate-600/80
+                                                    ${isCurrentMonth(month) ? 'bg-slate-700' : 'bg-slate-800'}
+                                                `}
                                             >
-                                                <div className="capitalize leading-tight">
-                                                    {density === 'compact'
-                                                        ? month.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }) // e.g. "ago. 26"
-                                                        : month.toLocaleDateString('es-ES', { month: 'short' })
-                                                    }
+                                                {/* Month content */}
+                                                <div className={`
+                                                    min-h-[52px] flex flex-col items-center justify-center py-2.5 px-2 transition-all duration-200
+                                                    ${isCurrentMonth(month) ? 'ring-2 ring-inset ring-sky-500/50' : ''}
+                                                `}>
+                                                    {/* Month name - Protagonist */}
+                                                    <span className={`text-sm tracking-wide ${isCurrentMonth(month)
+                                                        ? 'font-bold text-sky-400'
+                                                        : 'font-semibold text-slate-300'
+                                                        }`}>
+                                                        {month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').charAt(0).toUpperCase() + month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').slice(1)}
+                                                        {density !== 'compact' && (
+                                                            <span className={`text-xs ml-1 font-normal ${isCurrentMonth(month) ? 'text-sky-500/80' : 'text-slate-500'}`}>
+                                                                {month.getFullYear()}
+                                                            </span>
+                                                        )}
+                                                    </span>
+
+                                                    {/* Total paid - Secondary */}
+                                                    <div className={`text-[10px] font-mono mt-1 tabular-nums ${getMonthTotals(month.getFullYear(), month.getMonth()).pagado > 0
+                                                        ? isCurrentMonth(month) ? 'text-emerald-400 font-medium' : 'text-emerald-500/80'
+                                                        : 'text-slate-600'
+                                                        }`}>
+                                                        {getMonthTotals(month.getFullYear(), month.getMonth()).pagado > 0
+                                                            ? formatClp(getMonthTotals(month.getFullYear(), month.getMonth()).pagado)
+                                                            : '—'}
+                                                    </div>
                                                 </div>
-                                                {density !== 'compact' && <div className="text-xs opacity-75">{month.getFullYear()}</div>}
                                             </th>
                                         ))}
                                     </tr>
-                                    {/* Total Pagado Row */}
-                                    <tr className="bg-slate-100/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
-                                        <th className={`sticky left-0 z-50 bg-slate-100 dark:bg-slate-800 text-left text-xs font-medium text-slate-500 dark:text-slate-400 border-r border-slate-200 dark:border-slate-700 ${density === 'compact' ? 'px-3 py-1.5' : 'px-3 py-2'}`}>
-                                            Total pagado
-                                        </th>
-                                        {visibleMonths.map((month, i) => {
-                                            const monthTotals = getMonthTotals(month.getFullYear(), month.getMonth());
-                                            return (
-                                                <th
-                                                    key={i}
-                                                    className={`text-center text-xs font-mono tabular-nums border-r border-slate-200 dark:border-slate-700 last:border-r-0 ${density === 'compact' ? 'px-2 py-1.5' : 'px-2 py-2'} ${monthTotals.pagado > 0
-                                                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-                                                        : 'text-slate-400 dark:text-slate-500'
-                                                        }`}
-                                                >
-                                                    {monthTotals.pagado > 0 ? formatClp(monthTotals.pagado) : '—'}
-                                                </th>
-                                            );
-                                        })}
-                                    </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="bg-transparent">
+
                                     {groupedCommitments.map(({ category, commitments: catCommitments }) => (
                                         <React.Fragment key={category}>
-                                            {/* Category row - only show in non-compact modes */}
-                                            {density !== 'compact' && (
-                                                <tr className="bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 dark:from-slate-800/80 dark:via-slate-800/50 dark:to-slate-800/80">
-                                                    <td className="sticky left-0 z-25 bg-slate-100 dark:bg-slate-800/80 p-3 font-semibold text-slate-700 dark:text-slate-200 border-b border-r border-slate-200 dark:border-slate-700/50 min-w-[220px]">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-lg bg-slate-200/80 dark:bg-slate-700/50 flex items-center justify-center text-slate-500 dark:text-slate-400">
-                                                                {getCategoryIcon(category)}
-                                                            </div>
-                                                            <span className="text-sm font-bold uppercase tracking-wide">{category}</span>
-                                                        </div>
-                                                    </td>
-                                                    {visibleMonths.map((_, mi) => (
-                                                        <td key={mi} className="bg-slate-100/50 dark:bg-slate-800/30 border-b border-r border-slate-200 dark:border-slate-700/50 last:border-r-0" />
-                                                    ))}
-                                                </tr>
-                                            )}
-
+                                            {/* Category badge is now inside each commitment card - no separator needed */}
                                             {/* Commitment rows */}
-                                            {catCommitments.map((commitment, commitmentIdx) => {
+                                            {catCommitments.map((commitment) => {
                                                 const monthDate = focusedDate; // En vista compacta, solo vemos el mes enfocado
 
                                                 const isGloballyTerminated = isCommitmentTerminated(commitment);
@@ -1243,362 +1189,183 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                         key={commitment.id}
                                                         className={`
                                                             group
-                                                            border-b border-slate-200/60 dark:border-slate-700/50
                                                             transition-all duration-200 ease-out
-                                                            ${commitmentIdx % 2 === 0
-                                                                ? 'bg-white dark:bg-slate-900'
-                                                                : 'bg-slate-50/50 dark:bg-slate-800/30'}
-                                                            hover:bg-sky-50/50 dark:hover:bg-sky-900/20
                                                             ${terminated ? 'opacity-60 grayscale-[0.5]' : ''}
                                                         `}
                                                     >
-                                                        {/* Name cell with flow-type accent - Merged with Category for Compact */}
+                                                        {/* Name cell - Bento Card Style */}
                                                         <td
                                                             onClick={() => onEditCommitment(commitment)}
                                                             className={`
-                                                            sticky left-0 z-20 
-                                                            ${terminated ? 'bg-slate-50/95 dark:bg-slate-900/95' : 'bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm'} 
-                                                            group-hover:bg-slate-50 dark:group-hover:bg-slate-800
-                                                            border-r border-slate-100 dark:border-slate-800
-                                                            cursor-pointer
-                                                            ${density === 'compact' ? 'px-3 py-3 min-w-[140px] max-w-[300px] w-auto' : pad}
+                                                            relative sticky left-0 z-30 p-0
+                                                            bg-slate-50 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-800
+                                                            min-w-[160px] max-w-[200px] w-[180px]
+                                                            h-[1px]
                                                         `}>
-                                                            {/* Flow Type Pill Indicator */}
-                                                            <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-10 rounded-r-full ${commitment.flow_type === 'INCOME' ? 'bg-emerald-400' : 'bg-rose-400'} opacity-90`} />
-                                                            {density === 'compact' ? (
-                                                                /* Compact: Single Line Layout -> Name (Left) ... Details (Right) + ACTIONS */
-                                                                <div
-                                                                    className="flex items-center justify-between gap-3 relative pr-8 cursor-pointer group/compact h-full min-h-[32px]"
-                                                                >
-                                                                    {/* Left: Name */}
-                                                                    <div className="min-w-0 flex-1 flex items-center">
-                                                                        <span
-                                                                            className={`font-medium text-sm truncate flex items-center gap-1.5 hover:text-sky-600 ${terminated ? 'line-through text-slate-500' : 'text-slate-900 dark:text-white'}`}
-                                                                            title={`${commitment.name} - Click para editar`}
-                                                                        >
-                                                                            <span className="truncate">{commitment.name}</span>
-                                                                            {/* Important Star */}
-                                                                            {commitment.is_important && (
-                                                                                <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
-                                                                            )}
-                                                                            {/* Linked Icon */}
-                                                                            {commitment.linked_commitment_id && (
-                                                                                <Link2 className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-                                                                            )}
-                                                                            {/* New Item Badge */}
-                                                                            {((new Date().getTime() - new Date(commitment.created_at).getTime()) < 5 * 60 * 1000) && (
-                                                                                <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 ring-1 ring-inset ring-sky-500/30 animate-pulse">
-                                                                                    NUEVO
-                                                                                </span>
-                                                                            )}
-                                                                            {/* Status Badges - Differentiated by termination reason */}
-                                                                            {terminationReason === 'PAUSED' && (
-                                                                                <span className="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 ring-1 ring-inset ring-amber-400/30">
-                                                                                    <PauseIcon className="w-2.5 h-2.5" />
-                                                                                    PAUSADO
-                                                                                </span>
-                                                                            )}
-                                                                            {(viewMode !== 'inventory' && (isGloballyTerminated || terminationReason === 'PAUSED')) && (
-                                                                                <span className="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 ring-1 ring-inset ring-sky-400/30" title="Visible por actividad en el periodo">
-                                                                                    <InfoIcon className="w-2.5 h-2.5" />
-                                                                                    PENDIENTE
-                                                                                </span>
-                                                                            )}
-                                                                            {terminationReason === 'COMPLETED_INSTALLMENTS' && (
-                                                                                <span className="ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 ring-1 ring-inset ring-emerald-400/30">
-                                                                                    <CheckCircleIcon className="w-2.5 h-2.5" />
-                                                                                    COMPLETADO
-                                                                                </span>
-                                                                            )}
-                                                                            {terminationReason === 'TERMINATED' && (
-                                                                                <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 ring-1 ring-inset ring-slate-300/50 dark:ring-slate-600/50">
-                                                                                    TERMINADO
-                                                                                </span>
-                                                                            )}
-                                                                        </span>
-                                                                    </div>
+                                                            {/* Inner Content - Nivel 1: Sólido Estructural per Identidad.md */}
+                                                            <div className={`
+                                                                relative cursor-pointer group/card h-full
+                                                                ${density === 'minimal' ? 'min-h-[40px] px-2 py-1' : density === 'compact' ? 'min-h-[48px] px-2.5 py-1.5' : 'min-h-[100px] px-3 py-2'}
+                                                                bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700/50
+                                                                hover:bg-slate-100 dark:hover:bg-slate-700/50
+                                                                transition-colors duration-200
+                                                                ${terminated ? 'opacity-70' : ''}
+                                                            `}>
+                                                                {/* Flow Type Indicator - Left edge bar */}
+                                                                <div className={`absolute left-0 ${density === 'minimal' ? 'top-1 bottom-1' : 'top-2 bottom-2'} w-1 rounded-full ${commitment.flow_type === 'INCOME' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
 
-                                                                    {/* Right: Category + Amount + Icon */}
-                                                                    <div className="flex items-center gap-2 shrink-0">
-                                                                        <span className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-semibold bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 uppercase tracking-wider ring-1 ring-inset ring-slate-200 dark:ring-slate-700/50">
-                                                                            {getTranslatedCategoryName(commitment)}
-                                                                        </span>
-                                                                        <div className="flex items-center gap-1.5 text-xs font-mono tabular-nums text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/60 px-2 py-0.5 rounded-full ring-1 ring-inset ring-slate-200 dark:ring-slate-700/50">
-                                                                            <span className="font-medium">
-                                                                                {formatClp(
-                                                                                    commitment.active_term
-                                                                                        ? Math.round(getPerPeriodAmount(commitment.active_term, true))
-                                                                                        : 0
-                                                                                )}
-                                                                            </span>
-                                                                            {/* Icon Logic */}
-                                                                            {(commitment.active_term?.frequency === 'ONCE' || (commitment.active_term?.installments_count && commitment.active_term.installments_count > 1))
-                                                                                ? <CalendarIcon className="w-3 h-3 text-slate-400" />
-                                                                                : commitment.active_term?.frequency === 'MONTHLY'
-                                                                                    ? <InfinityIcon className="w-3 h-3 text-slate-400" />
-                                                                                    : null
-                                                                            }
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Actions (Absolute positioned, visible on hover) using DropdownMenu */}
-                                                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-l pl-1" onClick={e => e.stopPropagation()}>
-                                                                        <DropdownMenu.Root>
-                                                                            <DropdownMenu.Trigger asChild>
-                                                                                <button
-                                                                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
-                                                                                >
-                                                                                    <MoreVertical className="w-3.5 h-3.5" />
-                                                                                </button>
-                                                                            </DropdownMenu.Trigger>
-                                                                            <DropdownMenu.Portal>
-                                                                                <DropdownMenu.Content
-                                                                                    className="min-w-[180px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200"
-                                                                                    sideOffset={5}
-                                                                                    align="end"
-                                                                                    onCloseAutoFocus={(e) => e.preventDefault()}
-                                                                                >
-                                                                                    <DropdownMenu.Item
-                                                                                        className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer outline-none"
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            onEditCommitment(commitment);
-                                                                                        }}
-                                                                                    >
-                                                                                        <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-500">
-                                                                                            <EditIcon className="w-4 h-4" />
-                                                                                        </div>
-                                                                                        Editar
-                                                                                    </DropdownMenu.Item>
-
-                                                                                    <DropdownMenu.Item
-                                                                                        className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                                                        disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            const hasEndDate = !!commitment.active_term?.effective_until;
-                                                                                            if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
-                                                                                                onResumeCommitment(commitment);
-                                                                                            } else {
-                                                                                                onPauseCommitment(commitment);
-                                                                                            }
-                                                                                        }}
-                                                                                    >
-                                                                                        <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-500">
-                                                                                            <PauseIcon className="w-4 h-4" />
-                                                                                        </div>
-                                                                                        {(() => {
-                                                                                            const hasEndDate = !!commitment.active_term?.effective_until;
-                                                                                            if (terminationReason === 'COMPLETED_INSTALLMENTS') return 'Completado';
-                                                                                            if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') return 'Reanudar';
-                                                                                            return 'Pausar';
-                                                                                        })()}
-                                                                                    </DropdownMenu.Item>
-
-                                                                                    <DropdownMenu.Separator className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
-
-                                                                                    <DropdownMenu.Item
-                                                                                        className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 cursor-pointer outline-none"
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            onDeleteCommitment(commitment.id);
-                                                                                        }}
-                                                                                    >
-                                                                                        <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-500">
-                                                                                            <TrashIcon className="w-4 h-4" />
-                                                                                        </div>
-                                                                                        Eliminar
-                                                                                    </DropdownMenu.Item>
-                                                                                </DropdownMenu.Content>
-                                                                            </DropdownMenu.Portal>
-                                                                        </DropdownMenu.Root>
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                /* Full: All details */
-                                                                <div className="flex items-start justify-between gap-2">
+                                                                {/* Content Container - Different layouts for minimal/compact/detailed */}
+                                                                {density === 'minimal' ? (
+                                                                    /* === MINIMAL: Single line with tooltip === */
                                                                     <div
-                                                                        className="flex-grow cursor-pointer"
+                                                                        className="flex items-center justify-between h-full pl-2 pr-4"
+                                                                        title={`${commitment.name} · ${getTranslatedCategoryName(commitment)} · ${formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}`}
                                                                     >
-                                                                        <div className="flex items-center gap-2">
-                                                                            {commitment.flow_type === 'INCOME' ? (
-                                                                                <ArrowTrendingUpIcon className="w-4 h-4 text-green-600" />
+                                                                        <span className={`font-semibold truncate text-xs ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>
+                                                                            {commitment.name}
+                                                                        </span>
+                                                                        {commitment.is_important && <StarIcon className="w-2.5 h-2.5 text-amber-500 fill-amber-500 shrink-0 ml-1" />}
+                                                                    </div>
+                                                                ) : density === 'compact' ? (
+                                                                    /* === COMPACT: 2 rows === */
+                                                                    <div className="flex flex-col justify-center h-full pl-2 pr-6">
+                                                                        {/* Row 1: Name + Icons */}
+                                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                                            <span className={`font-semibold truncate text-sm ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
+                                                                                {commitment.name}
+                                                                            </span>
+                                                                            {commitment.is_important && <StarIcon className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />}
+                                                                            {commitment.linked_commitment_id && <Link2 className="w-3 h-3 text-sky-500 shrink-0" />}
+                                                                        </div>
+                                                                        {/* Row 2: Category + Amount */}
+                                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                                            <span className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                                                                {getTranslatedCategoryName(commitment)}
+                                                                            </span>
+                                                                            <span className="font-mono font-semibold text-xs tabular-nums text-slate-700 dark:text-slate-200">
+                                                                                {formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    /* === DETAILED: 4 rows to match payment cells === */
+                                                                    <div className="flex flex-col justify-between h-full px-3 py-1">
+                                                                        {/* Row 1: Name + Icons */}
+                                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                                            <span className={`font-bold truncate text-base ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
+                                                                                {commitment.name}
+                                                                            </span>
+                                                                            {commitment.is_important && <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />}
+                                                                            {commitment.linked_commitment_id && <Link2 className="w-3.5 h-3.5 text-sky-500 shrink-0" />}
+                                                                        </div>
+
+                                                                        {/* Row 2: Category badge + Frequency */}
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300">
+                                                                                {getTranslatedCategoryName(commitment)}
+                                                                            </span>
+                                                                            {/* Removed loose frequency icons in favor of badges below */}
+                                                                        </div>
+
+                                                                        {/* Row 3: Amount (protagonista) */}
+                                                                        <div className="font-mono font-bold text-xl tabular-nums text-slate-900 dark:text-white tracking-tight">
+                                                                            {formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}
+                                                                        </div>
+
+                                                                        {/* Row 4: Term info - Ghost style (no bg/border) */}
+                                                                        <div className="flex items-center justify-between">
+                                                                            {/* Recurrence/Term info - minimal */}
+                                                                            {/* Tech Badge for Term/Recurrence */}
+                                                                            {commitment.active_term?.effective_until ? (
+                                                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-800 ring-1 ring-sky-500/10">
+                                                                                    {commitment.active_term.installments_count && commitment.active_term.installments_count > 1 ? (
+                                                                                        <>
+                                                                                            <HashIcon className="w-3 h-3 text-sky-500" />
+                                                                                            {commitment.active_term.installments_count} Cuotas
+                                                                                        </>
+                                                                                    ) : (
+                                                                                        <>
+                                                                                            <CalendarIcon className="w-3 h-3 text-sky-500" />
+                                                                                            {(() => {
+                                                                                                const [y, m] = commitment.active_term!.effective_until.substring(0, 7).split('-');
+                                                                                                const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                                                                                                return `${months[parseInt(m) - 1]} ${y}`;
+                                                                                            })()}
+                                                                                        </>
+                                                                                    )}
+                                                                                </span>
                                                                             ) : (
-                                                                                <ArrowTrendingDownIcon className="w-4 h-4 text-red-600" />
-                                                                            )}
-                                                                            <span className={`font-medium ${terminated ? 'line-through text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white'}`}>{commitment.name}</span>
-                                                                            {(viewMode !== 'inventory' && (isGloballyTerminated || terminationReason === 'PAUSED')) && (
-                                                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 ring-1 ring-inset ring-indigo-500/20" title="Visible por actividad en el periodo">
-                                                                                    <InfoIcon className="w-2.5 h-2.5" />
-                                                                                    PENDIENTE
+                                                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                                                                    <RefreshCw className="w-3 h-3 text-slate-400" /> Mensual
                                                                                 </span>
                                                                             )}
-                                                                            {commitment.is_important && <StarIcon className="w-4 h-4 text-amber-500" />}
-                                                                            {commitment.linked_commitment_id && (() => {
-                                                                                const linkedCommitment = commitments.find(c => c.id === commitment.linked_commitment_id);
-                                                                                if (!linkedCommitment) return null;
-
-                                                                                // Get current month for calculating actual NET
-                                                                                const now = new Date();
-                                                                                // currentPeriod removed (we use robust date matching now)
-
-                                                                                // Get actual amount for this commitment (payment or projected)
-                                                                                // myPayments removed (unused)
-                                                                                const myStatus = getPaymentStatus(commitment.id, now, commitment.active_term?.due_day_of_month ?? 1);
-                                                                                const myPayment = myStatus.payment;
-                                                                                const myAmount = myPayment?.amount_in_base ?? (commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0);
-
-                                                                                // Get actual amount for linked commitment
-                                                                                // linkedPayments removed (unused)
-                                                                                const linkedStatus = getPaymentStatus(linkedCommitment.id, now, linkedCommitment.active_term?.due_day_of_month ?? 1);
-                                                                                const linkedPayment = linkedStatus.payment;
-                                                                                const linkedAmount = linkedPayment?.amount_in_base ?? (linkedCommitment.active_term ? getPerPeriodAmount(linkedCommitment.active_term, true) : 0);
-
-                                                                                const netAmount = Math.abs(myAmount - linkedAmount);
-                                                                                const netType = myAmount >= linkedAmount ? commitment.flow_type : linkedCommitment.flow_type;
-                                                                                return (
-                                                                                    <span
-                                                                                        className="relative group"
-                                                                                        title={`Vinculado con ${linkedCommitment.name}`}
-                                                                                    >
-                                                                                        <Link2 className="w-3.5 h-3.5 text-sky-500" />
-                                                                                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1.5 text-xs bg-slate-800 dark:bg-slate-700 text-white rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg">
-                                                                                            <span className="block font-medium">Compensado con {linkedCommitment.name}</span>
-                                                                                            <span className="block text-slate-300">
-                                                                                                Neto este mes: <span className={`tabular-nums ${netType === 'EXPENSE' ? 'text-red-400' : 'text-green-400'}`}>
-                                                                                                    {netType === 'EXPENSE' ? '-' : '+'}${netAmount.toLocaleString('es-CL')}
-                                                                                                </span>
-                                                                                            </span>
-                                                                                        </span>
-                                                                                    </span>
-                                                                                );
-                                                                            })()}
-                                                                            {/* Status Badges - Differentiated */}
+                                                                            {/* Status icons - solo cuando hay estado especial */}
                                                                             {terminationReason === 'PAUSED' && (
-                                                                                <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded flex items-center gap-1">
-                                                                                    <PauseIcon className="w-3 h-3" />
-                                                                                    Pausado
-                                                                                </span>
+                                                                                <PauseIcon className="w-3.5 h-3.5 text-amber-500" />
                                                                             )}
                                                                             {terminationReason === 'COMPLETED_INSTALLMENTS' && (
-                                                                                <span className="text-xs px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded flex items-center gap-1">
-                                                                                    <CheckCircleIcon className="w-3 h-3" />
-                                                                                    Completado
-                                                                                </span>
+                                                                                <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500" />
                                                                             )}
                                                                             {terminationReason === 'TERMINATED' && (
-                                                                                <span className="text-xs px-1.5 py-0.5 bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded">
-                                                                                    Terminado
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                                                            {/* Icon Logic: Mutually Exclusive */}
-                                                                            {(commitment.active_term?.frequency === 'ONCE' || (commitment.active_term?.installments_count && commitment.active_term?.installments_count > 1))
-                                                                                ? <CalendarIcon className="w-4 h-4" />
-                                                                                : commitment.active_term?.frequency === 'MONTHLY'
-                                                                                    ? (commitment.active_term.effective_until ? <ClockIcon className="w-4 h-4 text-amber-500" /> : <InfinityIcon className="w-4 h-4" />)
-                                                                                    : null
-                                                                            }
-
-                                                                            {!commitment.active_term && (
-                                                                                <span className="text-amber-600 dark:text-amber-400">Expirado</span>
-                                                                            )}
-                                                                            {commitment.active_term && (
-                                                                                <div className="flex items-center gap-1.5">
-                                                                                    <span>
-                                                                                        {commitment.active_term.installments_count && commitment.active_term.installments_count > 1
-                                                                                            ? (commitment.active_term.is_divided_amount ? 'En cuotas' : 'Definido')
-                                                                                            : commitment.active_term.frequency === 'MONTHLY'
-                                                                                                ? (commitment.active_term.effective_until ? (() => {
-                                                                                                    const [y, m] = commitment.active_term.effective_until.substring(0, 7).split('-');
-                                                                                                    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-                                                                                                    return `Hasta ${months[parseInt(m) - 1]} ${y}`;
-                                                                                                })() : 'Indefinido')
-                                                                                                : commitment.active_term.frequency}
-                                                                                    </span>
-                                                                                    <span className="text-slate-300 dark:text-slate-600">•</span>
-                                                                                    <span className="font-mono tabular-nums text-slate-600 dark:text-slate-300">
-                                                                                        {formatClp(Math.round(getPerPeriodAmount(commitment.active_term, true)))}
-                                                                                    </span>
-                                                                                </div>
+                                                                                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Fin</span>
                                                                             )}
                                                                         </div>
                                                                     </div>
-                                                                    {/* Actions using DropdownMenu */}
-                                                                    <div className="flex items-center gap-0.5 flex-shrink-0">
-                                                                        <DropdownMenu.Root>
-                                                                            <DropdownMenu.Trigger asChild>
-                                                                                <button
-                                                                                    className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700/50 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                                                                                    onClick={(e) => e.stopPropagation()} // Prevent triggering edit modal
+                                                                )}
+
+                                                                {/* Actions Menu (Absolute, hover) */}
+                                                                <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/card:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                                                                    <DropdownMenu.Root>
+                                                                        <DropdownMenu.Trigger asChild>
+                                                                            <button className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                                                                                <MoreVertical className="w-4 h-4" />
+                                                                            </button>
+                                                                        </DropdownMenu.Trigger>
+                                                                        <DropdownMenu.Portal>
+                                                                            <DropdownMenu.Content
+                                                                                className="min-w-[160px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 p-1 z-50 animate-in fade-in zoom-in-95 duration-200"
+                                                                                sideOffset={5}
+                                                                                align="end"
+                                                                            >
+                                                                                <DropdownMenu.Item
+                                                                                    className="flex items-center gap-2 px-2.5 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer outline-none"
+                                                                                    onClick={(e) => { e.stopPropagation(); onEditCommitment(commitment); }}
                                                                                 >
-                                                                                    <MoreVertical className="w-4 h-4" />
-                                                                                </button>
-                                                                            </DropdownMenu.Trigger>
-                                                                            <DropdownMenu.Portal>
-                                                                                <DropdownMenu.Content
-                                                                                    className="min-w-[180px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200"
-                                                                                    sideOffset={5}
-                                                                                    align="end"
+                                                                                    <EditIcon className="w-3.5 h-3.5 text-blue-500" /> Editar
+                                                                                </DropdownMenu.Item>
+                                                                                <DropdownMenu.Item
+                                                                                    className={`flex items-center gap-2 px-2.5 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50' : ''}`}
+                                                                                    disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        const hasEndDate = !!commitment.active_term?.effective_until;
+                                                                                        if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
+                                                                                            onResumeCommitment(commitment);
+                                                                                        } else {
+                                                                                            onPauseCommitment(commitment);
+                                                                                        }
+                                                                                    }}
                                                                                 >
-                                                                                    <DropdownMenu.Item
-                                                                                        className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer outline-none"
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            onEditCommitment(commitment);
-                                                                                        }}
-                                                                                    >
-                                                                                        <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-500">
-                                                                                            <EditIcon className="w-4 h-4" />
-                                                                                        </div>
-                                                                                        Editar
-                                                                                    </DropdownMenu.Item>
-
-                                                                                    <DropdownMenu.Item
-                                                                                        className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-pointer outline-none ${terminationReason === 'COMPLETED_INSTALLMENTS' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                                                        disabled={terminationReason === 'COMPLETED_INSTALLMENTS'}
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            const hasEndDate = !!commitment.active_term?.effective_until;
-                                                                                            if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') {
-                                                                                                onResumeCommitment(commitment);
-                                                                                            } else {
-                                                                                                onPauseCommitment(commitment);
-                                                                                            }
-                                                                                        }}
-                                                                                    >
-                                                                                        <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-500">
-                                                                                            <PauseIcon className="w-4 h-4" />
-                                                                                        </div>
-                                                                                        {(() => {
-                                                                                            const hasEndDate = !!commitment.active_term?.effective_until;
-                                                                                            if (terminationReason === 'COMPLETED_INSTALLMENTS') return 'Completado';
-                                                                                            if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') return 'Reanudar';
-                                                                                            return 'Pausar';
-                                                                                        })()}
-                                                                                    </DropdownMenu.Item>
-
-                                                                                    <DropdownMenu.Separator className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
-
-                                                                                    <DropdownMenu.Item
-                                                                                        className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-rose-600 dark:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 cursor-pointer outline-none"
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            onDeleteCommitment(commitment.id);
-                                                                                        }}
-                                                                                    >
-                                                                                        <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-500">
-                                                                                            <TrashIcon className="w-4 h-4" />
-                                                                                        </div>
-                                                                                        Eliminar
-                                                                                    </DropdownMenu.Item>
-                                                                                </DropdownMenu.Content>
-                                                                            </DropdownMenu.Portal>
-                                                                        </DropdownMenu.Root>
-                                                                    </div>
+                                                                                    <PauseIcon className="w-3.5 h-3.5 text-amber-500" />
+                                                                                    {(() => {
+                                                                                        const hasEndDate = !!commitment.active_term?.effective_until;
+                                                                                        if (terminationReason === 'COMPLETED_INSTALLMENTS') return 'Completado';
+                                                                                        if (hasEndDate || terminationReason === 'PAUSED' || terminationReason === 'TERMINATED') return 'Reanudar';
+                                                                                        return 'Pausar';
+                                                                                    })()}
+                                                                                </DropdownMenu.Item>
+                                                                                <DropdownMenu.Separator className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
+                                                                                <DropdownMenu.Item
+                                                                                    className="flex items-center gap-2 px-2.5 py-2 text-sm font-medium text-rose-600 dark:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/10 cursor-pointer outline-none"
+                                                                                    onClick={(e) => { e.stopPropagation(); onDeleteCommitment(commitment.id); }}
+                                                                                >
+                                                                                    <TrashIcon className="w-3.5 h-3.5" /> Eliminar
+                                                                                </DropdownMenu.Item>
+                                                                            </DropdownMenu.Content>
+                                                                        </DropdownMenu.Portal>
+                                                                    </DropdownMenu.Root>
                                                                 </div>
-                                                            )}
+                                                            </div>{/* Close Inner Bento Card */}
                                                         </td>
 
                                                         {/* Month cells */}
@@ -1662,29 +1429,108 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                 ? Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
                                                                 : 0;
                                                             const isDisabled = isFutureMonth && !(hasPaymentRecord || (installmentsCount && installmentsCount > 1));
+
+                                                            // === Render Status Badge Helper ===
+                                                            const renderStatusBadge = () => {
+                                                                if (isPaid) {
+                                                                    return (
+                                                                        <div className="grid grid-cols-1 items-center justify-items-center group/badge w-full mt-1">
+                                                                            <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 group-hover/cell:opacity-0">
+                                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 ring-1 ring-emerald-500/10">
+                                                                                    {paidOnTime && <Sparkles className="w-3 h-3" />}
+                                                                                    <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                                                    Pagado
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 opacity-0 group-hover/cell:opacity-100">
+                                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 cursor-pointer">
+                                                                                    <EditIcon className="w-3.5 h-3.5" />
+                                                                                    Editar
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                                if (isOverdue) {
+                                                                    return (
+                                                                        <div className="grid grid-cols-1 items-center justify-items-center group/badge w-full mt-1">
+                                                                            <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 group-hover/cell:opacity-0">
+                                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-800 ring-1 ring-rose-500/10">
+                                                                                    <ExclamationTriangleIcon className="w-3.5 h-3.5 animate-pulse" />
+                                                                                    -{daysOverdue}d
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 opacity-0 group-hover/cell:opacity-100">
+                                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-700 cursor-pointer">
+                                                                                    <PlusIcon className="w-3.5 h-3.5" />
+                                                                                    Pagar
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                                if (isPending && (isCurrentMonth(monthDate) || !(daysRemaining > 45))) {
+                                                                    return (
+                                                                        <div className="grid grid-cols-1 items-center justify-items-center group/badge w-full mt-1">
+                                                                            <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 group-hover/cell:opacity-0">
+                                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-800 ring-1 ring-amber-500/10">
+                                                                                    <ClockIcon className="w-3.5 h-3.5" />
+                                                                                    {daysRemaining === 0 ? 'Hoy' : `${daysRemaining}d`}
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 opacity-0 group-hover/cell:opacity-100">
+                                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-700 cursor-pointer">
+                                                                                    <PlusIcon className="w-3.5 h-3.5" />
+                                                                                    Pagar
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                                // Default: Scheduled / Future
+                                                                return (
+                                                                    <div className="grid grid-cols-1 items-center justify-items-center group/badge w-full mt-1">
+                                                                        <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 group-hover/cell:opacity-0">
+                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                                                                <CalendarIcon className="w-3.5 h-3.5" />
+                                                                                Prog.
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 opacity-0 group-hover/cell:opacity-100">
+                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 cursor-pointer">
+                                                                                <PlusIcon className="w-3.5 h-3.5" />
+                                                                                Pagar
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            };
+
                                                             return (
                                                                 <td
                                                                     key={mi}
-                                                                    className={`
-                                                                        text-right p-0.5
-                                                                        cursor-pointer transition-all duration-150 ease-out group/cell
-                                                                    `}
+                                                                    className="p-1 h-[1px]"
                                                                     onClick={() => onRecordPayment(commitment.id, dateToPeriod(monthDate))}
                                                                 >
+                                                                    {/* Mini Bento Card for payment cell - Nivel 2: Estándar per Identidad.md */}
                                                                     <div className={`
-                                                                        rounded-lg p-2 h-full w-full transition-all
-                                                                        hover:ring-2 hover:ring-inset hover:ring-sky-500/50 dark:hover:ring-sky-400/50
-                                                                        ${isCurrentMonth(monthDate) ? 'bg-sky-50/60 dark:bg-sky-900/25 ring-1 ring-inset ring-sky-500/30' : 'bg-slate-50/50 dark:bg-slate-800/30'}
-                                                                        ${isDisabled ? 'opacity-50 grayscale hover:opacity-100 hover:grayscale-0' : ''}
-                                                                        ${isGap ? 'bg-slate-100/80 dark:bg-slate-900/60' : ''}
-                                                                        ${isOverdue ? 'bg-rose-50/60 dark:bg-rose-950/30' : ''}
-                                                                        ${isPending ? 'bg-amber-50/50 dark:bg-amber-950/25' : ''}
-                                                                        ${isPaid ? 'bg-emerald-50/50 dark:bg-emerald-950/25' : ''}
+                                                                        rounded-lg w-full h-full transition-all duration-200 cursor-pointer
+                                                                        flex flex-col items-center justify-center border
+                                                                        ${density === 'minimal' ? 'px-1 py-0.5 min-h-[40px]' : density === 'compact' ? 'px-1.5 py-1 min-h-[48px]' : 'px-2 py-2 min-h-[100px]'}
+                                                                        ${isCurrentMonth(monthDate)
+                                                                            ? 'bg-slate-800/60 border-sky-500/40 ring-2 ring-sky-500/20' // Nivel 4: Highlight
+                                                                            : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/50' // Nivel 2: Estándar
+                                                                        }
+                                                                        ${isDisabled ? 'opacity-50 bg-slate-900/20 border-slate-700/30' : ''} // Nivel 3: Deshabilitado (más visible)
+                                                                        ${isGap ? 'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-300 dark:border-slate-800' : ''} // Nivel 3: Gap
+                                                                        ${isOverdue ? '!border-rose-500 dark:!border-rose-500/60 ring-1 ring-rose-500/20' : ''}
+                                                                        ${isPending ? '!border-amber-400 dark:!border-amber-500/50 ring-1 ring-amber-500/20' : ''}
+                                                                        ${isPaid ? '!border-emerald-400 dark:!border-emerald-500/50 ring-1 ring-emerald-500/20' : ''}
                                                                     `}>
                                                                         {/* GAP: No term for this period */}
                                                                         {!term && !isPaid ? (
-                                                                            <div className="flex items-center justify-center h-full w-full text-slate-300 dark:text-slate-700 select-none" title="Sin término activo en este período">
-                                                                                <Minus className="w-4 h-4 opacity-50" />
+                                                                            <div className="flex items-center justify-center h-full w-full text-slate-400 dark:text-slate-600 select-none" title="Sin término activo en este período">
+                                                                                <Minus className="w-5 h-5" />
                                                                             </div>
                                                                         ) : !term && isPaid ? (
                                                                             /* ORPHAN: Payment without term */
@@ -1697,6 +1543,50 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                 </div>
                                                                             </div>
                                                                         ) : (isActive || isPaid) ? (
+                                                                            /* === MINIMAL VIEW: Amount + icon only === */
+                                                                            density === 'minimal' ? (
+                                                                                <CompactTooltip
+                                                                                    triggerClassName="p-0"
+                                                                                    sideOffset={8}
+                                                                                    content={
+                                                                                        <div className="min-w-[130px] text-slate-800 dark:text-slate-100">
+                                                                                            <div className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 mb-1.5">
+                                                                                                {monthDate.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
+                                                                                            </div>
+                                                                                            <div className="text-base font-bold font-mono tabular-nums">
+                                                                                                {formatClp(displayAmount!)}
+                                                                                            </div>
+                                                                                            {(cuotaNumber && installmentsCount && installmentsCount > 1) && (
+                                                                                                <div className="text-[10px] text-slate-500 mt-1">
+                                                                                                    Cuota {cuotaNumber}/{installmentsCount}
+                                                                                                </div>
+                                                                                            )}
+                                                                                            <div className={`text-[10px] font-medium mt-1.5 ${
+                                                                                                isPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                                                                                                isOverdue ? 'text-rose-600 dark:text-rose-400' :
+                                                                                                'text-amber-600 dark:text-amber-400'
+                                                                                            }`}>
+                                                                                                {isPaid ? '✓ Pagado' : isOverdue ? '⚠ Vencido' : '⏱ Pendiente'}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    }
+                                                                                >
+                                                                                    {/* Minimal cell: ONLY status icon (centered, larger for visibility) */}
+                                                                                    <div className="flex items-center justify-center h-full w-full">
+                                                                                        {isPaid ? (
+                                                                                            <CheckCircleIcon className="w-6 h-6 text-emerald-500" />
+                                                                                        ) : isOverdue ? (
+                                                                                            <ExclamationTriangleIcon className="w-6 h-6 text-rose-500 animate-pulse" />
+                                                                                        ) : isPending ? (
+                                                                                            <ClockIcon className="w-6 h-6 text-amber-500" />
+                                                                                        ) : isDisabled ? (
+                                                                                            <CalendarIcon className="w-5 h-5 text-slate-400" />
+                                                                                        ) : (
+                                                                                            <CalendarIcon className="w-6 h-6 text-sky-400" />
+                                                                                        )}
+                                                                                    </div>
+                                                                                </CompactTooltip>
+                                                                            ) :
                                                                             /* === COMPACT VIEW: Rectangular pill badges === */
                                                                             density === 'compact' ? (
                                                                                 <CompactTooltip
@@ -1786,168 +1676,93 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         </div>
                                                                                     }
                                                                                 >
-                                                                                    <div className="relative flex justify-center items-center h-full">
-                                                                                        {isPaid ? (
-                                                                                            <div
-                                                                                                className="relative flex items-center justify-center w-full h-full cursor-pointer group/paid"
-                                                                                                onClick={(e) => {
-                                                                                                    e.stopPropagation();
-                                                                                                    onRecordPayment(commitment.id, dateToPeriod(monthDate));
-                                                                                                }}
-                                                                                            >
-                                                                                                {/* Check Icon (Default) - Scales down on hover */}
-                                                                                                <div className={`
-                                                                                                flex items-center justify-center transition-all duration-300 group-hover/cell:scale-0 group-hover/cell:opacity-0
-                                                                                                ${paidOnTime ? 'text-emerald-400' : 'text-emerald-500'}
-                                                                                            `}>
-                                                                                                    <CheckCircleIcon className="w-5 h-5" />
-                                                                                                </div>
+                                                                                    <div className="flex items-center justify-between w-full h-full px-1 gap-2">
+                                                                                        {/* Left: Status Icon (Sutil) */}
+                                                                                        <div className={`opacity-60 transition-opacity group-hover/cell:opacity-100 ${isPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                                                                                            isOverdue ? 'text-rose-500 dark:text-rose-400' :
+                                                                                                'text-slate-400 dark:text-slate-500'
+                                                                                            }`}>
+                                                                                            {isPaid ? <CheckCircleIcon className="w-3.5 h-3.5" /> :
+                                                                                                isOverdue ? <ExclamationTriangleIcon className="w-3.5 h-3.5" /> :
+                                                                                                    isPending ? <ClockIcon className="w-3.5 h-3.5" /> :
+                                                                                                        (installmentsCount && installmentsCount > 1) ? <CalendarIcon className="w-3.5 h-3.5" /> :
+                                                                                                            null}
+                                                                                        </div>
 
-                                                                                                {/* Edit Icon (Hover) - Scales up */}
-                                                                                                <div className="absolute inset-0 flex items-center justify-center transition-all duration-300 scale-0 opacity-0 group-hover/cell:scale-100 group-hover/cell:opacity-100 text-slate-500 dark:text-slate-400">
-                                                                                                    <EditIcon className="w-5 h-5" />
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        ) : (
-                                                                                            /* For unpaid items, we show status icon that transforms to + on hover */
-                                                                                            <div
-                                                                                                className="relative flex items-center justify-center w-full h-full cursor-pointer"
-                                                                                                onClick={(e) => {
-                                                                                                    e.stopPropagation();
-                                                                                                    onRecordPayment(commitment.id, dateToPeriod(monthDate));
-                                                                                                }}
-                                                                                            >
-                                                                                                {/* Original Icon - Scales down on hover */}
-                                                                                                <div className={`transition-all duration-300 group-hover/cell:scale-0 group-hover/cell:opacity-0 flex items-center justify-center
-                                                                                                ${isOverdue ? 'text-red-500 animate-pulse' :
-                                                                                                        isPending ? 'text-amber-500' :
-                                                                                                            (installmentsCount && installmentsCount > 1) ? 'text-slate-500 dark:text-slate-400' :
-                                                                                                                (hasPaymentRecord) ? 'text-slate-500 dark:text-slate-400' :
-                                                                                                                    'text-slate-700 dark:text-slate-600'}
-                                                                                            `}>
-                                                                                                    {isOverdue ? <ExclamationTriangleIcon className="w-5 h-5" /> :
-                                                                                                        isPending ? <ClockIcon className="w-5 h-5" /> :
-                                                                                                            (installmentsCount && installmentsCount > 1) ? <CalendarIcon className="w-4 h-4" /> :
-                                                                                                                <ClockIcon className={`w-5 h-5 ${!hasPaymentRecord ? 'opacity-40' : ''}`} />
-                                                                                                    }
-                                                                                                </div>
-
-                                                                                                {/* Plus Icon - Scales up on hover (siempre sky para acción) */}
-                                                                                                <div className="absolute inset-0 flex items-center justify-center transition-all duration-300 scale-0 opacity-0 group-hover/cell:scale-100 group-hover/cell:opacity-100 text-sky-500">
-                                                                                                    <PlusIcon className="w-6 h-6 stroke-2" />
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        )}
+                                                                                        {/* Right: Amount + Cuota */}
+                                                                                        <div className="flex flex-col items-end leading-none">
+                                                                                            <span className={`text-sm font-semibold tabular-nums ${isPaid ? 'text-emerald-800 dark:text-emerald-200' :
+                                                                                                isOverdue ? 'text-rose-700 dark:text-rose-300' :
+                                                                                                    'text-slate-700 dark:text-slate-200'
+                                                                                                }`}>
+                                                                                                {formatClp(displayAmount!)}
+                                                                                            </span>
+                                                                                            {(cuotaNumber && installmentsCount && installmentsCount > 1) && (
+                                                                                                <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                                                                                                    {cuotaNumber}/{installmentsCount}
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
                                                                                     </div>
                                                                                 </CompactTooltip>
                                                                             ) : (
-                                                                                /* === FULL VIEW: All details === */
+                                                                                /* === FULL VIEW: Optimized hierarchy === */
                                                                                 <div
-                                                                                    className={`${pad} relative space-y-1 h-full flex flex-col justify-center cursor-pointer`}
+                                                                                    className={`${pad} relative h-full flex flex-col justify-between cursor-pointer py-1.5`}
                                                                                     onClick={(e) => {
                                                                                         e.stopPropagation();
                                                                                         onRecordPayment(commitment.id, dateToPeriod(monthDate));
                                                                                     }}
                                                                                 >
-                                                                                    {/* Main amount - neutral colors */}
-                                                                                    <div className="font-semibold font-mono tabular-nums text-base text-slate-800 dark:text-slate-100">
-                                                                                        {formatClp(displayAmount)}
-                                                                                    </div>
-                                                                                    {/* Original currency */}
-                                                                                    {showOriginalCurrency && (
-                                                                                        <div className="text-xs text-slate-500 tabular-nums">
-                                                                                            {originalCurrency} {perPeriodOriginal.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                                                        </div>
-                                                                                    )}
-                                                                                    {/* Due date */}
-                                                                                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                                                        {isPaid && currentPayment?.payment_date ?
-                                                                                            `Pagado: ${new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}` :
-                                                                                            `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
-                                                                                        }
-                                                                                    </div>
-                                                                                    {/* Cuota / Payment number info */}
-                                                                                    {cuotaNumber && installmentsCount && installmentsCount > 1 ? (
-                                                                                        <div className="text-xs text-slate-500">
-                                                                                            {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
-                                                                                        </div>
-                                                                                    ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
-                                                                                        <div className="text-xs text-slate-500">
-                                                                                            Pago {(() => {
-                                                                                                // Parse date parts directly to avoid timezone issues
-                                                                                                const [startYear, startMonth] = term.effective_from.split('-').map(Number);
-                                                                                                const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
-                                                                                                    (monthDate.getMonth() + 1 - startMonth) + 1; // +1 for 0-indexed month
-                                                                                                return paymentNumber > 0 ? paymentNumber : 1;
-                                                                                            })()}/∞
-                                                                                        </div>
-                                                                                    ) : null}
-                                                                                    {/* Status badge - enhanced styling */}
-                                                                                    {/* Status badge - enhanced styling with hover animation */}
-                                                                                    <div className="flex items-center justify-end min-h-[20px]">
-                                                                                        {isPaid ? (
-                                                                                            <div className="grid grid-cols-1 items-center justify-items-end group/badge">
-                                                                                                {/* Default: Paid */}
-                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400
-                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
-                                                                                                    {paidOnTime && <Sparkles className="w-3 h-3" />}
-                                                                                                    <CheckCircleIcon className="w-3.5 h-3.5" />
-                                                                                                    <span className="text-xs font-medium">Pagado</span>
-                                                                                                </div>
-                                                                                                {/* Hover: Edit */}
-                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300
-                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
-                                                                                                    <EditIcon className="w-3.5 h-3.5" />
-                                                                                                    <span className="text-xs font-medium">Editar</span>
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        ) : isOverdue ? (
-                                                                                            <div className="grid grid-cols-1 items-center justify-items-end group/badge">
-                                                                                                {/* Default: Overdue */}
-                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100/80 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse
-                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
-                                                                                                    <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-                                                                                                    <span className="text-xs font-medium">Vencido ({daysOverdue}d)</span>
-                                                                                                </div>
-                                                                                                {/* Hover: Pay */}
-                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300
-                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
-                                                                                                    <PlusIcon className="w-3.5 h-3.5" />
-                                                                                                    <span className="text-xs font-medium">Registrar</span>
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        ) : isPending && (isCurrentMonth(monthDate) || daysRemaining <= 45) ? (
-                                                                                            <div className="grid grid-cols-1 items-center justify-items-end group/badge">
-                                                                                                {/* Default: Pending */}
-                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100/80 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400
-                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
-                                                                                                    <ClockIcon className="w-3.5 h-3.5" />
-                                                                                                    <span className="text-xs font-medium">{daysRemaining === 0 ? 'Vence hoy' : `En ${daysRemaining}d`}</span>
-                                                                                                </div>
-                                                                                                {/* Hover: Pay */}
-                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400
-                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
-                                                                                                    <PlusIcon className="w-3.5 h-3.5" />
-                                                                                                    <span className="text-xs font-medium">Registrar</span>
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        ) : (
-                                                                                            /* Future / Programado */
-                                                                                            <div className="grid grid-cols-1 items-center justify-items-end group/badge">
-                                                                                                {/* Default: Programado */}
-                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700
-                                                                                                transition-all duration-300 group-hover/cell:opacity-0 group-hover/cell:scale-95 whitespace-nowrap">
-                                                                                                    <CalendarIcon className="w-3.5 h-3.5" />
-                                                                                                    <span className="text-xs font-medium">Programado</span>
-                                                                                                </div>
-                                                                                                {/* Hover: Register */}
-                                                                                                <div className="col-start-1 row-start-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300
-                                                                                                transition-all duration-300 opacity-0 scale-95 group-hover/cell:opacity-100 group-hover/cell:scale-100 whitespace-nowrap">
-                                                                                                    <PlusIcon className="w-3.5 h-3.5" />
-                                                                                                    <span className="text-xs font-medium">Registrar</span>
-                                                                                                </div>
+                                                                                    {/* ROW 1: Amount - PROTAGONISTA */}
+                                                                                    <div className="text-center">
+                                                                                        <span className="font-bold font-mono tabular-nums text-xl text-slate-900 dark:text-white tracking-tight">
+                                                                                            {formatClp(displayAmount)}
+                                                                                        </span>
+                                                                                        {/* Original currency inline */}
+                                                                                        {showOriginalCurrency && (
+                                                                                            <div className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums -mt-0.5">
+                                                                                                {originalCurrency} {perPeriodOriginal.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                                                             </div>
                                                                                         )}
+                                                                                    </div>
+
+                                                                                    {/* ROW 2: Metadata compacta - una sola línea */}
+                                                                                    <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                                                                                        {/* Fecha */}
+                                                                                        <span>
+                                                                                            {isPaid && currentPayment?.payment_date
+                                                                                                ? new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+                                                                                                : `${dueDay} ${monthDate.toLocaleDateString('es-CL', { month: 'short' })}`
+                                                                                            }
+                                                                                        </span>
+                                                                                        {/* Separator + Cuota/Pago */}
+                                                                                        {(cuotaNumber && installmentsCount && installmentsCount > 1) ? (
+                                                                                            <>
+                                                                                                <span className="text-slate-300 dark:text-slate-600">·</span>
+                                                                                                <span className="font-medium">{cuotaNumber}/{installmentsCount}</span>
+                                                                                            </>
+                                                                                        ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
+                                                                                            <>
+                                                                                                <span className="text-slate-300 dark:text-slate-600">·</span>
+                                                                                                <span className="font-medium">
+                                                                                                    {(() => {
+                                                                                                        const [startYear, startMonth] = term.effective_from.split('-').map(Number);
+                                                                                                        const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
+                                                                                                            (monthDate.getMonth() + 1 - startMonth) + 1;
+                                                                                                        return paymentNumber > 0 ? paymentNumber : 1;
+                                                                                                    })()}/∞
+                                                                                                </span>
+                                                                                            </>
+                                                                                        ) : null}
+                                                                                    </div>
+
+                                                                                    {/* ROW 3: Status - icono pequeño + texto corto */}
+                                                                                    <div className="flex items-center justify-center">
+                                                                                        {/* ROW 3: Status - Rendered via helper to avoid nesting hell */}
+                                                                                        <div className="flex items-center justify-center">
+                                                                                            {renderStatusBadge()}
+                                                                                        </div>
                                                                                     </div>
                                                                                 </div>
                                                                             )
@@ -1985,9 +1800,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                 <span>Vencido</span>
                             </div>
                             <div className="w-px h-3 bg-slate-300 dark:bg-slate-600" />
-                            <div className="flex items-center gap-1.5" title="Recurrente indefinido">
-                                <InfinityIcon className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-                                <span>Indefinido</span>
+                            <div className="flex items-center gap-1.5" title="Recurrente mensual">
+                                <RefreshCw className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                                <span>Mensual</span>
                             </div>
                             <div className="flex items-center gap-1.5" title="Plazo definido/Cuotas">
                                 <CalendarIcon className="w-4 h-4 text-slate-400 dark:text-slate-500" />

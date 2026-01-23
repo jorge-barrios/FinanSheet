@@ -27,12 +27,33 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
     const { flags } = useFeatureFlags();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFeatureFlagsOpen, setIsFeatureFlagsOpen] = useState(false);
-    const [colorTheme, setColorTheme] = useState<'ocean-teal' | 'identidad'>(() => {
+    // Color theme state (Claridad Celestial vs Ocean Teal)
+    const [colorTheme, setColorTheme] = useState<'identidad' | 'ocean-teal'>('identidad');
+
+    // Load color theme from localStorage
+    useEffect(() => {
         if (typeof window !== 'undefined') {
-            return localStorage.getItem('finansheet-color-theme') === 'identidad' ? 'identidad' : 'ocean-teal';
+            const html = document.documentElement;
+            const saved = localStorage.getItem('finansheet-color-theme') as 'identidad' | 'ocean-teal' | null;
+            const themeToApply = saved || 'identidad';
+            setColorTheme(themeToApply);
+
+            // Apply the theme class
+            html.classList.remove('theme-identidad', 'theme-ocean-teal');
+            html.classList.add(`theme-${themeToApply}`);
         }
-        return 'ocean-teal';
-    });
+    }, []);
+
+    const handleColorThemeToggle = () => {
+        const newTheme = colorTheme === 'identidad' ? 'ocean-teal' : 'identidad';
+        setColorTheme(newTheme);
+        const html = document.documentElement;
+        html.classList.remove('theme-identidad', 'theme-ocean-teal');
+        html.classList.add(`theme-${newTheme}`);
+        localStorage.setItem('finansheet-color-theme', newTheme);
+    };
+
+    // Legacy state removed
     const menuRef = useRef<HTMLDivElement | null>(null);
 
     const handleLogout = async () => {
@@ -136,35 +157,34 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                                     <span>{t(theme === 'dark' ? 'header.lightMode' : 'header.darkMode')}</span>
                                 </button>
 
-                                {/* Color Palette Toggle */}
+                                {/* Selector de tema de color */}
+                                <div className="px-2 py-1.5 text-[11px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                    Tema de Color
+                                </div>
                                 <button
                                     role="menuitem"
-                                    onClick={() => {
-                                        const html = document.documentElement;
-                                        if (colorTheme === 'identidad') {
-                                            html.classList.remove('theme-identidad');
-                                            localStorage.setItem('finansheet-color-theme', 'ocean-teal');
-                                            setColorTheme('ocean-teal');
-                                        } else {
-                                            html.classList.add('theme-identidad');
-                                            localStorage.setItem('finansheet-color-theme', 'identidad');
-                                            setColorTheme('identidad');
-                                        }
-                                        setIsMenuOpen(false);
-                                    }}
-                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors"
+                                    onClick={() => { if (colorTheme !== 'identidad') handleColorThemeToggle(); }}
+                                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${colorTheme === 'identidad' ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                                 >
-                                    <span className={`w-7 h-7 rounded-lg flex-shrink-0 transition-all shadow-sm ${colorTheme === 'identidad'
-                                        ? 'bg-gradient-to-br from-[#00555A] to-[#FF6F61]'
-                                        : 'bg-gradient-to-br from-teal-500 to-cyan-500'
-                                        }`} />
-                                    <div className="flex flex-col items-start flex-1">
-                                        <span className="leading-tight">Tema de Color</span>
-                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
-                                            {colorTheme === 'identidad' ? 'Claridad Estructurada' : 'Ocean Teal'}
-                                        </span>
+                                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${colorTheme === 'identidad' ? 'border-sky-500 bg-sky-500' : 'border-slate-300 dark:border-slate-600'}`}>
+                                        {colorTheme === 'identidad' && <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
                                     </div>
+                                    <span>Claridad Celestial</span>
+                                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400">Sky Blue</span>
                                 </button>
+                                <button
+                                    role="menuitem"
+                                    onClick={() => { if (colorTheme !== 'ocean-teal') handleColorThemeToggle(); }}
+                                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${colorTheme === 'ocean-teal' ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                                >
+                                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${colorTheme === 'ocean-teal' ? 'border-teal-500 bg-teal-500' : 'border-slate-300 dark:border-slate-600'}`}>
+                                        {colorTheme === 'ocean-teal' && <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                                    </div>
+                                    <span>Ocean Teal</span>
+                                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">Teal</span>
+                                </button>
+
+
 
                                 {/* Actualizar tasas */}
                                 <button

@@ -135,7 +135,7 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
                             <CategoryIcon className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
+                            <h2 className="text-lg font-bold font-brand text-slate-900 dark:text-white leading-tight">
                                 {commitment.name}
                             </h2>
                             <p className="text-xs text-slate-500 font-medium mt-0.5">
