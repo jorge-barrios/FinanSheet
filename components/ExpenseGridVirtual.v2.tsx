@@ -183,6 +183,16 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     type ViewMode = 'monthly' | 'inventory';
     const [viewMode, setViewMode] = useState<ViewMode>('monthly');
 
+    // Smart sticky header: hide metrics when scrolling down, show when scrolling up
+    const [showMetrics, setShowMetrics] = useState(true);
+    const [lastScrollY, setLastScrollY] = useState(0);
+
+    // KPI carousel state (mobile only)
+    type KPIType = 'ingresos' | 'comprometido' | 'pagado' | 'pendiente';
+    const [currentKPI, setCurrentKPI] = useState<KPIType>('comprometido');
+    const [showKPISelector, setShowKPISelector] = useState(false);
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
     const pad = useMemo(() =>
         density === 'minimal' ? 'p-0.5' : density === 'compact' ? 'p-1' : 'p-3',
         [density]
@@ -237,9 +247,63 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         const timer = setTimeout(recalc, 100);
         window.addEventListener('resize', recalc);
         return () => {
-            window.removeEventListener('resize', recalc);
-            clearTimeout(timer);
         };
+    }, []);
+
+    // Scroll detection for smart sticky header (mobile only)
+    useEffect(() => {
+        // Find the main scrollable container (in App.tsx it's the <main> element)
+        const scrollContainer = document.querySelector('main');
+        if (!scrollContainer) return;
+
+        const handleScroll = () => {
+            const currentScrollY = scrollContainer.scrollTop;
+
+            // Show metrics when at top or scrolling up
+            if (currentScrollY < 50) {
+                setShowMetrics(true);
+            } else if (currentScrollY < lastScrollY) {
+                // Scrolling up
+                setShowMetrics(true);
+            } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+                // Scrolling down (with threshold)
+                setShowMetrics(false);
+            }
+
+            setLastScrollY(currentScrollY);
+        };
+
+        scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+        return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    }, [lastScrollY]);
+
+
+    // ==========================================================================
+    // KPI CAROUSEL HANDLERS
+    // ==========================================================================
+
+    // Tap handler: rotate to next KPI
+    const handleKPITap = useCallback(() => {
+        const kpiOrder: KPIType[] = ['ingresos', 'comprometido', 'pagado', 'pendiente'];
+        const currentIndex = kpiOrder.indexOf(currentKPI);
+        const nextIndex = (currentIndex + 1) % kpiOrder.length;
+        setCurrentKPI(kpiOrder[nextIndex]);
+    }, [currentKPI]);
+
+    // Long-press handlers: open KPI selector
+    const handleTouchStart = useCallback(() => {
+        longPressTimer.current = setTimeout(() => {
+            setShowKPISelector(true);
+            // Haptic feedback (if supported)
+            if (navigator.vibrate) navigator.vibrate(50);
+        }, 500); // 500ms for long-press
+    }, []);
+
+    const handleTouchEnd = useCallback(() => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
     }, []);
 
     // ==========================================================================
@@ -825,8 +889,115 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 {(() => {
                     const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
                     return (
-                        <div className="px-3 py-2.5 lg:px-6 border-b border-slate-200/50 dark:border-white/10">
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
+                        <div className={`
+                            px-3 py-2.5 lg:px-6 border-b border-slate-200/50 dark:border-white/10
+                            transition-all duration-300 ease-in-out
+                            lg:block
+                            ${showMetrics
+                                ? 'max-h-[300px] opacity-100'
+                                : 'max-h-0 opacity-0 overflow-hidden py-0 border-b-0'
+                            }
+                        `}>
+                            {/* Mobile: Single KPI Carousel Card */}
+                            <div className="lg:hidden">
+                                {(() => {
+                                    // KPI data structure
+                                    const kpiData = [
+                                        {
+                                            id: 'ingresos' as KPIType,
+                                            label: 'Ingresos',
+                                            value: totals.ingresos,
+                                            icon: TrendingUp,
+                                            bgColor: 'bg-emerald-500/10 dark:bg-emerald-500/20',
+                                            borderColor: 'border-emerald-500/50',
+                                            textColor: 'text-emerald-600 dark:text-emerald-400',
+                                            iconColor: 'text-emerald-500',
+                                            ringColor: 'ring-emerald-500/30'
+                                        },
+                                        {
+                                            id: 'comprometido' as KPIType,
+                                            label: 'Comprometido',
+                                            value: totals.comprometido,
+                                            icon: Wallet,
+                                            bgColor: 'bg-sky-500/10 dark:bg-sky-500/20',
+                                            borderColor: 'border-sky-500/50',
+                                            textColor: 'text-sky-600 dark:text-sky-400',
+                                            iconColor: 'text-sky-500',
+                                            ringColor: 'ring-sky-500/30'
+                                        },
+                                        {
+                                            id: 'pagado' as KPIType,
+                                            label: 'Pagado',
+                                            value: totals.pagado,
+                                            icon: CheckCircleIcon,
+                                            bgColor: 'bg-emerald-500/10 dark:bg-emerald-500/20',
+                                            borderColor: 'border-emerald-500/50',
+                                            textColor: 'text-emerald-600 dark:text-emerald-400',
+                                            iconColor: 'text-emerald-500',
+                                            ringColor: 'ring-emerald-500/30'
+                                        },
+                                        {
+                                            id: 'pendiente' as KPIType,
+                                            label: 'Pendiente',
+                                            value: totals.pendiente,
+                                            icon: ClockIcon,
+                                            bgColor: 'bg-amber-500/10 dark:bg-amber-500/20',
+                                            borderColor: 'border-amber-500/50',
+                                            textColor: 'text-amber-600 dark:text-amber-400',
+                                            iconColor: 'text-amber-500',
+                                            ringColor: 'ring-amber-500/30'
+                                        }
+                                    ];
+
+                                    const currentKPIData = kpiData.find(k => k.id === currentKPI) || kpiData[1];
+                                    const Icon = currentKPIData.icon;
+
+                                    return (
+                                        <>
+                                            <button
+                                                onClick={handleKPITap}
+                                                onTouchStart={handleTouchStart}
+                                                onTouchEnd={handleTouchEnd}
+                                                onMouseDown={handleTouchStart}
+                                                onMouseUp={handleTouchEnd}
+                                                className={`
+                                                    w-full p-4 rounded-2xl backdrop-blur-xl transition-all duration-300
+                                                    active:scale-[0.98]
+                                                    ${currentKPIData.bgColor}
+                                                    border-2 ${currentKPIData.borderColor}
+                                                    shadow-lg ring-1 ${currentKPIData.ringColor}
+                                                `}
+                                            >
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <Icon className={`w-4 h-4 ${currentKPIData.iconColor}`} />
+                                                    <p className={`text-[10px] font-bold uppercase tracking-wider ${currentKPIData.textColor}`}>
+                                                        {currentKPIData.label}
+                                                    </p>
+                                                </div>
+                                                <p className={`text-2xl font-black font-mono tabular-nums tracking-tight ${currentKPIData.textColor}`}>
+                                                    {formatClp(currentKPIData.value)}
+                                                </p>
+                                            </button>
+
+                                            {/* Indicators */}
+                                            <div className="flex justify-center gap-1.5 mt-2">
+                                                {kpiData.map((kpi) => (
+                                                    <div
+                                                        key={kpi.id}
+                                                        className={`h-1.5 rounded-full transition-all duration-300 ${kpi.id === currentKPI
+                                                            ? 'w-6 bg-sky-500'
+                                                            : 'w-1.5 bg-slate-300 dark:bg-slate-600'
+                                                            }`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </>
+                                    );
+                                })()}
+                            </div>
+
+                            {/* Desktop: Horizontal 1x4 Grid (unchanged) */}
+                            <div className="hidden lg:grid lg:grid-cols-4 gap-3">
                                 {/* Card 1: Ingresos */}
                                 <div className="p-3 rounded-2xl bg-white dark:bg-white/5 backdrop-blur-xl border border-emerald-200/50 dark:border-emerald-500/20 shadow-sm dark:shadow-none ring-1 ring-emerald-500/10">
                                     <div className="flex items-center gap-1.5 mb-1">
@@ -1846,6 +2017,58 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                     </div>
 
                 </div >
+
+                {/* KPI Selector Bottom Sheet (Mobile Only) */}
+                {showKPISelector && (
+                    <div className="fixed inset-0 z-50 flex items-end lg:hidden">
+                        {/* Backdrop */}
+                        <div
+                            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                            onClick={() => setShowKPISelector(false)}
+                        />
+
+                        {/* Bottom Sheet */}
+                        <div className="relative w-full bg-white dark:bg-slate-900 rounded-t-3xl p-4 animate-in slide-in-from-bottom duration-300">
+                            <div className="w-12 h-1 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto mb-4" />
+                            <h3 className="text-lg font-bold mb-3 text-slate-900 dark:text-white">Seleccionar Métrica</h3>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                {(() => {
+                                    const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
+                                    const kpiOptions = [
+                                        { id: 'ingresos' as KPIType, label: 'Ingresos', value: totals.ingresos, icon: TrendingUp, color: 'emerald' },
+                                        { id: 'comprometido' as KPIType, label: 'Comprometido', value: totals.comprometido, icon: Wallet, color: 'sky' },
+                                        { id: 'pagado' as KPIType, label: 'Pagado', value: totals.pagado, icon: CheckCircleIcon, color: 'emerald' },
+                                        { id: 'pendiente' as KPIType, label: 'Pendiente', value: totals.pendiente, icon: ClockIcon, color: 'amber' }
+                                    ];
+
+                                    return kpiOptions.map((kpi) => {
+                                        const Icon = kpi.icon;
+                                        const isSelected = kpi.id === currentKPI;
+                                        return (
+                                            <button
+                                                key={kpi.id}
+                                                onClick={() => {
+                                                    setCurrentKPI(kpi.id);
+                                                    setShowKPISelector(false);
+                                                }}
+                                                className={`p-3 rounded-xl border-2 transition-all ${isSelected
+                                                    ? `bg-${kpi.color}-500/10 dark:bg-${kpi.color}-500/20 border-${kpi.color}-500/50`
+                                                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                                    }`}
+                                            >
+                                                <Icon className={`w-5 h-5 text-${kpi.color}-500 mb-1`} />
+                                                <p className="text-xs font-bold text-slate-900 dark:text-white">{kpi.label}</p>
+                                                <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{formatClp(kpi.value)}</p>
+                                            </button>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
             </div >
         </div >
     );
