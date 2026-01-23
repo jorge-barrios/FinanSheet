@@ -386,9 +386,17 @@ export function CommitmentCard({
 
             {/* Amount Row - Compact typography */}
             <div className="mt-1.5 flex items-baseline justify-between">
-                <span className="text-lg font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)]">
-                    {summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
-                </span>
+                <div className="flex items-baseline gap-1.5">
+                    <span className="text-lg font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)]">
+                        {summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
+                    </span>
+                    {/* Currency Badge - Text only */}
+                    {activeTerm?.currency_original && (
+                        <span className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {activeTerm.currency_original}
+                        </span>
+                    )}
+                </div>
 
                 {/* Contextual Payment Progress */}
                 {getPaymentProgress()}

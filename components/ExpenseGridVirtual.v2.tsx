@@ -177,7 +177,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
 
     // Status filter state for mobile KPI cards (pendiente, pagado, all)
     type StatusFilter = 'all' | 'pendiente' | 'pagado';
-    const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all');
+    const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('pendiente');
 
     // View mode: monthly (filtered by focused date) or inventory (all commitments)
     type ViewMode = 'monthly' | 'inventory';
@@ -825,10 +825,10 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 {(() => {
                     const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
                     return (
-                        <div className="px-3 py-3 lg:px-6 border-b border-slate-200/50 dark:border-white/10">
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+                        <div className="px-3 py-2.5 lg:px-6 border-b border-slate-200/50 dark:border-white/10">
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
                                 {/* Card 1: Ingresos */}
-                                <div className="p-4 rounded-2xl bg-white dark:bg-white/5 backdrop-blur-xl border border-emerald-200/50 dark:border-emerald-500/20 shadow-sm dark:shadow-none ring-1 ring-emerald-500/10">
+                                <div className="p-3 rounded-2xl bg-white dark:bg-white/5 backdrop-blur-xl border border-emerald-200/50 dark:border-emerald-500/20 shadow-sm dark:shadow-none ring-1 ring-emerald-500/10">
                                     <div className="flex items-center gap-1.5 mb-1">
                                         <TrendingUp className="w-4 h-4 text-emerald-500/60" />
                                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Ingresos</p>
@@ -844,7 +844,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                         setSelectedStatus('all');
                                         setSelectedCategory('all');
                                     }}
-                                    className={`text-left p-4 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'all' && selectedCategory === 'all'
+                                    className={`text-left p-3 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'all' && selectedCategory === 'all'
                                         ? 'bg-sky-500/10 dark:bg-sky-500/20 border-2 border-sky-500/50 shadow-lg shadow-sky-500/10 ring-1 ring-sky-500/30'
                                         : 'bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm dark:shadow-none ring-1 ring-slate-900/5 dark:ring-white/5 hover:border-sky-300 dark:hover:border-sky-500/30'
                                         }`}
@@ -863,7 +863,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                 {/* Card 3: Pagado */}
                                 <button
                                     onClick={() => setSelectedStatus(selectedStatus === 'pagado' ? 'all' : 'pagado')}
-                                    className={`text-left p-4 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'pagado'
+                                    className={`text-left p-3 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'pagado'
                                         ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/50 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/30'
                                         : 'bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm dark:shadow-none ring-1 ring-slate-900/5 dark:ring-white/5 hover:border-emerald-300 dark:hover:border-emerald-500/30'
                                         }`}
@@ -882,7 +882,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                 {/* Card 4: Pendiente */}
                                 <button
                                     onClick={() => setSelectedStatus(selectedStatus === 'pendiente' ? 'all' : 'pendiente')}
-                                    className={`text-left p-4 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'pendiente'
+                                    className={`text-left p-3 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'pendiente'
                                         ? 'bg-amber-500/10 dark:bg-amber-500/20 border-2 border-amber-500/50 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/30'
                                         : 'bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm dark:shadow-none ring-1 ring-slate-900/5 dark:ring-white/5 hover:border-amber-300 dark:hover:border-amber-500/30'
                                         }`}
@@ -955,7 +955,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
             </div>
 
             {/* Mobile View - Compact Cards */}
-            <div className="lg:hidden p-3 space-y-2.5 pb-28">
+            <div className="lg:hidden p-3 space-y-2 pb-28">
                 {(() => {
                     const filteredCommitments = commitments.filter(c => {
                         // In inventory mode, show ALL commitments (including terminated)
