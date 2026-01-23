@@ -30,39 +30,38 @@
 .expense-grid thead th {
   position: sticky !important;
   top: 0 !important;
-  background: transparent !important;
-  background-color: transparent !important;
   z-index: 100 !important;
   border-bottom: none !important;
   opacity: 1 !important;
+  /* Background from Tailwind classes */
 }
 
-/* Header row gets the glassmorphism effect */
+/* Header row base - light mode */
 .expense-grid thead tr {
-  background: rgba(248, 250, 252, 0.95) !important;
   backdrop-filter: blur(16px) !important;
   -webkit-backdrop-filter: blur(16px) !important;
 }
 
+/* Dark mode header */
 .dark .expense-grid thead th {
-  /* Background comes from Tailwind classes for capsule styling */
   border-bottom: none !important;
   opacity: 1 !important;
 }
 
 .dark .expense-grid thead tr {
-  background: rgb(30, 41, 59) !important; /* slate-800 */
   backdrop-filter: blur(16px) !important;
   -webkit-backdrop-filter: blur(16px) !important;
 }
 
 /* Header Capsule - rounded corners on first and last cells */
 .expense-grid thead th:first-child {
-  border-radius: 12px 0 0 12px !important;
+  border-top-left-radius: 12px !important;
+  border-bottom-left-radius: 12px !important;
 }
 
 .expense-grid thead th:last-child {
-  border-radius: 0 12px 12px 0 !important;
+  border-top-right-radius: 12px !important;
+  border-bottom-right-radius: 12px !important;
 }
 
 /* Primera columna fija (scroll horizontal) - L-Frame Glass */
