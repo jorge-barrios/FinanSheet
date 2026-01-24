@@ -76,7 +76,7 @@ import FilterControls from './components/FilterControls';
 import CellEditModal from './components/CellEditModal';
 // Lazy page views to keep initial bundle small
 const TableView = React.lazy(() => import('./components/ExpenseGridVirtual'));
-const TableViewV2 = React.lazy(() => import('./components/ExpenseGridVirtual.v2'));
+const TableViewV2 = React.lazy(() => import('./components/ExpenseGrid/index'));
 const CalendarView = React.lazy(() => import('./components/CalendarView'));
 const DashboardFullV2 = React.lazy(() => import('./components/DashboardFull.v2'));
 const PaymentRecorderV2 = React.lazy(() => import('./components/PaymentRecorder.v2'));

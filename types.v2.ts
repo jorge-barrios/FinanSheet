@@ -285,6 +285,18 @@ export interface MonthlyCommitmentSummary {
     payment_date: string | null;
 }
 
+/**
+ * Totals for a specific month
+ * Used for Bento Grid and KPI filtering
+ */
+export interface MonthTotals {
+    comprometido: number;   // Total committed expenses for month
+    ingresos: number;       // Total committed income for month
+    pagado: number;         // Total payments made (with payment_date)
+    pendiente: number;      // Active commitments without payment
+    balance: number;        // ingresos - comprometido
+}
+
 // ============================================================================
 // HELPER TYPES
 // ============================================================================

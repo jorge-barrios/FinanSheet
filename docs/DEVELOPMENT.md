@@ -236,6 +236,9 @@ Estado persistido en localStorage con key `gridDensity`.
 | `PullToRefresh.tsx` | Gesto pull-to-refresh para móvil (Dashboard) |
 | `AppLoadingSkeleton.tsx` | Skeleton loader que reemplaza "Loading..." |
 | `PWAUpdateNotifier.tsx` | Toast de notificación cuando hay nueva versión |
+| `FilterBar.tsx` | Barra de controles (búsqueda, densidad, vistas) [NUEVO] |
+| `MobileKPICarousel.tsx` | Carrusel interactivo de KPIs para móvil [NUEVO] |
+| `KPISelectorModal.tsx` | Selector tipo bottom-sheet para KPIs móvil [NUEVO] |
 
 ### PWA (Progressive Web App)
 
@@ -441,7 +444,10 @@ import { getPerPeriodAmount } from '../utils/financialUtils.v2';
   ├── BentoGrid.tsx         # Grid modular
   ├── BentoCard.tsx         # Card con glassmorphism
   ├── InventoryView.tsx     # Lista de commitments
-  ├── ExpenseGridVirtual.v2.tsx  # Grid virtualizado
+  ├── ExpenseGrid/          # Grid virtualizado y componentes relacionados
+  │     ├── index.tsx       # Componente principal
+  │     ├── FilterBar.tsx   # Controles de filtro
+  │     └── MobileKPICarousel.tsx # Carrusel móvil
   └── DashboardFull.v2.tsx  # Dashboard principal
 
 /utils/
@@ -450,6 +456,9 @@ import { getPerPeriodAmount } from '../utils/financialUtils.v2';
 
 /styles/
   └── dashboard-theme.css   # Variables CSS y temas
+
+/hooks/
+  └── useExpenseGridLogic.ts # Lógica de negocio Grid (filtros, sort) [NUEVO]
 
 /types.v2.ts               # Definiciones de tipos V2
 ```

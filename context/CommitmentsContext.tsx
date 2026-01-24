@@ -8,7 +8,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, ReactNode, useRef } from 'react';
 import { CommitmentService, PaymentService, getCurrentUserId } from '../services/dataService.v2';
-import type { CommitmentWithTerm, Payment, FlowType } from '../types.v2';
+import type { CommitmentWithTerm, Payment, FlowType, MonthTotals } from '../types.v2';
 import { extractYearMonth, getPerPeriodAmount, getCuotaNumber } from '../utils/financialUtils.v2';
 import { useAuth } from './AuthContext';
 import { periodToString } from '../types.v2';
@@ -43,13 +43,7 @@ interface MonthlyData {
     hasExpenseData: boolean; // True if there are active expense commitments
 }
 
-interface MonthTotals {
-    comprometido: number;   // Total committed expenses for month
-    ingresos: number;       // Total committed income for month
-    pagado: number;         // Total payments made (with payment_date)
-    pendiente: number;      // Active commitments without payment
-    balance: number;        // ingresos - comprometido
-}
+// MonthTotals moved to types.v2
 
 interface CommitmentsContextValue {
     // Raw data

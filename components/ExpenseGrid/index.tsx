@@ -10,30 +10,33 @@
  * - Icon-based feedback
  */
 
-import React, { useMemo, useEffect, useRef, useState, useCallback, forwardRef } from 'react';
+import React, { useEffect, useRef, useState, forwardRef } from 'react';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { es } from 'date-fns/locale/es';
 registerLocale('es', es);
-import { useLocalization } from '../hooks/useLocalization';
-import usePersistentState from '../hooks/usePersistentState';
-import { useCommitments } from '../context/CommitmentsContext';
+
+import { useExpenseGridLogic } from '../../hooks/useExpenseGridLogic';
 import {
     EditIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon,
     CheckCircleIcon, ExclamationTriangleIcon, ClockIcon,
     CalendarIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon,
     SubscriptionIcon, MiscIcon, CategoryIcon,
-    StarIcon, IconProps, PauseIcon, PlusIcon, MoreVertical, Link2,
-    FunnelIcon, FolderIcon, HashIcon
-} from './icons';
-import type { CommitmentWithTerm, Payment } from '../types.v2';
-import { parseDateString, extractYearMonth, getPerPeriodAmount } from '../utils/financialUtils.v2';
-import { findTermForPeriod } from '../utils/termUtils';
-import { getCommitmentSummary } from '../utils/commitmentStatusUtils';
-import { CommitmentCard } from './CommitmentCard';
+    IconProps, PauseIcon, PlusIcon, MoreVertical, Link2,
+    FolderIcon, HashIcon, StarIcon
+} from '../icons';
+import type { CommitmentWithTerm, Payment } from '../../types.v2';
+import { parseDateString, getPerPeriodAmount } from '../../utils/financialUtils.v2';
+
+
+import { CommitmentCard } from '../CommitmentCard';
 import { Sparkles, Home, Minus, RefreshCw, TrendingUp, Wallet, Eye } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { KPISelectorModal } from './KPISelectorModal';
+import { MobileKPICarousel } from './MobileKPICarousel';
+import { FilterBar } from './FilterBar';
+
 
 // =============================================================================
 // TOOLTIP COMPONENT
@@ -99,7 +102,7 @@ interface ExpenseGridV2Props {
 // ICON MAPPING
 // =============================================================================
 
-const categoryIconsMap: Record<string, React.ReactElement<IconProps>> = {
+export const categoryIconsMap: Record<string, React.ReactElement<IconProps>> = {
     'Hogar': <HomeIcon />,
     'Vivienda': <HomeIcon />,
     'Transporte': <TransportIcon />,
@@ -109,14 +112,10 @@ const categoryIconsMap: Record<string, React.ReactElement<IconProps>> = {
     'Varios': <MiscIcon />,
 };
 
-const getCategoryIcon = (category: string) => {
+export const getCategoryIcon = (category: string) => {
     const icon = categoryIconsMap[category] || <CategoryIcon />;
     return React.cloneElement(icon, { className: 'w-5 h-5' });
 };
-
-// NOTE: getTermForPeriod has been extracted to utils/termUtils.ts as findTermForPeriod
-// It is imported at the top of this file. This alias maintains backward compatibility.
-const getTermForPeriod = findTermForPeriod;
 
 // Helper to convert Date to periodDate string (YYYY-MM-DD, first day of month)
 const dateToPeriod = (date: Date): string => {
@@ -140,581 +139,72 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     onRecordPayment,
     onFocusedDateChange,
 }) => {
-    const { t, language } = useLocalization();
-
-    // CONSUME GLOBAL CONTEXT directly - no more local state shadowing
+    // Logic extracted to custom hook
     const {
-        commitments,
-        payments,
-        loading,
-        error,
-        getMonthTotals,
-        setDisplayYear,
-        setDisplayMonth
-    } = useCommitments();
+        loading, error, density, setDensity,
+        selectedCategory, setSelectedCategory,
+        selectedStatus, setSelectedStatus,
+        viewMode, setViewMode,
+        showMetrics, currentKPI, handleKPIChange,
+        showKPISelector, setShowKPISelector,
+        commitments, payments, groupedCommitments, availableCategories, visibleMonths,
+        getPaymentStatus, performSmartSort, isActiveInMonth, getTranslatedCategoryName,
+        formatClp, getTermForPeriod, getTerminationReason, isCommitmentTerminated,
+        language, t, getMonthTotals, effectiveMonthCount
+    } = useExpenseGridLogic({ focusedDate, onFocusedDateChange });
 
-    // Sync Grid navigation with Context to ensure data is loaded for the viewed period
-    useEffect(() => {
-        const year = focusedDate.getFullYear();
-        const month = focusedDate.getMonth();
-
-        // Update context window to ensure we have data for this period
-        setDisplayYear(year);
-        setDisplayMonth(month);
-    }, [focusedDate, setDisplayYear, setDisplayMonth]);
-
-    // Density: minimal (9 months, 40px), compact (12 months, 48px), detailed (6 months, 100px)
-    const [density, setDensity] = usePersistentState<'minimal' | 'compact' | 'detailed'>(
-        'gridDensity',
-        'compact' // Default to compact view (12 months)
-    );
-
-    // Show/hide terminated commitments (default: hidden)
-
-
-    // Category filter state
-    const [selectedCategory, setSelectedCategory] = useState<string>('all');
-
-    // Status filter state for mobile KPI cards (pendiente, pagado, all)
-    type StatusFilter = 'all' | 'pendiente' | 'pagado';
-    const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('pendiente');
-
-    // View mode: monthly (filtered by focused date) or inventory (all commitments)
-    type ViewMode = 'monthly' | 'inventory';
-    const [viewMode, setViewMode] = useState<ViewMode>('monthly');
-
-    // Smart sticky header: hide metrics when scrolling down, show when scrolling up
-    const [showMetrics, setShowMetrics] = useState(true);
-    const [lastScrollY, setLastScrollY] = useState(0);
-
-    // KPI carousel state (mobile only)
-    type KPIType = 'ingresos' | 'comprometido' | 'pagado' | 'pendiente';
-    const [currentKPI, setCurrentKPI] = useState<KPIType>('comprometido');
-    const [showKPISelector, setShowKPISelector] = useState(false);
-    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-
-    const pad = useMemo(() =>
-        density === 'minimal' ? 'p-0.5' : density === 'compact' ? 'p-1' : 'p-3',
-        [density]
-    );
-
-    // Layout refs
+    // UI State & Layout
     const scrollAreaRef = useRef<HTMLDivElement | null>(null);
     const [availableHeight, setAvailableHeight] = useState<number>(400);
     const footerRef = useRef<HTMLDivElement | null>(null);
+    const pad = density === 'minimal' ? 'p-0.5' : density === 'compact' ? 'p-1' : 'p-3';
 
-    // Removed duplicate local fetching logic (fetchData) to prevent state desync
-    // The context now handles all data loading based on setDisplayYear/Month calls above
-
-    // ==========================================================================
-    // CATEGORY TRANSLATION - uses local i18n files directly (no DB calls)
-    // ==========================================================================
-
-    // Helper to get translated category name using base_category_key
-    const getTranslatedCategoryName = (commitment: CommitmentWithTerm): string => {
-        const category = commitment.category as any; // Cast to access base_category_key
-
-        // If it's a base category with a key, translate it
-        if (category?.base_category_key) {
-            return t(`category.${category.base_category_key}`, category.name);
-        }
-
-        // Otherwise use the raw name (custom category) or fallback
-        return category?.name || t('grid.uncategorized', 'Sin categoría');
-    };
-
-    // ==========================================================================
-    // HEIGHT CALCULATION
-    // ==========================================================================
-
-    useEffect(() => {
-        const recalc = () => {
-            const el = scrollAreaRef.current;
-            if (!el) return;
-
-            const rect = el.getBoundingClientRect();
-            const vh = window.innerHeight || document.documentElement.clientHeight;
-            const footerH = footerRef.current ? footerRef.current.offsetHeight : 48;
-            // Just the footer + small margin
-            const bottomMargin = footerH + 16;
-
-            const h = Math.max(200, vh - rect.top - bottomMargin);
-            setAvailableHeight(h);
-        };
-
-        recalc();
-        // Recalculate after footer renders
-        const timer = setTimeout(recalc, 100);
-        window.addEventListener('resize', recalc);
-        return () => {
-        };
-    }, []);
-
-    // Scroll detection for smart sticky header (mobile only)
-    useEffect(() => {
-        // Find the main scrollable container (in App.tsx it's the <main> element)
-        const scrollContainer = document.querySelector('main');
-        if (!scrollContainer) return;
-
-        const handleScroll = () => {
-            const currentScrollY = scrollContainer.scrollTop;
-
-            // Show metrics when at top or scrolling up
-            if (currentScrollY < 50) {
-                setShowMetrics(true);
-            } else if (currentScrollY < lastScrollY) {
-                // Scrolling up
-                setShowMetrics(true);
-            } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
-                // Scrolling down (with threshold)
-                setShowMetrics(false);
-            }
-
-            setLastScrollY(currentScrollY);
-        };
-
-        scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-        return () => scrollContainer.removeEventListener('scroll', handleScroll);
-    }, [lastScrollY]);
-
-
-    // ==========================================================================
-    // KPI CAROUSEL HANDLERS
-    // ==========================================================================
-
-    // Tap handler: rotate to next KPI
-    const handleKPITap = useCallback(() => {
-        const kpiOrder: KPIType[] = ['ingresos', 'comprometido', 'pagado', 'pendiente'];
-        const currentIndex = kpiOrder.indexOf(currentKPI);
-        const nextIndex = (currentIndex + 1) % kpiOrder.length;
-        setCurrentKPI(kpiOrder[nextIndex]);
-    }, [currentKPI]);
-
-    // Long-press handlers: open KPI selector
-    const handleTouchStart = useCallback(() => {
-        longPressTimer.current = setTimeout(() => {
-            setShowKPISelector(true);
-            // Haptic feedback (if supported)
-            if (navigator.vibrate) navigator.vibrate(50);
-        }, 500); // 500ms for long-press
-    }, []);
-
-    const handleTouchEnd = useCallback(() => {
-        if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-        }
-    }, []);
-
-    // ==========================================================================
-    // COMPUTED DATA
-    // ==========================================================================
-
-    // Visible months centered on focused date - controlled by density
-    // minimal=12 (solo iconos, máxima densidad), compact=9 (balance), detailed=6 (análisis)
-    const densityMonthCount = density === 'minimal' ? 12 : density === 'compact' ? 9 : 6;
-    const effectiveMonthCount = densityMonthCount;
-
-    const visibleMonths = useMemo(() => {
-        const count = effectiveMonthCount;
-        const months: Date[] = [];
-        // Forward-Looking View: Start 1 month before focused date
-        // This gives 1 month of context (past) and maximizes planning view (future)
-        const start = new Date(focusedDate);
-        start.setDate(1); // Normalize to first of month
-        start.setMonth(start.getMonth() - 1); // Start 1 month back
-
-        for (let i = 0; i < count; i++) {
-            const d = new Date(start);
-            d.setMonth(start.getMonth() + i);
-            months.push(d);
-        }
-        return months;
-    }, [focusedDate, effectiveMonthCount]);
-
-    // Auto-scroll to current month on load/density change
-    useEffect(() => {
-        if (!scrollAreaRef.current) return;
-
-        // Find index of current month
-        const today = new Date();
-        const currentMonthIndex = visibleMonths.findIndex(m => m.getMonth() === today.getMonth() && m.getFullYear() === today.getFullYear());
-
-        if (currentMonthIndex !== -1) {
-            // Wait for render
-            setTimeout(() => {
-                const headerEl = document.getElementById(`month-header-${currentMonthIndex}`);
-                if (headerEl && scrollAreaRef.current) {
-                    // Center the element
-                    const containerWidth = scrollAreaRef.current.clientWidth;
-                    const headerLeft = headerEl.offsetLeft;
-                    const headerWidth = headerEl.clientWidth;
-
-                    // Specific logic for compact view to ensure context (center it)
-                    // For wider views, standard scrolling to view is sufficient, but centering is nice.
-                    const offset = headerLeft - (containerWidth / 2) + (headerWidth / 2);
-
-                    scrollAreaRef.current.scrollTo({
-                        left: Math.max(0, offset),
-                        behavior: 'smooth'
-                    });
-                }
-            }, 100);
-        }
-    }, [density, visibleMonths]);
-
-
-    // Get payment status for a commitment in a month
-    // Note: We use amount_original for CLP payments due to migration bug with amount_in_base
-    const getPaymentStatus = useCallback((commitmentId: string, monthDate: Date, dueDay: number = 1) => {
-        const commitmentPayments = payments.get(commitmentId) || [];
-        // DEBUG: Trace P. Trainer specific matching issues for 2024
-        const isPTrainer = commitmentId === '992f32ae-7143-4605-b661-21908ace3921';
-        const targetYear = monthDate.getFullYear();
-        const targetMonth = monthDate.getMonth() + 1;
-
-        if (isPTrainer && targetYear === 2024 && [9, 10, 11, 12].includes(targetMonth)) {
-            console.log(`[DEBUG] Checking P. Trainer for ${targetYear}-${targetMonth}`, {
-                totalPaymentsInContext: commitmentPayments.length,
-                samplePaymentDates: commitmentPayments.slice(0, 5).map(p => p.period_date),
-                lookingFor: `${targetYear}-${String(targetMonth).padStart(2, '0')}`
-            });
-        }
-
-        const payment = commitmentPayments.find(p => {
-            // Robust parsing to avoid string format/timezone issues
-            const parts = p.period_date.split('-');
-            const pYear = parseInt(parts[0], 10);
-            const pMonth = parseInt(parts[1], 10);
-
-            const match = pYear === targetYear && pMonth === targetMonth;
-
-            if (isPTrainer && targetYear === 2024 && [9, 10, 11, 12].includes(targetMonth) && pYear === 2024) {
-                // Log near-misses or matches
-                if (match || Math.abs(pMonth - targetMonth) <= 1) {
-                    console.log(`[DEBUG] Comparing payment ${p.period_date} vs target ${targetYear}-${targetMonth}`, {
-                        pYear, pMonth, match
-                    });
-                }
-            }
-
-            return match;
-        });
-
-        if (payment) {
-            // If currency is CLP, amount_original IS the CLP value (migration bug with amount_in_base)
-            // Otherwise, we'd need to convert - but most payments are in CLP
-            const paidAmount = payment.currency_original === 'CLP'
-                ? payment.amount_original
-                : payment.amount_in_base ?? payment.amount_original;
-
-            // A payment is only "paid" if payment_date exists
-            // If payment_date is null, it's a registered custom amount but not yet paid
-            const paymentDate = payment.payment_date ? parseDateString(payment.payment_date) : null;
-            const isPaid = !!payment.payment_date; // Only true if date exists
-
-            // Check if payment was on time (payment_date <= due date of the month)
-            const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
-            const paidOnTime = paymentDate ? paymentDate <= dueDate : true; // Assume on-time if no date
-
-            return {
-                isPaid,
-                amount: paidAmount,
-                paymentDate,
-                paidOnTime,
-                payment,
-                hasPaymentRecord: true
-            };
-        }
-
-        return {
-            isPaid: false,
-            amount: null,
-            paymentDate: null,
-            paidOnTime: false,
-            payment: null,
-            hasPaymentRecord: false
-        };
-    }, [payments]);
-
-    // Smart Sort Function - Uses centralized getCommitmentSummary for consistent logic
-    const getCommitmentSortData = useCallback((c: CommitmentWithTerm) => {
-        const summary = getCommitmentSummary(c, payments.get(c.id) || []);
-
-        // Use active term or defaults
-        const term = c.active_term;
-        const dueDay = term?.due_day_of_month ?? 32;
-        const amount = summary.perPeriodAmount || 0;
-
-        // Check for recently created (Last 5 minutes)
-        const today = new Date();
-        const createdAt = new Date(c.created_at);
-        const isRecentlyCreated = (today.getTime() - createdAt.getTime()) < 5 * 60 * 1000;
-
-        // Status Priority Alignment with Dashboard:
-        // -2: Recently Created
-        // -1: Important & Overdue/Pending
-        // 0: Overdue
-        // 1: Pending (Next 7 Days or This Month)
-        // 2: Paid / Future / Others
-
-        let statusPriority = 1; // Default Pending
-
-        const isPaid = summary.estado === 'ok' || summary.estado === 'completed' || summary.estado === 'paused' || summary.estado === 'terminated' || summary.estado === 'no_payments';
-        const isOverdue = summary.estado === 'overdue';
-
-        if (isRecentlyCreated && !isPaid) {
-            statusPriority = -2;
-        } else if (c.is_important && !isPaid) {
-            statusPriority = -1;
-        } else if (isOverdue) {
-            statusPriority = 0;
-        } else if (isPaid) {
-            statusPriority = 2;
-        } else {
-            statusPriority = 1; // Pending
-        }
-
-        return { statusPriority, dueDay, amount, name: c.name, id: c.id };
-    }, [payments]);
-
-    const performSmartSort = useCallback((a: CommitmentWithTerm, b: CommitmentWithTerm) => {
-        const dataA = getCommitmentSortData(a);
-        const dataB = getCommitmentSortData(b);
-
-        // 1. Status Priority (based on current month)
-        if (dataA.statusPriority !== dataB.statusPriority) {
-            return dataA.statusPriority - dataB.statusPriority;
-        }
-
-        // 2. Due Day (Ascending)
-        if (dataA.dueDay !== dataB.dueDay) {
-            return dataA.dueDay - dataB.dueDay;
-        }
-
-        // 3. Amount (Descending - Higher value first)
-        if (Math.abs(dataA.amount - dataB.amount) > 0.01) {
-            return dataB.amount - dataA.amount;
-        }
-
-        // 4. Name (Alphabetical)
-        const nameCompare = dataA.name.localeCompare(dataB.name, language === 'es' ? 'es' : 'en');
-        if (nameCompare !== 0) return nameCompare;
-
-        // 5. Stable tiebreaker: UUID
-        return dataA.id.localeCompare(dataB.id);
-    }, [getCommitmentSortData, language]);
-
-    // Check if commitment is active in a given month based on frequency
-    // IMPORTANT: Uses getTermForPeriod to check ALL terms (not just active_term)
-    // This ensures historical periods covered by closed terms are still shown
-    const isActiveInMonth = useCallback((commitment: CommitmentWithTerm, monthDate: Date): boolean => {
-        // Use getTermForPeriod to find ANY term that covers this month (including closed terms)
-        const term = getTermForPeriod(commitment, monthDate);
-        if (!term) return false;
-
-        // Use extractYearMonth to avoid timezone issues
-        const { year: startYear, month: startMonth } = extractYearMonth(term.effective_from);
-
-        // Check frequency - use extracted year/month for correct calculation
-        const monthsDiff = (monthDate.getFullYear() - startYear) * 12 +
-            (monthDate.getMonth() + 1 - startMonth);
-
-        if (monthsDiff < 0) return false;
-
-        switch (term.frequency) {
-            case 'ONCE': return monthsDiff === 0;
-            case 'MONTHLY': return true;
-            case 'BIMONTHLY': return monthsDiff % 2 === 0;
-            case 'QUARTERLY': return monthsDiff % 3 === 0;
-            case 'SEMIANNUALLY': return monthsDiff % 6 === 0;
-            case 'ANNUALLY': return monthsDiff % 12 === 0;
-            default: return true;
-        }
-    }, []);
-
-    // Group commitments by category (for grid view)
-    // Hybrid Strategy:
-    // - Compact View: Treat as flat list (single 'All' group) to enforce strict Priority Sorting (Overdue > Pending)
-    // - Detailed View: Maintain Category Grouping, but sort Groups by Urgency
-    const groupedCommitments = useMemo(() => {
-        // 1. Filter active terms & selected category
-        const activeItems: CommitmentWithTerm[] = [];
-
-        commitments.forEach(c => {
-            // Context-aware visibility check
-            let isVisible = viewMode === 'inventory';
-
-            if (!isVisible) {
-                // Check if active in any of the visible months
-                const isActiveInVisibleRange = visibleMonths.some(m => isActiveInMonth(c, m));
-
-                // OR check if has payment record in any of the visible months
-                const hasPaymentInRange = visibleMonths.some(m => {
-                    const { hasPaymentRecord } = getPaymentStatus(c.id, m, 1);
-                    return hasPaymentRecord;
-                });
-
-                isVisible = isActiveInVisibleRange || hasPaymentInRange;
-            }
-
-            if (!isVisible) return;
-
-            const categoryName = getTranslatedCategoryName(c);
-            if (selectedCategory === 'FILTER_IMPORTANT') {
-                if (!c.is_important) return;
-            } else if (selectedCategory !== 'all' && categoryName !== selectedCategory) {
-                return;
-            }
-
-            activeItems.push(c);
-        });
-
-        // 2. COMPACT MODE: Flat List (Strict Smart Sort)
-        if (density === 'compact') {
-            return [{
-                category: 'all', // Dummy category, header is hidden in compact mode anyway
-                flowType: 'EXPENSE', // Irrelevant for flat list
-                commitments: activeItems.sort(performSmartSort)
-            }];
-        }
-
-        // 3. DETAILED MODE: Grouped Items (Grouped Smart Sort)
-        const groups: Record<string, { items: CommitmentWithTerm[], flowType: 'INCOME' | 'EXPENSE' }> = {};
-
-        activeItems.forEach(c => {
-            const categoryName = getTranslatedCategoryName(c);
-            if (!groups[categoryName]) {
-                groups[categoryName] = {
-                    items: [],
-                    flowType: c.flow_type
-                };
-            }
-            groups[categoryName].items.push(c);
-        });
-
-        return Object.entries(groups)
-            .map(([category, data]) => {
-                // Sort items within category
-                const sortedItems = data.items.sort(performSmartSort);
-
-                // Calculate min priority for the category
-                const minPriority = sortedItems.length > 0
-                    ? Math.min(...sortedItems.map(c => getCommitmentSortData(c).statusPriority))
-                    : 2;
-
-                return {
-                    category,
-                    flowType: data.flowType,
-                    commitments: sortedItems,
-                    minPriority
-                };
-            })
-            // Sort categories by Urgency then Name
-            .sort((a, b) => {
-                if (a.minPriority !== b.minPriority) {
-                    return a.minPriority - b.minPriority;
-                }
-                return a.category.localeCompare(b.category, language === 'es' ? 'es' : 'en');
-            });
-    }, [commitments, viewMode, visibleMonths, selectedCategory, t, language, performSmartSort, getCommitmentSortData, density]);
-
-    // Available categories for filter tabs (derived from all non-terminated commitments)
-    const availableCategories = useMemo(() => {
-        const categorySet = new Set<string>();
-        const visibleInContext = commitments.filter(c => {
-            if (viewMode === 'inventory') return true;
-
-            // Same logic as groupedCommitments to keep categories consistent
-            const isActiveInVisibleRange = visibleMonths.some(m => isActiveInMonth(c, m));
-            const hasPaymentInRange = visibleMonths.some(m => {
-                const { hasPaymentRecord } = getPaymentStatus(c.id, m, 1);
-                return hasPaymentRecord;
-            });
-
-            return isActiveInVisibleRange || hasPaymentInRange;
-        });
-        visibleInContext.forEach(c => {
-            categorySet.add(getTranslatedCategoryName(c));
-        });
-        const hasImportant = visibleInContext.some(c => c.is_important);
-        const categories = ['all', ...Array.from(categorySet).sort((a, b) => a.localeCompare(b, language === 'es' ? 'es' : 'en'))];
-
-        if (hasImportant) {
-            categories.splice(1, 0, 'FILTER_IMPORTANT');
-        }
-        return categories;
-    }, [commitments, viewMode, visibleMonths, language]);
-
-
-
-    // Format CLP
-    const formatClp = (amount: number) => {
-        return new Intl.NumberFormat('es-CL', {
-            style: 'currency',
-            currency: 'CLP',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-        }).format(amount);
-    };
-
-    // Check if current month
+    // Helper: Is Current Month
     const isCurrentMonth = (date: Date) => {
         const today = new Date();
         return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
     };
 
-    // Termination reason type for differentiated badges
-    type TerminationReason = 'ACTIVE' | 'PAUSED' | 'COMPLETED_INSTALLMENTS' | 'TERMINATED';
-
-    /**
-     * Get the termination reason for a commitment
-     * Used to display differentiated badges: PAUSADO, COMPLETADO, TERMINADO
-     * 
-     * PAUSED = Ended by manual pause (effective_until passed, no installments)
-     * COMPLETED_INSTALLMENTS = Completed all installments
-     * TERMINATED = Generic ended state
-     * ACTIVE = Currently running (even if has future end date)
-     */
-    const getTerminationReason = useCallback((commitment: CommitmentWithTerm): TerminationReason => {
-        // Use the most recent term, not just active_term
-        const terms = commitment.all_terms || [];
-        const latestTerm = terms.length > 0
-            ? terms.slice().sort((a, b) => b.version - a.version)[0]
-            : commitment.active_term;
-
-        if (!latestTerm) return 'TERMINATED';
-
-        // No end date = active (indefinite)
-        if (!latestTerm.effective_until) return 'ACTIVE';
-
-        // Use extractYearMonth to avoid timezone issues with date parsing
-        const { year: endYear, month: endMonth } = extractYearMonth(latestTerm.effective_until);
-        const endOfMonth = new Date(endYear, endMonth, 0); // Last day of end month
-
+    // Auto-scroll to current month
+    useEffect(() => {
+        if (!scrollAreaRef.current) return;
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const currentMonthIndex = visibleMonths.findIndex(m => m.getMonth() === today.getMonth() && m.getFullYear() === today.getFullYear());
 
-        // If end date hasn't passed yet → commitment is still ACTIVE
-        // (even if it has a scheduled end date)
-        if (endOfMonth >= today) {
-            return 'ACTIVE';
+        if (currentMonthIndex !== -1) {
+            setTimeout(() => {
+                const headerEl = document.getElementById(`month-header-${currentMonthIndex}`);
+                if (headerEl && scrollAreaRef.current) {
+                    const containerWidth = scrollAreaRef.current.clientWidth;
+                    const headerLeft = headerEl.offsetLeft;
+                    const headerWidth = headerEl.clientWidth;
+                    const offset = headerLeft - (containerWidth / 2) + (headerWidth / 2);
+                    scrollAreaRef.current.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
+                }
+            }, 100);
         }
+    }, [density, visibleMonths]);
 
-        // End date HAS PASSED - now determine why it ended
-        if (latestTerm.installments_count && latestTerm.installments_count > 1) {
-            return 'COMPLETED_INSTALLMENTS'; // Completed all installments
-        }
-
-        // Ended manually (pause that already passed)
-        return 'PAUSED';
+    // Height Calculation
+    useEffect(() => {
+        const recalc = () => {
+            const el = scrollAreaRef.current;
+            if (!el) return;
+            const rect = el.getBoundingClientRect();
+            const vh = window.innerHeight || document.documentElement.clientHeight;
+            const footerH = footerRef.current ? footerRef.current.offsetHeight : 48;
+            const bottomMargin = footerH + 16;
+            const h = Math.max(200, vh - rect.top - bottomMargin);
+            setAvailableHeight(h);
+        };
+        recalc();
+        const timer = setTimeout(recalc, 100);
+        window.addEventListener('resize', recalc);
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener('resize', recalc);
+        };
     }, []);
-
-    // Check if commitment is terminated (has effective_until in the past)
-    const isCommitmentTerminated = useCallback((commitment: CommitmentWithTerm): boolean => {
-        const reason = getTerminationReason(commitment);
-        return reason === 'TERMINATED' || reason === 'COMPLETED_INSTALLMENTS';
-    }, [getTerminationReason]);
 
 
     // ==========================================================================
@@ -899,102 +389,13 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             }
                         `}>
                             {/* Mobile: Single KPI Carousel Card */}
-                            <div className="lg:hidden">
-                                {(() => {
-                                    // KPI data structure
-                                    const kpiData = [
-                                        {
-                                            id: 'ingresos' as KPIType,
-                                            label: 'Ingresos',
-                                            value: totals.ingresos,
-                                            icon: TrendingUp,
-                                            bgColor: 'bg-emerald-500/10 dark:bg-emerald-500/20',
-                                            borderColor: 'border-emerald-500/50',
-                                            textColor: 'text-emerald-600 dark:text-emerald-400',
-                                            iconColor: 'text-emerald-500',
-                                            ringColor: 'ring-emerald-500/30'
-                                        },
-                                        {
-                                            id: 'comprometido' as KPIType,
-                                            label: 'Comprometido',
-                                            value: totals.comprometido,
-                                            icon: Wallet,
-                                            bgColor: 'bg-sky-500/10 dark:bg-sky-500/20',
-                                            borderColor: 'border-sky-500/50',
-                                            textColor: 'text-sky-600 dark:text-sky-400',
-                                            iconColor: 'text-sky-500',
-                                            ringColor: 'ring-sky-500/30'
-                                        },
-                                        {
-                                            id: 'pagado' as KPIType,
-                                            label: 'Pagado',
-                                            value: totals.pagado,
-                                            icon: CheckCircleIcon,
-                                            bgColor: 'bg-emerald-500/10 dark:bg-emerald-500/20',
-                                            borderColor: 'border-emerald-500/50',
-                                            textColor: 'text-emerald-600 dark:text-emerald-400',
-                                            iconColor: 'text-emerald-500',
-                                            ringColor: 'ring-emerald-500/30'
-                                        },
-                                        {
-                                            id: 'pendiente' as KPIType,
-                                            label: 'Pendiente',
-                                            value: totals.pendiente,
-                                            icon: ClockIcon,
-                                            bgColor: 'bg-amber-500/10 dark:bg-amber-500/20',
-                                            borderColor: 'border-amber-500/50',
-                                            textColor: 'text-amber-600 dark:text-amber-400',
-                                            iconColor: 'text-amber-500',
-                                            ringColor: 'ring-amber-500/30'
-                                        }
-                                    ];
-
-                                    const currentKPIData = kpiData.find(k => k.id === currentKPI) || kpiData[1];
-                                    const Icon = currentKPIData.icon;
-
-                                    return (
-                                        <>
-                                            <button
-                                                onClick={handleKPITap}
-                                                onTouchStart={handleTouchStart}
-                                                onTouchEnd={handleTouchEnd}
-                                                onMouseDown={handleTouchStart}
-                                                onMouseUp={handleTouchEnd}
-                                                className={`
-                                                    w-full p-4 rounded-2xl backdrop-blur-xl transition-all duration-300
-                                                    active:scale-[0.98]
-                                                    ${currentKPIData.bgColor}
-                                                    border-2 ${currentKPIData.borderColor}
-                                                    shadow-lg ring-1 ${currentKPIData.ringColor}
-                                                `}
-                                            >
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <Icon className={`w-4 h-4 ${currentKPIData.iconColor}`} />
-                                                    <p className={`text-[10px] font-bold uppercase tracking-wider ${currentKPIData.textColor}`}>
-                                                        {currentKPIData.label}
-                                                    </p>
-                                                </div>
-                                                <p className={`text-2xl font-black font-mono tabular-nums tracking-tight ${currentKPIData.textColor}`}>
-                                                    {formatClp(currentKPIData.value)}
-                                                </p>
-                                            </button>
-
-                                            {/* Indicators */}
-                                            <div className="flex justify-center gap-1.5 mt-2">
-                                                {kpiData.map((kpi) => (
-                                                    <div
-                                                        key={kpi.id}
-                                                        className={`h-1.5 rounded-full transition-all duration-300 ${kpi.id === currentKPI
-                                                            ? 'w-6 bg-sky-500'
-                                                            : 'w-1.5 bg-slate-300 dark:bg-slate-600'
-                                                            }`}
-                                                    />
-                                                ))}
-                                            </div>
-                                        </>
-                                    );
-                                })()}
-                            </div>
+                            {/* Mobile: Single KPI Carousel Card */}
+                            <MobileKPICarousel
+                                totals={totals}
+                                currentKPI={currentKPI}
+                                onKPIChange={handleKPIChange}
+                                onSelectorOpen={() => setShowKPISelector(true)}
+                            />
 
                             {/* Desktop: Horizontal 1x4 Grid (unchanged) */}
                             <div className="hidden lg:grid lg:grid-cols-4 gap-3">
@@ -1074,55 +475,15 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 })()}
 
                 {/* Row 3: Unified Filter Bar (Responsive) */}
-                <div className="sticky top-[58px] z-30 px-3 py-2 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800 transition-all">
-                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
-                        <span className="hidden lg:inline text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-2">Filtrar:</span>
-
-                        {selectedCategory !== 'all' && (
-                            <button
-                                onClick={() => setSelectedCategory('all')}
-                                className="flex-shrink-0 p-1.5 rounded-lg bg-slate-200/50 dark:bg-slate-800 text-slate-500 hover:bg-slate-300/50 dark:hover:bg-slate-700 transition"
-                                title="Limpiar filtros"
-                            >
-                                <FunnelIcon className="w-3.5 h-3.5" />
-                            </button>
-                        )}
-
-                        {availableCategories.map(cat => (
-                            <button
-                                key={cat}
-                                onClick={() => {
-                                    if (selectedCategory === cat) {
-                                        setSelectedCategory('all');
-                                    } else {
-                                        setSelectedCategory(cat);
-                                        setSelectedStatus('all');
-                                    }
-                                }}
-                                className={`
-                                    flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-200
-                                    ${selectedCategory === cat
-                                        ? 'bg-sky-500 text-white shadow-md ring-1 ring-sky-400/50'
-                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:border-sky-300 dark:hover:border-sky-500/50 hover:bg-slate-50 dark:hover:bg-slate-750'
-                                    }
-                                `}
-                            >
-                                <span className="flex items-center gap-1.5">
-                                    {cat === 'FILTER_IMPORTANT' && <StarIcon className="w-3 h-3 fill-current" />}
-                                    <span>{cat === 'all' ? 'Todos' : cat === 'FILTER_IMPORTANT' ? 'Imp.' : cat}</span>
-                                    <span className={`text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded ${selectedCategory === cat ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
-                                        ({cat === 'all'
-                                            ? commitments.filter(c => viewMode === 'inventory' || !c.active_term?.effective_until || new Date(c.active_term.effective_until) >= new Date()).length
-                                            : cat === 'FILTER_IMPORTANT'
-                                                ? commitments.filter(c => c.is_important).length
-                                                : commitments.filter(c => getTranslatedCategoryName(c) === cat).length
-                                        })
-                                    </span>
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
+                <FilterBar
+                    selectedCategory={selectedCategory}
+                    setSelectedCategory={setSelectedCategory}
+                    setSelectedStatus={setSelectedStatus}
+                    availableCategories={availableCategories}
+                    commitments={commitments}
+                    viewMode={viewMode}
+                    getTranslatedCategoryName={getTranslatedCategoryName}
+                />
             </div>
 
             {/* Mobile View - Compact Cards */}
@@ -1300,7 +661,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             <table className="w-full border-separate border-spacing-0">
                                 <thead className="sticky top-0 z-40">
                                     {/* Month Header - Continuous Capsule (border-collapse) */}
-                                    <tr className="bg-slate-800 backdrop-blur-xl shadow-[0_6px_0_0_rgb(15,23,42)]">
+                                    <tr className="bg-slate-800 backdrop-blur-xl">
                                         {/* COMPROMISO - Left end (adaptive height) */}
                                         <th className={`sticky left-0 z-50 backdrop-blur-xl min-w-[160px] max-w-[200px] w-[180px] bg-slate-800 border border-slate-600/80 text-center rounded-l-xl ${density === 'minimal' ? 'py-2 px-3' :
                                             density === 'compact' ? 'py-2.5 px-4' :
@@ -1314,6 +675,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                         {visibleMonths.map((month, i) => (
                                             <th
                                                 key={i}
+                                                id={`month-header-${i}`}
                                                 className={`relative min-w-[85px] w-auto p-0 text-center align-middle transition-all duration-300 border border-slate-600/80
                                                     ${isCurrentMonth(month) ? 'bg-slate-700' : 'bg-slate-800'}
                                                     ${i === visibleMonths.length - 1 ? 'rounded-r-xl' : ''}
@@ -2019,55 +1381,17 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 </div >
 
                 {/* KPI Selector Bottom Sheet (Mobile Only) */}
-                {showKPISelector && (
-                    <div className="fixed inset-0 z-50 flex items-end lg:hidden">
-                        {/* Backdrop */}
-                        <div
-                            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-                            onClick={() => setShowKPISelector(false)}
-                        />
-
-                        {/* Bottom Sheet */}
-                        <div className="relative w-full bg-white dark:bg-slate-900 rounded-t-3xl p-4 animate-in slide-in-from-bottom duration-300">
-                            <div className="w-12 h-1 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto mb-4" />
-                            <h3 className="text-lg font-bold mb-3 text-slate-900 dark:text-white">Seleccionar Métrica</h3>
-
-                            <div className="grid grid-cols-2 gap-2">
-                                {(() => {
-                                    const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
-                                    const kpiOptions = [
-                                        { id: 'ingresos' as KPIType, label: 'Ingresos', value: totals.ingresos, icon: TrendingUp, color: 'emerald' },
-                                        { id: 'comprometido' as KPIType, label: 'Comprometido', value: totals.comprometido, icon: Wallet, color: 'sky' },
-                                        { id: 'pagado' as KPIType, label: 'Pagado', value: totals.pagado, icon: CheckCircleIcon, color: 'emerald' },
-                                        { id: 'pendiente' as KPIType, label: 'Pendiente', value: totals.pendiente, icon: ClockIcon, color: 'amber' }
-                                    ];
-
-                                    return kpiOptions.map((kpi) => {
-                                        const Icon = kpi.icon;
-                                        const isSelected = kpi.id === currentKPI;
-                                        return (
-                                            <button
-                                                key={kpi.id}
-                                                onClick={() => {
-                                                    setCurrentKPI(kpi.id);
-                                                    setShowKPISelector(false);
-                                                }}
-                                                className={`p-3 rounded-xl border-2 transition-all ${isSelected
-                                                    ? `bg-${kpi.color}-500/10 dark:bg-${kpi.color}-500/20 border-${kpi.color}-500/50`
-                                                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                                                    }`}
-                                            >
-                                                <Icon className={`w-5 h-5 text-${kpi.color}-500 mb-1`} />
-                                                <p className="text-xs font-bold text-slate-900 dark:text-white">{kpi.label}</p>
-                                                <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{formatClp(kpi.value)}</p>
-                                            </button>
-                                        );
-                                    });
-                                })()}
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {/* KPI Selector Bottom Sheet (Mobile Only) */}
+                <KPISelectorModal
+                    isOpen={showKPISelector}
+                    onClose={() => setShowKPISelector(false)}
+                    totals={getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth())}
+                    currentKPI={currentKPI}
+                    onSelect={(kpi) => {
+                        handleKPIChange(kpi);
+                        setShowKPISelector(false);
+                    }}
+                />
 
             </div >
         </div >

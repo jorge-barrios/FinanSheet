@@ -14,6 +14,10 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       }
     },
+    server: {
+      host: true,
+      port: 5173,
+    },
     plugins: [
       VitePWA({
         registerType: 'prompt', // Shows update notification
