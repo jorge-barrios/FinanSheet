@@ -27,15 +27,15 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
     const { flags } = useFeatureFlags();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isFeatureFlagsOpen, setIsFeatureFlagsOpen] = useState(false);
-    // Color theme state (Claridad Celestial vs Ocean Teal)
-    const [colorTheme, setColorTheme] = useState<'identidad' | 'ocean-teal'>('identidad');
+    // Color theme state (Ocean Teal is now default)
+    const [colorTheme, setColorTheme] = useState<'identidad' | 'ocean-teal'>('ocean-teal');
 
     // Load color theme from localStorage
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const html = document.documentElement;
             const saved = localStorage.getItem('finansheet-color-theme') as 'identidad' | 'ocean-teal' | null;
-            const themeToApply = saved || 'identidad';
+            const themeToApply = saved || 'ocean-teal';
             setColorTheme(themeToApply);
 
             // Apply the theme class
@@ -95,29 +95,31 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
             style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
             data-app-header
         >
-            <div className="w-full mx-auto flex items-center justify-between">
-                <div className="flex items-center gap-3 sm:gap-4">
-                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight hidden md:block">FinanSheet</h1>
-                    <div className="block">
-                        <ViewSwitcher currentView={view} onViewChange={onViewChange} />
-                    </div>
-                </div>
+            <div className="w-full mx-auto flex items-center justify-between relative">
+                {/* LEFT ZONE: Utility (Logo, Theme Toggle, Settings Menu) */}
                 <div className="flex items-center gap-2 sm:gap-3">
-                    {/* Menú unificado */}
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight hidden md:block">FinanSheet</h1>
+
+                    {/* Theme Toggle (Quick Access) */}
+                    <button
+                        onClick={handleThemeToggle}
+                        className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
+                        aria-label={t(theme === 'dark' ? 'header.lightMode' : 'header.darkMode')}
+                    >
+                        {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+                    </button>
+
+                    {/* Menú unificado - Icon only for cleaner header */}
                     <div className="relative" ref={menuRef}>
                         <button
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all text-sm font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm"
+                            className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
                             aria-haspopup="menu"
                             aria-expanded={isMenuOpen}
                             aria-label={t('header.settings') || 'Abrir menú'}
-                            title={t('header.settings') || 'Abrir menú'}
+                            title={t('header.settings') || 'Menú'}
                             onClick={() => setIsMenuOpen(o => !o)}
                         >
-                            <span className="hidden sm:inline">{t('header.settings') || 'Menú'}</span>
-                            <span className="sm:hidden">
-                                <MenuIcon className="w-5 h-5" />
-                            </span>
-                            <ChevronDownIcon className="w-4 h-4 hidden sm:block opacity-50" />
+                            <MenuIcon className="w-5 h-5" />
                         </button>
                         {isMenuOpen && (
                             <div
@@ -290,16 +292,42 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                             </div>
                         )}
                     </div>
+                </div>
 
-                    {/* CTA principal */}
+                {/* SEPARATOR: Left to Center */}
+                <div className="hidden md:block w-px h-6 bg-slate-200 dark:bg-slate-700/50" aria-hidden="true" />
+
+                {/* CENTER ZONE: Focus (ViewSwitcher absolutely centered) */}
+                <div className="absolute left-1/2 transform -translate-x-1/2 hidden sm:block">
+                    <ViewSwitcher currentView={view} onViewChange={onViewChange} />
+                </div>
+
+                {/* SEPARATOR: Center to Right */}
+                <div className="hidden md:block w-px h-6 bg-slate-200 dark:bg-slate-700/50" aria-hidden="true" />
+
+                {/* RIGHT ZONE: Actions (Add Button + User Avatar) */}
+                <div className="flex items-center gap-2 sm:gap-3">
+                    {/* CTA principal - Desktop only (FAB used on mobile) */}
                     <button
                         onClick={onAddExpense}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] transition-all text-sm font-bold text-white shadow-md shadow-sky-600/20"
+                        className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 hover:scale-[1.02] active:scale-[0.98] transition-all text-sm font-bold text-white shadow-md shadow-sky-600/20"
                         title={t('header.addExpense') || 'Añadir gasto'}
                     >
                         <PlusIcon className="w-5 h-5 stroke-[2.5]" />
-                        <span className="hidden sm:inline">{t('header.addExpense')}</span>
+                        <span>{t('header.addExpense')}</span>
                     </button>
+
+                    {/* User Avatar */}
+                    {user && (
+                        <button
+                            onClick={() => setIsMenuOpen(o => !o)}
+                            className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 text-white text-xs font-bold uppercase shadow-sm hover:shadow-md transition-shadow"
+                            title={user.email || 'Usuario'}
+                            aria-label="Cuenta de usuario"
+                        >
+                            {user.email?.charAt(0) || 'U'}
+                        </button>
+                    )}
                 </div>
             </div>
 

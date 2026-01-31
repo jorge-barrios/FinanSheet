@@ -63,9 +63,13 @@
     } else {
       document.documentElement.classList.remove('dark');
     }
-    // Check for color palette preference (Ocean Teal vs Identidad.md)
-    if (localStorage.getItem('finansheet-color-theme') === 'identidad') {
+    // Check for color palette preference (Ocean Teal is default)
+    const colorTheme = localStorage.getItem('finansheet-color-theme');
+    if (colorTheme === 'identidad') {
       document.documentElement.classList.add('theme-identidad');
+    } else {
+      // Default to Ocean Teal (or explicit ocean-teal selection)
+      document.documentElement.classList.add('theme-ocean-teal');
     }
   </script>
   <script type="importmap">
