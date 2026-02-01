@@ -204,23 +204,67 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
     // COMPUTED DATA
     // =========================================================================
 
-    const densityMonthCount = density === 'minimal' ? 12 : density === 'compact' ? 9 : 6;
-    const effectiveMonthCount = densityMonthCount;
+    // Dynamic Month Count based on density
+    const effectiveMonthCount = density === 'minimal' ? 11 : density === 'compact' ? 7 : 5;
 
     const visibleMonths = useMemo(() => {
         const count = effectiveMonthCount;
         const months: Date[] = [];
-        const start = new Date(focusedDate);
-        start.setDate(1);
-        start.setMonth(start.getMonth() - 1);
 
-        for (let i = 0; i < count; i++) {
-            const d = new Date(start);
-            d.setMonth(start.getMonth() + i);
-            months.push(d);
+        // Minimal View: 11 months "Elastic Year"
+        // Base: Tries to show current year (Jan start).
+        // Exceptions: Slides back for Jan/Feb (to show past) and forward for Oct/Nov/Dec (to show future).
+        if (density === 'minimal') {
+            const currentYear = focusedDate.getFullYear();
+            const monthIndex = focusedDate.getMonth();
+
+            // 1. Ideal Start: January (Index 0)
+            let startMonthIndex = 0;
+
+            // 2. Constraint: Must see at least 2 months PAST (Early Year)
+            // If Jan (0) -> Start -2 (Nov). If Feb (1) -> Start -1 (Dec).
+            startMonthIndex = Math.min(startMonthIndex, monthIndex - 2);
+
+            // 3. Constraint: Must see at least 2 months FUTURE (Late Year)
+            // Total 11. End = Start + 10. We want End >= Focus + 2.
+            // Start + 10 >= Focus + 2  =>  Start >= Focus - 8
+            startMonthIndex = Math.max(startMonthIndex, monthIndex - 8);
+
+            const start = new Date(currentYear, startMonthIndex, 1);
+
+            for (let i = 0; i < count; i++) {
+                const d = new Date(start);
+                d.setMonth(start.getMonth() + i);
+                months.push(d);
+            }
+        }
+        // Compact View: 7 months centered (Focus - 3 months)
+        // User Request: "vista compacta perfectamente podria mostrar 7 meses"
+        else if (density === 'compact') {
+            const start = new Date(focusedDate);
+            start.setDate(1);
+            start.setMonth(start.getMonth() - 3);
+
+            for (let i = 0; i < count; i++) {
+                const d = new Date(start);
+                d.setMonth(start.getMonth() + i);
+                months.push(d);
+            }
+        }
+        // Detailed View: 5 months centered (Focus - 2 months)
+        else {
+            const start = new Date(focusedDate);
+            start.setDate(1);
+            start.setMonth(start.getMonth() - 2); // Start 2 months before
+
+            for (let i = 0; i < count; i++) {
+                const d = new Date(start);
+                d.setMonth(start.getMonth() + i);
+                months.push(d);
+            }
         }
         return months;
-    }, [focusedDate, effectiveMonthCount]);
+    }, [focusedDate, effectiveMonthCount, density]);
 
     // Grouping Logic
     const groupedCommitments = useMemo(() => {

@@ -23,7 +23,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     getTranslatedCategoryName
 }) => {
     return (
-        <div className="sticky top-[58px] z-30 px-3 py-2 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800 transition-all">
+        <div className="lg:hidden sticky top-[58px] z-30 px-3 py-2 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800 transition-all">
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
                 <span className="hidden lg:inline text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-2">Filtrar:</span>
 

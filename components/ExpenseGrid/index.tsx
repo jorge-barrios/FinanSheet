@@ -11,10 +11,6 @@
  */
 
 import React, { useEffect, useRef, useState, forwardRef } from 'react';
-import DatePicker, { registerLocale } from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
-import { es } from 'date-fns/locale/es';
-registerLocale('es', es);
 
 import { useExpenseGridLogic } from '../../hooks/useExpenseGridLogic';
 import {
@@ -23,19 +19,18 @@ import {
     CalendarIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon,
     SubscriptionIcon, MiscIcon, CategoryIcon,
     IconProps, PauseIcon, PlusIcon, MoreVertical, Link2,
-    FolderIcon, HashIcon, StarIcon
+    HashIcon
 } from '../icons';
 import type { CommitmentWithTerm, Payment } from '../../types.v2';
 import { parseDateString, getPerPeriodAmount } from '../../utils/financialUtils.v2';
 
 
 import { CommitmentCard } from '../CommitmentCard';
-import { Sparkles, Home, Minus, RefreshCw, TrendingUp, Wallet, Eye } from 'lucide-react';
+import { Sparkles, Minus, RefreshCw, TrendingUp, Eye, ChevronDown, Filter as FilterIcon, Star } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { KPISelectorModal } from './KPISelectorModal';
 import { MobileKPICarousel } from './MobileKPICarousel';
-import { FilterBar } from './FilterBar';
 
 
 // =============================================================================
@@ -145,12 +140,12 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         selectedCategory, setSelectedCategory,
         selectedStatus, setSelectedStatus,
         viewMode, setViewMode,
-        showMetrics, currentKPI, handleKPIChange,
+        currentKPI, handleKPIChange,
         showKPISelector, setShowKPISelector,
         commitments, payments, groupedCommitments, availableCategories, visibleMonths,
         getPaymentStatus, performSmartSort, isActiveInMonth, getTranslatedCategoryName,
         formatClp, getTermForPeriod, getTerminationReason, isCommitmentTerminated,
-        language, t, getMonthTotals, effectiveMonthCount
+        t, getMonthTotals, effectiveMonthCount
     } = useExpenseGridLogic({ focusedDate, onFocusedDateChange });
 
     // UI State & Layout
@@ -230,261 +225,187 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     return (
         <div>
             {/* Header Toolbar - Unified for Mobile + Desktop */}
-            <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm lg:border-b border-slate-200 dark:border-slate-700/50 shadow-sm transition-all duration-200">
-                {/* Single Row Layout: Navigation | Totals (lg only) | Actions */}
-                <div className="flex flex-wrap items-center justify-between gap-2 p-3 md:p-4">
-                    {/* Left: Navigation Group */}
-                    <div className="flex items-center gap-1.5">
-                        {viewMode === 'monthly' ? (
-                            <>
-                                {/* Month Selector - Normal mode */}
-                                <div className="h-9 flex items-center bg-white dark:bg-slate-700 rounded-lg ring-1 ring-slate-200 dark:ring-slate-600 shadow-sm">
-                                    {/* Today button integrated */}
-                                    <button
-                                        onClick={() => onFocusedDateChange && onFocusedDateChange(new Date())}
-                                        disabled={isCurrentMonth(focusedDate)}
-                                        className={`h-full px-2.5 flex items-center justify-center rounded-l-lg transition-colors ${isCurrentMonth(focusedDate)
-                                            ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
-                                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 active:scale-95'
-                                            }`}
-                                        title="Ir a hoy"
-                                    >
-                                        <Home className="w-4 h-4" />
-                                    </button>
-                                    <div className="w-px h-5 bg-slate-200 dark:bg-slate-600"></div>
+            {/* ===========================================================================
+                UNIFIED HEADER (Nav + Filters + KPIs + Density)
+                Focus Strategy: Maximize vertical space, keep everything reachable
+               =========================================================================== */}
+            <div className="sticky top-0 z-50 flex flex-col items-center border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm transition-all duration-300">
 
-                                    {/* Month navigation buttons */}
-                                    <button
-                                        onClick={() => {
-                                            const newDate = new Date(focusedDate);
-                                            newDate.setMonth(newDate.getMonth() - 1);
-                                            onFocusedDateChange && onFocusedDateChange(newDate);
-                                        }}
-                                        className="h-full px-2.5 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-l-lg transition-colors active:scale-95"
-                                    >
-                                        <ChevronLeftIcon className="w-5 h-5" />
-                                    </button>
-                                    <DatePicker
-                                        selected={focusedDate}
-                                        onChange={(date) => date && onFocusedDateChange && onFocusedDateChange(date)}
-                                        dateFormat="MMM yyyy"
-                                        locale="es"
-                                        showMonthYearPicker
-                                        showYearDropdown
-                                        scrollableYearDropdown
-                                        yearDropdownItemNumber={10}
-                                        customInput={<DateCustomInput />}
-                                        wrapperClassName="h-full flex"
-                                        popperPlacement="bottom"
-                                        showPopperArrow={false}
-                                        portalId="root"
-                                    />
-                                    <button
-                                        onClick={() => {
-                                            const newDate = new Date(focusedDate);
-                                            newDate.setMonth(newDate.getMonth() + 1);
-                                            onFocusedDateChange && onFocusedDateChange(newDate);
-                                        }}
-                                        className="h-full px-2.5 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-r-lg transition-colors active:scale-95"
-                                    >
-                                        <ChevronRightIcon className="w-5 h-5" />
-                                    </button>
-                                </div>
+                {/* Row 1: Unified Controls (Desktop: Single Row | Mobile: Flex Wrap) */}
+                <div className="w-full flex flex-wrap lg:flex-nowrap items-center justify-between gap-6 py-3 px-6">
 
-                                {/* Inventario Button - Opens inventory mode */}
-                                <button
-                                    onClick={() => {
-                                        setViewMode('inventory');
-                                        setSelectedStatus('all');
-                                        setSelectedCategory('all');
-                                    }}
-                                    className="h-9 flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold transition-all
-                                        bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600"
-                                    title="Ver todos los compromisos"
-                                >
-                                    <FolderIcon className="w-4 h-4" />
-                                    <span className="hidden sm:inline">Inventario</span>
-                                </button>
-                            </>
-                        ) : (
-                            /* Inventory Mode Badge - Replaces month selector */
-                            <div className="h-9 flex items-center gap-2 bg-sky-600 text-white px-4 rounded-lg shadow-md">
-                                <FolderIcon className="w-4 h-4" />
-                                <span className="text-sm font-semibold">Inventario</span>
-                                <span className="text-xs opacity-80">({commitments.length} compromisos)</span>
-                                <button
-                                    onClick={() => setViewMode('monthly')}
-                                    className="ml-2 p-1 hover:bg-white/20 rounded transition-colors"
-                                    title="Volver a vista mensual"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
-                        )}
+                    {/* [Left] Navigation */}
+                    <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
+                        {/* Month Selector moved to Table Header per user request */}
                     </div>
 
-                    {/* Center: Totals (lg+ only, inline) */}
-                    {/* Right: Display Options (Desktop Only) */}
-                    <div className="hidden lg:flex items-center gap-3">
+                    {/* [Center] Unified Filter Capsule */}
+                    <div className="hidden lg:flex items-center justify-center flex-1">
+                        <div className="flex items-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-1 gap-1">
+                            {/* View Mode Toggle */}
+                            <div className="flex bg-slate-100 dark:bg-slate-900/50 rounded-lg p-0.5">
+                                <button
+                                    onClick={() => setViewMode('monthly')}
+                                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'monthly' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    Mes
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('inventory')}
+                                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'inventory' ? 'bg-sky-500 shadow-sm text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    Todos
+                                </button>
+                            </div>
 
-                        {/* Density Selector - 3 options with icons */}
-                        <div className="h-9 flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <div className="w-px h-5 bg-slate-100 dark:bg-slate-700 mx-1" />
+
+                            {/* Important Toggle */}
+                            <button
+                                onClick={() => {
+                                    if (selectedCategory === 'FILTER_IMPORTANT') {
+                                        setSelectedCategory('all');
+                                    } else {
+                                        setSelectedCategory('FILTER_IMPORTANT');
+                                        setSelectedStatus('all');
+                                    }
+                                }}
+                                className={`h-7 px-2 flex items-center justify-center rounded-lg text-xs font-medium transition-all gap-1.5 ${selectedCategory === 'FILTER_IMPORTANT'
+                                    ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-500/20'
+                                    : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                    }`}
+                                title="Filtrar importantes"
+                            >
+                                <Star className="w-3.5 h-3.5" fill={selectedCategory === 'FILTER_IMPORTANT' ? "currentColor" : "none"} />
+                                <span>Importantes</span>
+                            </button>
+
+                            {/* Category Select */}
+                            <div className="relative">
+                                <select
+                                    value={selectedCategory === 'FILTER_IMPORTANT' ? 'all' : selectedCategory}
+                                    onChange={(e) => {
+                                        setSelectedCategory(e.target.value);
+                                        setSelectedStatus('all');
+                                    }}
+                                    className="h-7 w-[160px] appearance-none bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 text-xs font-medium pl-2 pr-8 rounded-lg cursor-pointer outline-none transition-colors border-none focus:ring-0"
+                                >
+                                    <option value="all">Todas las categorías</option>
+                                    {availableCategories.filter(c => c !== 'all' && c !== 'FILTER_IMPORTANT').map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* [Right] KPIs & Density */}
+                    <div className="hidden lg:flex items-center gap-6">
+                        {/* KPI Group */}
+                        {(() => {
+                            const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
+                            return (
+                                <div className="flex items-center gap-2">
+                                    {/* Comprometido (Implicit/Total) */}
+                                    <div className="flex flex-col items-end mr-2">
+                                        <span className="text-[9px] uppercase tracking-wider text-slate-400">Total</span>
+                                        <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                                            {formatClp(totals.comprometido)}
+                                        </span>
+                                    </div>
+
+                                    {/* Ingresos (Green) */}
+                                    <button
+                                        onClick={() => handleKPIChange(currentKPI === 'ingresos' ? 'comprometido' : 'ingresos')}
+                                        className={`h-8 pl-1.5 pr-3 rounded-lg flex items-center gap-2 border transition-all ${currentKPI === 'ingresos'
+                                            ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 ring-1 ring-emerald-500/20'
+                                            : 'bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'
+                                            }`}
+                                        title="Filtrar Ingresos"
+                                    >
+                                        <div className="w-5 h-5 rounded-md bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                            <TrendingUp className="w-3 h-3" />
+                                        </div>
+                                        <span className={`text-xs font-mono font-bold ${currentKPI === 'ingresos' ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                                            {formatClp(totals.ingresos)}
+                                        </span>
+                                    </button>
+
+                                    {/* Pagado (Teal/Emerald) */}
+                                    <button
+                                        onClick={() => handleKPIChange(currentKPI === 'pagado' ? 'comprometido' : 'pagado')}
+                                        className={`h-8 pl-1.5 pr-3 rounded-lg flex items-center gap-2 border transition-all ${currentKPI === 'pagado'
+                                            ? 'bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800 ring-1 ring-teal-500/20'
+                                            : 'bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'
+                                            }`}
+                                        title="Filtrar Pagados"
+                                    >
+                                        <div className="w-5 h-5 rounded-md bg-teal-100 dark:bg-teal-900/50 flex items-center justify-center text-teal-600 dark:text-teal-400">
+                                            <CheckCircleIcon className="w-3 h-3" />
+                                        </div>
+                                        <span className={`text-xs font-mono font-bold ${currentKPI === 'pagado' ? 'text-teal-700 dark:text-teal-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                                            {formatClp(totals.pagado)}
+                                        </span>
+                                    </button>
+
+                                    {/* Pendiente (Amber) */}
+                                    <button
+                                        onClick={() => handleKPIChange(currentKPI === 'pendiente' ? 'comprometido' : 'pendiente')}
+                                        className={`h-8 pl-1.5 pr-3 rounded-lg flex items-center gap-2 border transition-all ${currentKPI === 'pendiente'
+                                            ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 ring-1 ring-amber-500/20'
+                                            : 'bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'
+                                            }`}
+                                        title="Filtrar Pendientes"
+                                    >
+                                        <div className="w-5 h-5 rounded-md bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                                            <ClockIcon className="w-3 h-3" />
+                                        </div>
+                                        <span className={`text-xs font-mono font-bold ${currentKPI === 'pendiente' ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                                            {formatClp(totals.pendiente)}
+                                        </span>
+                                    </button>
+                                </div>
+                            );
+                        })()}
+
+                        <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+
+                        {/* Density Control (Segmented) */}
+                        <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 ring-1 ring-slate-200 dark:ring-slate-700">
                             {(['minimal', 'compact', 'detailed'] as const).map((d) => (
                                 <button
                                     key={d}
                                     onClick={() => setDensity(d)}
-                                    title={d === 'minimal' ? 'Vista mínima (9 meses)' : d === 'compact' ? 'Vista compacta (12 meses)' : 'Vista detallada (6 meses)'}
-                                    className={`h-full flex items-center gap-1.5 px-3 text-sm font-semibold rounded-[6px] transition-all duration-200 ${density === d
-                                        ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-500'
-                                        : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${density === d
+                                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
                                         }`}
+                                    title={`Vista ${d}`}
                                 >
-                                    {/* Density icon - horizontal lines */}
-                                    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                        {d === 'minimal' ? (
-                                            // Minimal: 2 lines, widely spaced
-                                            <>
-                                                <line x1="2" y1="5" x2="14" y2="5" />
-                                                <line x1="2" y1="11" x2="14" y2="11" />
-                                            </>
-                                        ) : d === 'compact' ? (
-                                            // Compact: 3 lines, medium spacing
-                                            <>
-                                                <line x1="2" y1="4" x2="14" y2="4" />
-                                                <line x1="2" y1="8" x2="14" y2="8" />
-                                                <line x1="2" y1="12" x2="14" y2="12" />
-                                            </>
-                                        ) : (
-                                            // Detailed: 4 lines, close spacing
-                                            <>
-                                                <line x1="2" y1="3" x2="14" y2="3" />
-                                                <line x1="2" y1="6" x2="14" y2="6" />
-                                                <line x1="2" y1="10" x2="14" y2="10" />
-                                                <line x1="2" y1="13" x2="14" y2="13" />
-                                            </>
-                                        )}
-                                    </svg>
-                                    <span className="hidden xl:inline">
-                                        {d === 'minimal' ? 'Mínima' : d === 'compact' ? 'Compacta' : 'Detallada'}
-                                    </span>
+                                    {d.charAt(0).toUpperCase() + d.slice(1)}
                                 </button>
                             ))}
                         </div>
                     </div>
+
+                    {/* Mobile: Filter Toggle */}
+                    <button className="lg:hidden p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                        <FilterIcon className="w-5 h-5" />
+                    </button>
                 </div>
 
-                {/* Row 2: Unified Metrics Bento Grid (Responsive) - Glassmorphism Style */}
-                {(() => {
-                    const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
-                    return (
-                        <div className={`
-                            px-3 py-2.5 lg:px-6 border-b border-slate-200/50 dark:border-white/10
-                            transition-all duration-300 ease-in-out
-                            lg:block
-                            ${showMetrics
-                                ? 'max-h-[300px] opacity-100'
-                                : 'max-h-0 opacity-0 overflow-hidden py-0 border-b-0'
-                            }
-                        `}>
-                            {/* Mobile: Single KPI Carousel Card */}
-                            {/* Mobile: Single KPI Carousel Card */}
-                            <MobileKPICarousel
-                                totals={totals}
-                                currentKPI={currentKPI}
-                                onKPIChange={handleKPIChange}
-                                onSelectorOpen={() => setShowKPISelector(true)}
-                            />
-
-                            {/* Desktop: Horizontal 1x4 Grid (unchanged) */}
-                            <div className="hidden lg:grid lg:grid-cols-4 gap-3">
-                                {/* Card 1: Ingresos */}
-                                <div className="p-3 rounded-2xl bg-white dark:bg-white/5 backdrop-blur-xl border border-emerald-200/50 dark:border-emerald-500/20 shadow-sm dark:shadow-none ring-1 ring-emerald-500/10">
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <TrendingUp className="w-4 h-4 text-emerald-500/60" />
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Ingresos</p>
-                                    </div>
-                                    <p className="text-xl lg:text-2xl font-black font-mono tabular-nums tracking-tight text-emerald-600 dark:text-emerald-400">
-                                        {formatClp(totals.ingresos || 0)}
-                                    </p>
-                                </div>
-
-                                {/* Card 2: Comprometido */}
-                                <button
-                                    onClick={() => {
-                                        setSelectedStatus('all');
-                                        setSelectedCategory('all');
-                                    }}
-                                    className={`text-left p-3 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'all' && selectedCategory === 'all'
-                                        ? 'bg-sky-500/10 dark:bg-sky-500/20 border-2 border-sky-500/50 shadow-lg shadow-sky-500/10 ring-1 ring-sky-500/30'
-                                        : 'bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm dark:shadow-none ring-1 ring-slate-900/5 dark:ring-white/5 hover:border-sky-300 dark:hover:border-sky-500/30'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <Wallet className={`w-4 h-4 ${selectedStatus === 'all' && selectedCategory === 'all' ? 'text-sky-500' : 'text-sky-500/60'}`} />
-                                        <p className={`text-[10px] font-bold uppercase tracking-wider ${selectedStatus === 'all' && selectedCategory === 'all' ? 'text-sky-600 dark:text-sky-400' : 'text-slate-500 dark:text-slate-400'
-                                            }`}>Comprometido</p>
-                                    </div>
-                                    <p className={`text-xl lg:text-2xl font-black font-mono tabular-nums tracking-tight ${selectedStatus === 'all' && selectedCategory === 'all' ? 'text-sky-600 dark:text-sky-300' : 'text-slate-900 dark:text-white'
-                                        }`}>
-                                        {formatClp(totals.comprometido)}
-                                    </p>
-                                </button>
-
-                                {/* Card 3: Pagado */}
-                                <button
-                                    onClick={() => setSelectedStatus(selectedStatus === 'pagado' ? 'all' : 'pagado')}
-                                    className={`text-left p-3 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'pagado'
-                                        ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/50 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/30'
-                                        : 'bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm dark:shadow-none ring-1 ring-slate-900/5 dark:ring-white/5 hover:border-emerald-300 dark:hover:border-emerald-500/30'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <CheckCircleIcon className={`w-4 h-4 ${selectedStatus === 'pagado' ? 'text-emerald-500' : 'text-emerald-500/60'}`} />
-                                        <p className={`text-[10px] font-bold uppercase tracking-wider ${selectedStatus === 'pagado' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
-                                            }`}>Pagado</p>
-                                    </div>
-                                    <p className={`text-xl lg:text-2xl font-black font-mono tabular-nums tracking-tight ${selectedStatus === 'pagado' ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-900 dark:text-white'
-                                        }`}>
-                                        {formatClp(totals.pagado)}
-                                    </p>
-                                </button>
-
-                                {/* Card 4: Pendiente */}
-                                <button
-                                    onClick={() => setSelectedStatus(selectedStatus === 'pendiente' ? 'all' : 'pendiente')}
-                                    className={`text-left p-3 rounded-2xl backdrop-blur-xl transition-all duration-300 active:scale-[0.98] ${selectedStatus === 'pendiente'
-                                        ? 'bg-amber-500/10 dark:bg-amber-500/20 border-2 border-amber-500/50 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/30'
-                                        : 'bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-sm dark:shadow-none ring-1 ring-slate-900/5 dark:ring-white/5 hover:border-amber-300 dark:hover:border-amber-500/30'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <ClockIcon className={`w-4 h-4 ${selectedStatus === 'pendiente' ? 'text-amber-500' : 'text-amber-500/60'}`} />
-                                        <p className={`text-[10px] font-bold uppercase tracking-wider ${selectedStatus === 'pendiente' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'
-                                            }`}>Pendiente</p>
-                                    </div>
-                                    <p className={`text-xl lg:text-2xl font-black font-mono tabular-nums tracking-tight ${selectedStatus === 'pendiente' ? 'text-amber-600 dark:text-amber-300' : 'text-slate-900 dark:text-white'
-                                        }`}>
-                                        {formatClp(totals.pendiente)}
-                                    </p>
-                                </button>
-                            </div>
-                        </div>
-                    );
-                })()}
-
-                {/* Row 3: Unified Filter Bar (Responsive) */}
-                <FilterBar
-                    selectedCategory={selectedCategory}
-                    setSelectedCategory={setSelectedCategory}
-                    setSelectedStatus={setSelectedStatus}
-                    availableCategories={availableCategories}
-                    commitments={commitments}
-                    viewMode={viewMode}
-                    getTranslatedCategoryName={getTranslatedCategoryName}
-                />
+                {/* [Row 2 Mobile] KPI Carousel (Visible only on Mobile) */}
+                <div className="lg:hidden w-full pb-2 px-2">
+                    <MobileKPICarousel
+                        totals={getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth())}
+                        currentKPI={currentKPI}
+                        onKPIChange={handleKPIChange}
+                        onSelectorOpen={() => setShowKPISelector(true)}
+                    />
+                </div>
             </div>
+
 
             {/* Mobile View - Compact Cards */}
             <div className="lg:hidden p-3 space-y-2 pb-28">
@@ -660,60 +581,147 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                         >
                             <table className="w-full border-separate border-spacing-0">
                                 <thead className="sticky top-0 z-40">
-                                    {/* Month Header - Continuous Capsule (border-collapse) */}
-                                    <tr className="bg-slate-800 backdrop-blur-xl">
-                                        {/* COMPROMISO - Left end (adaptive height) */}
-                                        <th className={`sticky left-0 z-50 backdrop-blur-xl min-w-[160px] max-w-[200px] w-[180px] bg-slate-800 border border-slate-600/80 text-center rounded-l-xl ${density === 'minimal' ? 'py-2 px-3' :
-                                            density === 'compact' ? 'py-2.5 px-4' :
-                                                'py-3 px-4'
-                                            }`}>
-                                            <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">
-                                                Compromiso
-                                            </span>
+                                    {/* Month Header - Card Style (Separated) */}
+                                    <tr className="bg-slate-50 dark:bg-slate-900"> {/* Mask Background */}
+                                        {/* COMPROMISO - Left end (Card Style) */}
+                                        <th className={`sticky left-0 z-50 min-w-[220px] max-w-[240px] w-[220px] py-2 pl-4 pr-1 bg-slate-50 dark:bg-slate-900 align-middle`}>
+                                            <div className="h-full w-full flex flex-col justify-center">
+                                                {/* Embedded Month Selector: Premium Glass Capsule */}
+                                                <div className={`
+                                                    flex items-center gap-1 w-full rounded-xl transition-all border shadow-sm group/selector px-1
+                                                    bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600
+                                                    ${density === 'minimal' ? 'min-h-[48px] py-1' : density === 'compact' ? 'min-h-[64px] py-1.5' : 'min-h-[80px] py-2'}
+                                                `}>
+                                                    {/* Home/Today Action - Stable (Left) */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onFocusedDateChange && onFocusedDateChange(new Date());
+                                                        }}
+                                                        disabled={isCurrentMonth(focusedDate)}
+                                                        className={`
+                                                            w-7 h-7 flex items-center justify-center rounded-lg transition-all active:scale-95
+                                                            ${isCurrentMonth(focusedDate)
+                                                                ? 'text-slate-300 dark:text-slate-700 opacity-50 cursor-default'
+                                                                : 'text-sky-500 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/30 cursor-pointer'}
+                                                        `}
+                                                        title="Volver a Hoy"
+                                                    >
+                                                        <CalendarIcon className="w-4 h-4" />
+                                                    </button>
+
+                                                    {/* Divider */}
+                                                    <div className="w-px h-5 bg-slate-200 dark:bg-slate-700" />
+
+                                                    {/* Navigation Group */}
+                                                    <div className="flex-1 flex items-center justify-between">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const d = new Date(focusedDate);
+                                                                d.setMonth(d.getMonth() - 1);
+                                                                onFocusedDateChange && onFocusedDateChange(d);
+                                                            }}
+                                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95"
+                                                        >
+                                                            <ChevronLeftIcon className="w-4 h-4" />
+                                                        </button>
+
+                                                        <div className="flex flex-col items-center justify-center">
+                                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-widest">
+                                                                {focusedDate.toLocaleDateString('es-Cl', { month: 'short' }).replace('.', '')}
+                                                            </span>
+                                                            <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                                                                {focusedDate.getFullYear()}
+                                                            </span>
+                                                        </div>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const d = new Date(focusedDate);
+                                                                d.setMonth(d.getMonth() + 1);
+                                                                onFocusedDateChange && onFocusedDateChange(d);
+                                                            }}
+                                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95"
+                                                        >
+                                                            <ChevronRightIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </th>
-                                        {/* Month cells */}
+                                        {/* Month cells (Card Style) */}
                                         {visibleMonths.map((month, i) => (
                                             <th
                                                 key={i}
                                                 id={`month-header-${i}`}
-                                                className={`relative min-w-[85px] w-auto p-0 text-center align-middle transition-all duration-300 border border-slate-600/80
-                                                    ${isCurrentMonth(month) ? 'bg-slate-700' : 'bg-slate-800'}
-                                                    ${i === visibleMonths.length - 1 ? 'rounded-r-xl' : ''}
-                                                `}
+                                                className={`relative min-w-[85px] w-auto py-2 px-1 text-center align-middle bg-slate-50 dark:bg-slate-900`}
                                             >
-                                                {/* Month content - adaptive height */}
+                                                {/* Inner Card */}
                                                 <div className={`
-                                                    flex flex-col items-center justify-center px-2 transition-all duration-200
-                                                    ${density === 'minimal' ? 'py-2 min-h-[40px]' :
-                                                        density === 'compact' ? 'py-2.5 min-h-[48px]' :
-                                                            'py-3 min-h-[56px]'}
-                                                    ${isCurrentMonth(month) ? 'ring-2 ring-inset ring-sky-500/50' : ''}
+                                                    h-full w-full rounded-xl border transition-all duration-300 overflow-hidden
+                                                    ${isCurrentMonth(month)
+                                                        ? 'bg-slate-100 dark:bg-slate-800/50 ring-1 ring-sky-500/30' // Recessed & Subtle
+                                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600'}
                                                 `}>
-                                                    {/* Month name - Protagonist */}
-                                                    <span className={`tracking-wide ${density === 'minimal' ? 'text-xs' : 'text-sm'
-                                                        } ${isCurrentMonth(month)
-                                                            ? 'font-bold text-sky-400'
-                                                            : 'font-semibold text-slate-300'
-                                                        }`}>
-                                                        {month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').charAt(0).toUpperCase() + month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').slice(1)}
-                                                        {density === 'detailed' && (
-                                                            <span className={`text-xs ml-1 font-normal ${isCurrentMonth(month) ? 'text-sky-500/80' : 'text-slate-500'}`}>
-                                                                {month.getFullYear()}
-                                                            </span>
-                                                        )}
-                                                    </span>
+                                                    {/* Month content - ENHANCED with KPI metrics */}
+                                                    {(() => {
+                                                        const monthTotals = getMonthTotals(month.getFullYear(), month.getMonth());
+                                                        return (
+                                                            <div className={`
+                                                            flex flex-col items-center justify-center px-1 transition-all duration-200 cursor-pointer
+                                                            hover:bg-slate-50 dark:hover:bg-slate-700/50
+                                                            ${density === 'minimal' ? 'py-1 min-h-[48px]' :
+                                                                    density === 'compact' ? 'py-1.5 min-h-[64px]' :
+                                                                        'py-2 min-h-[80px]'}
+                                                        `}
+                                                                onClick={() => onFocusedDateChange && onFocusedDateChange(month)}
+                                                                title={`${month.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}\nComprometido: ${formatClp(monthTotals.comprometido)}\nPagado: ${formatClp(monthTotals.pagado)}\nPendiente: ${formatClp(monthTotals.pendiente)}`}
+                                                            >
+                                                                {/* Month name - Protagonist */}
+                                                                <span className={`tracking-wide ${density === 'minimal' ? 'text-xs' : 'text-sm'
+                                                                    } ${isCurrentMonth(month)
+                                                                        ? 'font-bold text-sky-400'
+                                                                        : 'font-semibold text-slate-300'
+                                                                    }`}>
+                                                                    {month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').charAt(0).toUpperCase() + month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').slice(1)}
+                                                                    {' '}
+                                                                    {(month.getFullYear() !== focusedDate.getFullYear() || month.getMonth() === 0) && (
+                                                                        <span className={`text-[10px] font-normal ${isCurrentMonth(month) ? 'text-sky-500/80' : 'text-slate-500'}`}>
+                                                                            {month.getFullYear()}
+                                                                        </span>
+                                                                    )}
+                                                                </span>
 
-                                                    {/* Total paid - Hidden in minimal, shown in compact/detailed */}
-                                                    {density !== 'minimal' && (
-                                                        <div className={`text-[10px] font-mono mt-1 tabular-nums ${getMonthTotals(month.getFullYear(), month.getMonth()).pagado > 0
-                                                            ? isCurrentMonth(month) ? 'text-emerald-400 font-medium' : 'text-emerald-500/80'
-                                                            : 'text-slate-600'
-                                                            }`}>
-                                                            {getMonthTotals(month.getFullYear(), month.getMonth()).pagado > 0
-                                                                ? formatClp(getMonthTotals(month.getFullYear(), month.getMonth()).pagado)
-                                                                : '—'}
-                                                        </div>
-                                                    )}
+                                                                {/* Metrics Row - TEMPORARILY HIDDEN */}
+                                                                {/* 
+                                                                <div className={`font-mono font-medium tabular-nums mt-0.5 ${isCurrentMonth(month) ? 'text-sky-100' : 'text-slate-400'
+                                                                    } ${density === 'minimal' ? 'text-[9px]' : 'text-[10px]'}`}>
+                                                                    {formatClp(monthTotals.comprometido)}
+                                                                </div>
+
+                                                                {density !== 'minimal' && (
+                                                                    <div className="flex items-center gap-1 mt-0.5 text-[9px] font-mono tabular-nums">
+                                                                        <span className={`${monthTotals.pagado > 0
+                                                                            ? 'text-emerald-400'
+                                                                            : 'text-slate-600'
+                                                                            }`}>
+                                                                            {formatClp(monthTotals.pagado).replace('$', '')}
+                                                                        </span>
+                                                                        <span className="text-slate-700 dark:text-slate-600">/</span>
+                                                                        <span className={`${monthTotals.pendiente > 0
+                                                                            ? 'text-amber-500'
+                                                                            : 'text-slate-600'
+                                                                            }`}>
+                                                                            {formatClp(monthTotals.pendiente).replace('$', '')}
+                                                                        </span>
+                                                                    </div>
+                                                                )} 
+                                                                */}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </th>
                                         ))}
@@ -752,9 +760,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                         <td
                                                             onClick={() => onDetailCommitment ? onDetailCommitment(commitment) : onEditCommitment(commitment)}
                                                             className={`
-                                                            relative sticky left-0 z-30 p-0
+                                                            relative sticky left-0 z-30 p-0 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.1)]
                                                             bg-slate-50 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-800
-                                                            min-w-[160px] max-w-[200px] w-[180px]
+                                                            min-w-[220px] max-w-[240px] w-[220px]
                                                             h-[1px]
                                                         `}>
                                                             {/* Inner Content - Nivel 1: Sólido Estructural per Identidad.md */}
@@ -779,7 +787,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                         <span className={`font-semibold truncate text-xs ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>
                                                                             {commitment.name}
                                                                         </span>
-                                                                        {commitment.is_important && <StarIcon className="w-2.5 h-2.5 text-amber-500 fill-amber-500 shrink-0 ml-1" />}
+                                                                        {commitment.is_important && <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500 shrink-0 ml-1" />}
                                                                     </div>
                                                                 ) : density === 'compact' ? (
                                                                     /* === COMPACT: 2 rows === */
@@ -789,7 +797,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                             <span className={`font-semibold truncate text-sm ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
                                                                                 {commitment.name}
                                                                             </span>
-                                                                            {commitment.is_important && <StarIcon className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />}
+                                                                            {commitment.is_important && <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />}
                                                                             {commitment.linked_commitment_id && <Link2 className="w-3 h-3 text-sky-500 shrink-0" />}
                                                                         </div>
                                                                         {/* Row 2: Category + Amount */}
@@ -810,7 +818,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                             <span className={`font-bold truncate text-base ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
                                                                                 {commitment.name}
                                                                             </span>
-                                                                            {commitment.is_important && <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />}
+                                                                            {commitment.is_important && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />}
                                                                             {commitment.linked_commitment_id && <Link2 className="w-3.5 h-3.5 text-sky-500 shrink-0" />}
                                                                         </div>
 
@@ -1068,27 +1076,28 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                     </div>
                                                                 );
                                                             };
+                                                            const isFocused = monthDate.getMonth() === focusedDate.getMonth() && monthDate.getFullYear() === focusedDate.getFullYear();
+                                                            const isCurrent = isCurrentMonth(monthDate);
 
                                                             return (
                                                                 <td
                                                                     key={mi}
-                                                                    className="p-1 h-[1px]"
+                                                                    className="p-1 h-[1px]" // Removed background track
                                                                     onClick={() => onRecordPayment(commitment.id, dateToPeriod(monthDate))}
                                                                 >
-                                                                    {/* Mini Bento Card for payment cell - Nivel 2: Estándar per Identidad.md */}
+                                                                    {/* Mini Bento Card for payment cell */}
                                                                     <div className={`
                                                                         rounded-lg w-full h-full transition-all duration-200 cursor-pointer
                                                                         flex flex-col items-center justify-center border
                                                                         ${density === 'minimal' ? 'px-1 py-0.5 min-h-[40px]' : density === 'compact' ? 'px-1.5 py-1 min-h-[48px]' : 'px-2 py-2 min-h-[100px]'}
-                                                                        ${isCurrentMonth(monthDate)
-                                                                            ? 'bg-slate-800/60 border-sky-500/40 ring-2 ring-sky-500/20' // Nivel 4: Highlight
-                                                                            : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/50' // Nivel 2: Estándar
+                                                                        ${isFocused
+                                                                            ? 'border-slate-300 dark:border-slate-400/40 ring-1 ring-slate-400/20 dark:ring-slate-400/20 bg-slate-50 dark:bg-slate-800' // Focus: Glassy Slate
+                                                                            : isCurrent
+                                                                                ? 'border-sky-500/30 dark:border-sky-500/30 bg-slate-50 dark:bg-slate-800' // Current: Subtle Glassy Blue
+                                                                                : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-800' // Default
                                                                         }
-                                                                        ${isDisabled ? 'opacity-50 bg-slate-900/20 border-slate-700/30' : ''} // Nivel 3: Deshabilitado (más visible)
-                                                                        ${isGap ? 'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-300 dark:border-slate-800' : ''} // Nivel 3: Gap
-                                                                        ${isOverdue ? '!border-rose-500 dark:!border-rose-500/60 ring-1 ring-rose-500/20' : ''}
-                                                                        ${isPending ? '!border-amber-400 dark:!border-amber-500/50 ring-1 ring-amber-500/20' : ''}
-                                                                        ${isPaid ? '!border-emerald-400 dark:!border-emerald-500/50 ring-1 ring-emerald-500/20' : ''}
+                                                                        ${isDisabled ? 'opacity-50 bg-slate-900/20 border-slate-700/30' : ''}
+                                                                        ${isGap ? 'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-300 dark:border-slate-800' : ''}
                                                                     `}>
                                                                         {/* GAP: No term for this period */}
                                                                         {!term && !isPaid ? (
@@ -1142,7 +1151,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         ) : isPending ? (
                                                                                             <ClockIcon className="w-6 h-6 text-amber-500" />
                                                                                         ) : isDisabled ? (
-                                                                                            <CalendarIcon className="w-5 h-5 text-slate-400" />
+                                                                                            <CalendarIcon className="w-5 h-5 text-slate-400 dark:text-slate-600" />
                                                                                         ) : (
                                                                                             <CalendarIcon className="w-6 h-6 text-sky-400" />
                                                                                         )}
