@@ -17,6 +17,12 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       port: 5173,
+      allowedHosts: [
+        'localhost',
+        'mini-lab.tail4b2f89.ts.net',
+        'dev-finansheet.mini-lab.lan',
+        'mini-lab.lan'
+      ]
     },
     plugins: [
       VitePWA({
