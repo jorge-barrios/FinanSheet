@@ -18,10 +18,9 @@ export default defineConfig(({ mode }) => {
       host: true,
       port: 5173,
       allowedHosts: [
-        'localhost',
-        'mini-lab.tail4b2f89.ts.net',
-        'dev-finansheet.mini-lab.lan',
-        'mini-lab.lan'
+        'finansheet.lan',
+        'dev.mini-lab.lan',
+        'mini-lab.tail4b2f89.ts.net'
       ]
     },
     plugins: [

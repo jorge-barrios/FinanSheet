@@ -1,32 +1,22 @@
 services:
-  # ═══════════════════════════════════════════════════════════════════
-  # PRODUCTION - Static build served by Nginx
-  # ═══════════════════════════════════════════════════════════════════
+  # Production Container (Nginx + Static Build)
   finansheet-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: finansheet-app
+    build: .
     restart: unless-stopped
     ports:
-      - "3001:80"
+      - "3001:80"  # PROD port as per MINI-LAB policy (3xxx)
     env_file:
       - .env
 
-  # ═══════════════════════════════════════════════════════════════════
-  # DEVELOPMENT - Vite dev server with hot reload
-  # ═══════════════════════════════════════════════════════════════════
+  # Development Container (Hot Reload)
   finansheet-dev:
     image: node:20-alpine
-    container_name: finansheet-dev
     working_dir: /app
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5175:5173" # DEV port as per MINI-LAB policy (5xxx)
     volumes:
       - .:/app
       - /app/node_modules
-    ports:
-      - "5175:5173"
+    command: npm run dev -- --host
     env_file:
       - .env
-    environment:
-      - NODE_ENV=development

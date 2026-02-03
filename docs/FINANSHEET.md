@@ -12,7 +12,7 @@
 
 # Access
 # - Tailscale: https://mini-lab.tail4b2f89.ts.net:8444/
-# - LAN: https://dev-finansheet.mini-lab.lan
+# - LAN: https://dev.mini-lab.lan (uses port 5175 mapped via Caddy)
 ```
 
 ### Production
@@ -20,7 +20,7 @@
 # Deploy
 bash /srv/apps/finansheet/deploy.sh
 
-# Access: https://finansheet.mini-lab.lan or port 3001
+# Access: https://mini-lab.tail4b2f89.ts.net/ (mapped via Tailscale Serve)
 ```
 
 ---
@@ -49,11 +49,12 @@ bash /srv/apps/finansheet/deploy.sh
         │ finansheet-dev    │──► :5175 (DEV)
         └─────────┬─────────┘
                   │
-                  ▼
-          ┌───────────────┐
-          │ Supabase      │
-          │ (Auth + DB)   │
-          └───────────────┘
+        ┌─────────┴─────────┐
+        ▼                   ▼
+┌───────────────┐   ┌───────────────┐
+│ Supabase      │   │ Cloudflare    │
+│ (Auth + DB)   │   │ (Worker AI)   │
+└───────────────┘   └───────────────┘
 ```
 
 ---
@@ -66,6 +67,7 @@ Located in: `/srv/apps/finansheet/.env`
 |----------|-------------|
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key |
+| `VITE_GEMINI_API_KEY` | Google Gemini API Key |
 
 > ⚠️ **Never commit `.env` to git**
 
@@ -73,8 +75,8 @@ Located in: `/srv/apps/finansheet/.env`
 
 ## Container Ports
 
-| Container | Internal | External |
-|-----------|----------|----------|
+| Container | Internal | External (Host) |
+|-----------|----------|-----------------|
 | finansheet-app (PROD) | 80 | 3001 |
 | finansheet-dev (DEV) | 5173 | 5175 |
 
@@ -109,28 +111,3 @@ bash /srv/apps/finansheet/deploy.sh
 # Enter container
 docker exec -it finansheet-dev sh
 ```
-
----
-
-## Supabase
-
-### Tables
-- `commitments` - Financial commitments (expenses/income)
-- `terms` - Payment terms and conditions
-- `payments` - Payment records
-- `categories` - Expense categories
-
-### Auth
-- Email/password authentication
-- Row Level Security (RLS) enabled
-
----
-
-## Production Deploy (Vercel)
-
-This project also deploys to Vercel automatically via GitHub webhook.
-
-- **Vercel URL**: [production URL here]
-- **Auto-deploy**: On push to `main` branch
-
-The Docker setup is for local/mini-lab development and testing.
