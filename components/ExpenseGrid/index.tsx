@@ -584,12 +584,12 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                     {/* Month Header - Card Style (Separated) */}
                                     <tr className="bg-slate-50 dark:bg-slate-900"> {/* Mask Background */}
                                         {/* COMPROMISO - Left end (Card Style) */}
-                                        <th className={`sticky left-0 z-50 min-w-[220px] max-w-[240px] w-[220px] py-2 pl-4 pr-1 bg-slate-50 dark:bg-slate-900 align-middle`}>
+                                        <th className={`sticky left-0 z-50 min-w-[220px] max-w-[240px] w-[220px] p-1 bg-slate-50 dark:bg-slate-900 align-middle`}>
                                             <div className="h-full w-full flex flex-col justify-center">
                                                 {/* Embedded Month Selector: Premium Glass Capsule */}
                                                 <div className={`
                                                     flex items-center gap-1 w-full rounded-xl transition-all border shadow-sm group/selector px-1
-                                                    bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600
+                                                    bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-600/50 hover:border-slate-300 dark:hover:border-slate-500
                                                     ${density === 'minimal' ? 'min-h-[48px] py-1' : density === 'compact' ? 'min-h-[64px] py-1.5' : 'min-h-[80px] py-2'}
                                                 `}>
                                                     {/* Home/Today Action - Stable (Left) */}
@@ -658,44 +658,50 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                 id={`month-header-${i}`}
                                                 className={`relative min-w-[85px] w-auto py-2 px-1 text-center align-middle bg-slate-50 dark:bg-slate-900`}
                                             >
-                                                {/* Inner Card */}
-                                                <div className={`
-                                                    h-full w-full rounded-xl border transition-all duration-300 overflow-hidden
-                                                    ${isCurrentMonth(month)
-                                                        ? 'bg-slate-100 dark:bg-slate-800/50 ring-1 ring-sky-500/30' // Recessed & Subtle
-                                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600'}
-                                                `}>
-                                                    {/* Month content - ENHANCED with KPI metrics */}
-                                                    {(() => {
-                                                        const monthTotals = getMonthTotals(month.getFullYear(), month.getMonth());
-                                                        return (
-                                                            <div className={`
+                                                {/* Inner Card - 3 states: Current, Focused, Normal */}
+                                                {(() => {
+                                                    const isFocused = month.getFullYear() === focusedDate.getFullYear() && month.getMonth() === focusedDate.getMonth();
+                                                    const isCurrent = isCurrentMonth(month);
+
+                                                    let cardStyle = 'bg-white dark:bg-slate-700/60 border-slate-200 dark:border-slate-600/50 hover:border-slate-300 dark:hover:border-slate-500'; // Normal
+
+                                                    if (isCurrent || isFocused) {
+                                                        cardStyle = 'bg-slate-100 dark:bg-slate-800/60 border-2 border-slate-500/50'; // Active (current or focused)
+                                                    }
+
+                                                    return (
+                                                        <div className={`h-full w-full rounded-xl border transition-all duration-300 overflow-hidden ${cardStyle}`}>
+                                                            {/* Month content - ENHANCED with KPI metrics */}
+                                                            {(() => {
+                                                                const monthTotals = getMonthTotals(month.getFullYear(), month.getMonth());
+                                                                return (
+                                                                    <div className={`
                                                             flex flex-col items-center justify-center px-1 transition-all duration-200 cursor-pointer
                                                             hover:bg-slate-50 dark:hover:bg-slate-700/50
                                                             ${density === 'minimal' ? 'py-1 min-h-[48px]' :
-                                                                    density === 'compact' ? 'py-1.5 min-h-[64px]' :
-                                                                        'py-2 min-h-[80px]'}
+                                                                            density === 'compact' ? 'py-1.5 min-h-[64px]' :
+                                                                                'py-2 min-h-[80px]'}
                                                         `}
-                                                                onClick={() => onFocusedDateChange && onFocusedDateChange(month)}
-                                                                title={`${month.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}\nComprometido: ${formatClp(monthTotals.comprometido)}\nPagado: ${formatClp(monthTotals.pagado)}\nPendiente: ${formatClp(monthTotals.pendiente)}`}
-                                                            >
-                                                                {/* Month name - Protagonist */}
-                                                                <span className={`tracking-wide ${density === 'minimal' ? 'text-xs' : 'text-sm'
-                                                                    } ${isCurrentMonth(month)
-                                                                        ? 'font-bold text-sky-400'
-                                                                        : 'font-semibold text-slate-300'
-                                                                    }`}>
-                                                                    {month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').charAt(0).toUpperCase() + month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').slice(1)}
-                                                                    {' '}
-                                                                    {(month.getFullYear() !== focusedDate.getFullYear() || month.getMonth() === 0) && (
-                                                                        <span className={`text-[10px] font-normal ${isCurrentMonth(month) ? 'text-sky-500/80' : 'text-slate-500'}`}>
-                                                                            {month.getFullYear()}
+                                                                        onClick={() => onFocusedDateChange && onFocusedDateChange(month)}
+                                                                        title={`${month.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}\nComprometido: ${formatClp(monthTotals.comprometido)}\nPagado: ${formatClp(monthTotals.pagado)}\nPendiente: ${formatClp(monthTotals.pendiente)}`}
+                                                                    >
+                                                                        {/* Month name - Protagonist */}
+                                                                        <span className={`tracking-wide ${density === 'minimal' ? 'text-xs' : 'text-sm'
+                                                                            } ${isCurrentMonth(month)
+                                                                                ? 'font-bold text-sky-400'
+                                                                                : 'font-semibold text-slate-200'
+                                                                            }`}>
+                                                                            {month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').charAt(0).toUpperCase() + month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').slice(1)}
+                                                                            {' '}
+                                                                            {(month.getFullYear() !== focusedDate.getFullYear() || month.getMonth() === 0) && (
+                                                                                <span className={`text-[10px] font-normal ${isCurrentMonth(month) ? 'text-sky-500/80' : 'text-slate-500'}`}>
+                                                                                    {month.getFullYear()}
+                                                                                </span>
+                                                                            )}
                                                                         </span>
-                                                                    )}
-                                                                </span>
 
-                                                                {/* Metrics Row - TEMPORARILY HIDDEN */}
-                                                                {/* 
+                                                                        {/* Metrics Row - TEMPORARILY HIDDEN */}
+                                                                        {/* 
                                                                 <div className={`font-mono font-medium tabular-nums mt-0.5 ${isCurrentMonth(month) ? 'text-sky-100' : 'text-slate-400'
                                                                     } ${density === 'minimal' ? 'text-[9px]' : 'text-[10px]'}`}>
                                                                     {formatClp(monthTotals.comprometido)}
@@ -719,10 +725,12 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                     </div>
                                                                 )} 
                                                                 */}
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                </div>
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </th>
                                         ))}
                                     </tr>
@@ -760,59 +768,82 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                         <td
                                                             onClick={() => onDetailCommitment ? onDetailCommitment(commitment) : onEditCommitment(commitment)}
                                                             className={`
-                                                            relative sticky left-0 z-30 p-0 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.1)]
-                                                            bg-slate-50 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-800
+                                                            relative sticky left-0 z-30 p-1 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.1)]
+                                                            bg-transparent dark:bg-slate-900
                                                             min-w-[220px] max-w-[240px] w-[220px]
                                                             h-[1px]
                                                         `}>
-                                                            {/* Inner Content - Nivel 1: Sólido Estructural per Identidad.md */}
+                                                            {/* Inner Content - Card style matching data cells */}
                                                             <div className={`
-                                                                relative cursor-pointer group/card h-full
-                                                                ${density === 'minimal' ? 'min-h-[40px] px-2 py-1' : density === 'compact' ? 'min-h-[48px] px-2.5 py-1.5' : 'min-h-[100px] px-3 py-2'}
-                                                                bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700/50
-                                                                hover:bg-slate-100 dark:hover:bg-slate-700/50
-                                                                transition-colors duration-200
+                                                                relative cursor-pointer group/card h-full rounded-xl
+                                                                ${density === 'minimal' ? 'min-h-[46px] px-2 py-1' : density === 'compact' ? 'min-h-[62px] px-2.5 py-1.5' : 'min-h-[78px] px-3 py-2'}
+                                                                bg-slate-50 dark:bg-slate-700/60 border border-slate-200/50 dark:border-slate-700/50
+                                                                hover:bg-slate-100 dark:hover:bg-slate-700/80 hover:border-slate-300 dark:hover:border-slate-500
+                                                                transition-all duration-200
                                                                 ${terminated ? 'opacity-70' : ''}
                                                             `}>
-                                                                {/* Flow Type Indicator - Left edge bar */}
-                                                                <div className={`absolute left-0 ${density === 'minimal' ? 'top-1 bottom-1' : 'top-2 bottom-2'} w-1 rounded-full ${commitment.flow_type === 'INCOME' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                                                {/* Flow Type Indicator - Interior left edge bar */}
+                                                                <div className={`absolute left-1.5 top-1.5 bottom-1.5 w-1 rounded-full ${commitment.flow_type === 'INCOME' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
 
                                                                 {/* Content Container - Different layouts for minimal/compact/detailed */}
                                                                 {density === 'minimal' ? (
                                                                     /* === MINIMAL: Single line with tooltip === */
                                                                     <div
-                                                                        className="flex items-center justify-between h-full pl-2 pr-4"
+                                                                        className="flex items-center justify-between h-full pl-5 pr-3"
                                                                         title={`${commitment.name} · ${getTranslatedCategoryName(commitment)} · ${formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}`}
                                                                     >
-                                                                        <span className={`font-semibold truncate text-xs ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>
+                                                                        <span className={`font-semibold truncate text-sm ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>
                                                                             {commitment.name}
                                                                         </span>
-                                                                        {commitment.is_important && <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500 shrink-0 ml-1" />}
+                                                                        <div className="flex items-center gap-1 shrink-0 ml-1">
+                                                                            {commitment.is_important && <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />}
+                                                                            {commitment.linked_commitment_id && <Link2 className="w-2.5 h-2.5 text-sky-500" />}
+                                                                            {/* Frequency indicator */}
+                                                                            {commitment.active_term?.installments_count && commitment.active_term.installments_count > 1 ? (
+                                                                                <span className="text-[9px] text-sky-400">#{commitment.active_term.installments_count}</span>
+                                                                            ) : commitment.active_term?.effective_until ? (
+                                                                                <CalendarIcon className="w-2.5 h-2.5 text-slate-500" />
+                                                                            ) : commitment.active_term ? (
+                                                                                <RefreshCw className="w-2.5 h-2.5 text-slate-500" />
+                                                                            ) : null}
+                                                                        </div>
                                                                     </div>
                                                                 ) : density === 'compact' ? (
                                                                     /* === COMPACT: 2 rows === */
-                                                                    <div className="flex flex-col justify-center h-full pl-2 pr-6">
-                                                                        {/* Row 1: Name + Icons */}
-                                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                                    <div className="flex flex-col justify-center h-full pl-5 pr-3">
+                                                                        {/* Row 1: Name (left) + Icons right-aligned (fav, linked, frequency) */}
+                                                                        <div className="flex items-center justify-between gap-1.5 min-w-0">
                                                                             <span className={`font-semibold truncate text-sm ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
                                                                                 {commitment.name}
                                                                             </span>
-                                                                            {commitment.is_important && <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />}
-                                                                            {commitment.linked_commitment_id && <Link2 className="w-3 h-3 text-sky-500 shrink-0" />}
+                                                                            <div className="flex items-center gap-1 shrink-0">
+                                                                                {commitment.is_important && <Star className="w-3 h-3 text-amber-500 fill-amber-500" />}
+                                                                                {commitment.linked_commitment_id && <Link2 className="w-3 h-3 text-sky-500" />}
+                                                                                {/* Frequency indicator */}
+                                                                                {commitment.active_term?.installments_count && commitment.active_term.installments_count > 1 ? (
+                                                                                    <span className="text-[10px] text-sky-400" title={`${commitment.active_term.installments_count} cuotas`}>
+                                                                                        #{commitment.active_term.installments_count}
+                                                                                    </span>
+                                                                                ) : commitment.active_term?.effective_until ? (
+                                                                                    <span title="Fecha de término"><CalendarIcon className="w-3 h-3 text-slate-500" /></span>
+                                                                                ) : commitment.active_term ? (
+                                                                                    <span title="Mensual indefinido"><RefreshCw className="w-3 h-3 text-slate-500" /></span>
+                                                                                ) : null}
+                                                                            </div>
                                                                         </div>
-                                                                        {/* Row 2: Category + Amount */}
-                                                                        <div className="flex items-center gap-2 mt-0.5">
-                                                                            <span className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                                                        {/* Row 2: Category Badge (left) + Amount (rightmost) */}
+                                                                        <div className="flex items-center justify-between gap-2 mt-1">
+                                                                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shrink-0">
                                                                                 {getTranslatedCategoryName(commitment)}
                                                                             </span>
-                                                                            <span className="font-mono font-semibold text-xs tabular-nums text-slate-700 dark:text-slate-200">
+                                                                            <span className="font-mono font-semibold text-sm tabular-nums text-slate-700 dark:text-slate-200 shrink-0">
                                                                                 {formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}
                                                                             </span>
                                                                         </div>
                                                                     </div>
                                                                 ) : (
                                                                     /* === DETAILED: 4 rows to match payment cells === */
-                                                                    <div className="flex flex-col justify-between h-full px-3 py-1">
+                                                                    <div className="flex flex-col justify-between h-full pl-5 pr-3 py-2 gap-1">
                                                                         {/* Row 1: Name + Icons */}
                                                                         <div className="flex items-center gap-1.5 min-w-0">
                                                                             <span className={`font-bold truncate text-base ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
@@ -822,9 +853,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                             {commitment.linked_commitment_id && <Link2 className="w-3.5 h-3.5 text-sky-500 shrink-0" />}
                                                                         </div>
 
-                                                                        {/* Row 2: Category badge + Frequency */}
+                                                                        {/* Row 2: Category badge */}
                                                                         <div className="flex items-center gap-1.5">
-                                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300">
+                                                                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                                                                                 {getTranslatedCategoryName(commitment)}
                                                                             </span>
                                                                             {/* Removed loose frequency icons in favor of badges below */}
@@ -1087,17 +1118,15 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                 >
                                                                     {/* Mini Bento Card for payment cell */}
                                                                     <div className={`
-                                                                        rounded-lg w-full h-full transition-all duration-200 cursor-pointer
+                                                                        rounded-xl w-full h-full transition-all duration-200 cursor-pointer
                                                                         flex flex-col items-center justify-center border
-                                                                        ${density === 'minimal' ? 'px-1 py-0.5 min-h-[40px]' : density === 'compact' ? 'px-1.5 py-1 min-h-[48px]' : 'px-2 py-2 min-h-[100px]'}
-                                                                        ${isFocused
-                                                                            ? 'border-slate-300 dark:border-slate-400/40 ring-1 ring-slate-400/20 dark:ring-slate-400/20 bg-slate-50 dark:bg-slate-800' // Focus: Glassy Slate
-                                                                            : isCurrent
-                                                                                ? 'border-sky-500/30 dark:border-sky-500/30 bg-slate-50 dark:bg-slate-800' // Current: Subtle Glassy Blue
-                                                                                : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-800' // Default
+                                                                        ${density === 'minimal' ? 'px-1 py-0.5 min-h-[46px]' : density === 'compact' ? 'px-1.5 py-1 min-h-[62px]' : 'px-2 py-2 min-h-[78px]'}
+                                                                        ${isFocused || isCurrent
+                                                                            ? 'border-slate-400/40 dark:border-slate-500/50 bg-slate-100 dark:bg-slate-800/60 border-2' // Active: Unified structural style
+                                                                            : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/50' // Default
                                                                         }
-                                                                        ${isDisabled ? 'opacity-50 bg-slate-900/20 border-slate-700/30' : ''}
-                                                                        ${isGap ? 'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-300 dark:border-slate-800' : ''}
+                                                                        ${isDisabled ? 'opacity-40 bg-slate-950/30 border-slate-800/40' : ''}
+                                                                        ${isGap && !isDisabled ? 'bg-transparent border-dashed border-slate-700/40' : ''}
                                                                     `}>
                                                                         {/* GAP: No term for this period */}
                                                                         {!term && !isPaid ? (
