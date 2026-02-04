@@ -11,8 +11,8 @@
 /srv/scripts/dc finansheet logs -f finansheet-dev
 
 # Access
-# - Tailscale: https://mini-lab.tail4b2f89.ts.net:8444/
-# - LAN: https://dev.mini-lab.lan (uses port 5175 mapped via Caddy)
+# - Tailscale (Remote): https://mini-lab.tail4b2f89.ts.net:8444/
+# - LAN: https://finansheet.dev.lab (requires Caddy + Hosts)
 ```
 
 ### Production
@@ -20,7 +20,9 @@
 # Deploy
 bash /srv/apps/finansheet/deploy.sh
 
-# Access: https://mini-lab.tail4b2f89.ts.net/ (mapped via Tailscale Serve)
+# Access:
+# - Remote: https://mini-lab.tail4b2f89.ts.net/ (PROD)
+# - LAN: https://finansheet.lab (requires Caddy + Hosts)
 ```
 
 ---
@@ -90,6 +92,44 @@ Located in: `/srv/apps/finansheet/.env`
 | Secrets | `/srv/apps/finansheet/.env` |
 | Server overrides | `/srv/apps/finansheet/compose.override.yml` |
 | Deploy script | `/srv/apps/finansheet/deploy.sh` |
+| **Caddy config** | `/etc/caddy/conf.d/finansheet.caddy` |
+
+---
+
+## Caddy Integration
+
+FinanSheet uses a **dedicated Caddy config file** to avoid conflicts with other projects.
+
+**Location**: `/etc/caddy/conf.d/finansheet.caddy`
+
+```caddy
+# FinanSheet PROD (Port 3001)
+finansheet.lab {
+  bind 192.168.100.224
+  reverse_proxy 127.0.0.1:3001
+  tls internal
+}
+
+# FinanSheet DEV (Port 5175)
+finansheet.dev.lab {
+  bind 192.168.100.224
+  reverse_proxy 127.0.0.1:5175 {
+    header_up Host 127.0.0.1  # Bypasses Vite "allowedHosts" check
+  }
+  tls internal
+}
+```
+
+### To modify:
+```bash
+# Edit the file
+sudo nano /etc/caddy/conf.d/finansheet.caddy
+
+# Reload Caddy
+sudo systemctl reload caddy
+```
+
+> ⚠️ **Only edit YOUR project's `.caddy` file**. Do not modify other projects' configs.
 
 ---
 
