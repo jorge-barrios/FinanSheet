@@ -288,7 +288,7 @@ export function CommitmentCard({
                         <CategoryIconComponent className="w-4 h-4" />
                     </div>
 
-                    {/* Name + Category */}
+                    {/* Name + Category Badge */}
                     <div className="flex-1 min-w-0">
                         <h3 className={`
                                 font-bold text-base text-[var(--dashboard-text-primary)]
@@ -297,9 +297,11 @@ export function CommitmentCard({
                             `}>
                             {commitment.name}
                         </h3>
-                        <span className="text-[10px] text-[var(--dashboard-text-muted)] uppercase tracking-wider font-bold">
+                        {/* Category Badge - Tech/Dark Style matching screenshot */}
+                        <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded-md text-[0.6rem] uppercase tracking-widest font-bold bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 text-slate-500 dark:text-slate-400">
+                            <CategoryIconComponent className="w-3 h-3 opacity-70" />
                             {categoryName || 'Sin categoría'}
-                        </span>
+                        </div>
                     </div>
                 </div>
 
@@ -384,22 +386,32 @@ export function CommitmentCard({
                 </div>
             </div>
 
-            {/* Amount Row - Compact typography */}
-            <div className="mt-1.5 flex items-baseline justify-between">
-                <div className="flex items-baseline gap-1.5">
-                    <span className="text-lg font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)]">
-                        {summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
-                    </span>
-                    {/* Currency Badge - Text only */}
-                    {activeTerm?.currency_original && (
-                        <span className="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                            {activeTerm.currency_original}
-                        </span>
-                    )}
-                </div>
-
-                {/* Contextual Payment Progress */}
+            {/* Amount Row - Right aligned with currency prefix */}
+            <div className="mt-1.5 flex items-center justify-between">
+                {/* Left: Payment Progress */}
                 {getPaymentProgress()}
+
+                {/* Right: Amount Stack (Secondary above, Primary below) */}
+                <div className="flex flex-col items-end">
+                    {/* Secondary Currency (if exists) - Above primary */}
+                    {activeTerm?.currency_original && activeTerm.currency_original !== 'CLP' && activeTerm.amount_original && (
+                        <div className="flex items-baseline gap-1 text-[0.625rem] text-slate-500 dark:text-slate-400">
+                            <span className="font-medium uppercase">{activeTerm.currency_original}</span>
+                            <span className="font-mono tabular-nums">
+                                {activeTerm.amount_original.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                        </div>
+                    )}
+                    {/* Primary Amount with CLP prefix */}
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-[0.625rem] font-medium text-slate-500 dark:text-slate-400 uppercase">
+                            CLP
+                        </span>
+                        <span className="text-lg font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)]">
+                            {summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
+                        </span>
+                    </div>
+                </div>
             </div>
 
             {/* Simplified Footer: Just status text + date, no heavy badges */}

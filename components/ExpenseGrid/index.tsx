@@ -23,14 +23,17 @@ import {
 } from '../icons';
 import type { CommitmentWithTerm, Payment } from '../../types.v2';
 import { parseDateString, getPerPeriodAmount } from '../../utils/financialUtils.v2';
+import { getCategoryIcon } from '../../utils/categoryIcons';
 
 
 import { CommitmentCard } from '../CommitmentCard';
-import { Sparkles, Minus, RefreshCw, TrendingUp, Eye, ChevronDown, Filter as FilterIcon, Star } from 'lucide-react';
+import { Sparkles, Minus, RefreshCw, TrendingUp, Eye, ChevronDown, Filter as FilterIcon, Star, LayoutGrid, LayoutList, AlignJustify, Menu, Pause as PauseLucide } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { KPISelectorModal } from './KPISelectorModal';
 import { MobileKPICarousel } from './MobileKPICarousel';
+import { ExpenseCard } from './ExpenseCard';
+import { dateToPeriod, type Density } from './types';
 
 
 // =============================================================================
@@ -97,20 +100,10 @@ interface ExpenseGridV2Props {
 // ICON MAPPING
 // =============================================================================
 
-export const categoryIconsMap: Record<string, React.ReactElement<IconProps>> = {
-    'Hogar': <HomeIcon />,
-    'Vivienda': <HomeIcon />,
-    'Transporte': <TransportIcon />,
-    'Deudas': <DebtIcon />,
-    'Salud': <HealthIcon />,
-    'Suscripciones': <SubscriptionIcon />,
-    'Varios': <MiscIcon />,
-};
-
-export const getCategoryIcon = (category: string) => {
-    const icon = categoryIconsMap[category] || <CategoryIcon />;
-    return React.cloneElement(icon, { className: 'w-5 h-5' });
-};
+// =============================================================================
+// ICON MAPPING
+// =============================================================================
+// Uses ../../utils/categoryIcons.ts for robust fuzzy matching
 
 // Helper to convert Date to periodDate string (YYYY-MM-DD, first day of month)
 const dateToPeriod = (date: Date): string => {
@@ -377,13 +370,18 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                 <button
                                     key={d}
                                     onClick={() => setDensity(d)}
-                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${density === d
+                                    className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${density === d
                                         ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
                                         : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
                                         }`}
                                     title={`Vista ${d}`}
                                 >
-                                    {d.charAt(0).toUpperCase() + d.slice(1)}
+                                    <span className="flex items-center gap-1.5">
+                                        {d === 'minimal' && <Minus className="w-3.5 h-3.5" />}
+                                        {d === 'compact' && <PauseLucide className="w-3.5 h-3.5 rotate-90" />}
+                                        {d === 'detailed' && <Menu className="w-3.5 h-3.5" />}
+                                        {d.charAt(0).toUpperCase() + d.slice(1)}
+                                    </span>
                                 </button>
                             ))}
                         </div>
@@ -582,15 +580,19 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                             <table className="w-full border-separate border-spacing-0">
                                 <thead className="sticky top-0 z-40">
                                     {/* Month Header - Card Style (Separated) */}
-                                    <tr className="bg-slate-50 dark:bg-slate-900"> {/* Mask Background */}
+                                    <tr className="bg-slate-50 dark:bg-slate-900">
                                         {/* COMPROMISO - Left end (Card Style) */}
                                         <th className={`sticky left-0 z-50 min-w-[220px] max-w-[240px] w-[220px] p-1 bg-slate-50 dark:bg-slate-900 align-middle`}>
                                             <div className="h-full w-full flex flex-col justify-center">
                                                 {/* Embedded Month Selector: Premium Glass Capsule */}
                                                 <div className={`
-                                                    flex items-center gap-1 w-full rounded-xl transition-all border shadow-sm group/selector px-1
-                                                    bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-600/50 hover:border-slate-300 dark:hover:border-slate-500
-                                                    ${density === 'minimal' ? 'min-h-[48px] py-1' : density === 'compact' ? 'min-h-[64px] py-1.5' : 'min-h-[80px] py-2'}
+                                                    flex items-center gap-1 w-full rounded-xl transition-all duration-300 ease-out
+                                                    border shadow-sm group/selector px-1.5
+                                                    bg-white dark:bg-slate-800/60 backdrop-blur-sm
+                                                    bg-gradient-to-br from-white/5 to-transparent dark:from-white/5 dark:to-transparent shadow-inner
+                                                    border-slate-200 dark:border-white/5
+                                                    hover:shadow-lg hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-white/10
+                                                    ${density === 'minimal' ? 'min-h-10 py-1' : density === 'compact' ? 'min-h-14 py-1.5' : 'min-h-20 py-2'}
                                                 `}>
                                                     {/* Home/Today Action - Stable (Left) */}
                                                     <button
@@ -600,14 +602,14 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                         }}
                                                         disabled={isCurrentMonth(focusedDate)}
                                                         className={`
-                                                            w-7 h-7 flex items-center justify-center rounded-lg transition-all active:scale-95
+                                                            w-9 h-9 flex items-center justify-center rounded-lg transition-all active:scale-95
                                                             ${isCurrentMonth(focusedDate)
                                                                 ? 'text-slate-300 dark:text-slate-700 opacity-50 cursor-default'
                                                                 : 'text-sky-500 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/30 cursor-pointer'}
                                                         `}
                                                         title="Volver a Hoy"
                                                     >
-                                                        <CalendarIcon className="w-4 h-4" />
+                                                        <CalendarIcon className="w-5 h-5" />
                                                     </button>
 
                                                     {/* Divider */}
@@ -622,16 +624,16 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                 d.setMonth(d.getMonth() - 1);
                                                                 onFocusedDateChange && onFocusedDateChange(d);
                                                             }}
-                                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95"
+                                                            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95"
                                                         >
-                                                            <ChevronLeftIcon className="w-4 h-4" />
+                                                            <ChevronLeftIcon className="w-5 h-5" />
                                                         </button>
 
-                                                        <div className="flex flex-col items-center justify-center">
+                                                        <div className="flex flex-row items-baseline justify-center gap-1.5">
                                                             <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-widest">
                                                                 {focusedDate.toLocaleDateString('es-Cl', { month: 'short' }).replace('.', '')}
                                                             </span>
-                                                            <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                                                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                                                                 {focusedDate.getFullYear()}
                                                             </span>
                                                         </div>
@@ -643,9 +645,9 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                 d.setMonth(d.getMonth() + 1);
                                                                 onFocusedDateChange && onFocusedDateChange(d);
                                                             }}
-                                                            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95"
+                                                            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95"
                                                         >
-                                                            <ChevronRightIcon className="w-4 h-4" />
+                                                            <ChevronRightIcon className="w-5 h-5" />
                                                         </button>
                                                     </div>
                                                 </div>
@@ -666,11 +668,24 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                     let cardStyle = 'bg-white dark:bg-slate-700/60 border-slate-200 dark:border-slate-600/50 hover:border-slate-300 dark:hover:border-slate-500'; // Normal
 
                                                     if (isCurrent || isFocused) {
-                                                        cardStyle = 'bg-slate-100 dark:bg-slate-800/60 border-2 border-slate-500/50'; // Active (current or focused)
+                                                        // Commit-card style for active month
+                                                        cardStyle = 'bg-white dark:bg-slate-700/60 border border-slate-400/60 dark:border-slate-500/60 hover:bg-slate-100 dark:hover:bg-slate-700/80 shadow-sm backdrop-blur-sm';
                                                     }
 
                                                     return (
-                                                        <div className={`h-full w-full rounded-xl border transition-all duration-300 overflow-hidden ${cardStyle}`}>
+                                                        <div className={`relative h-full w-full rounded-xl border transition-all duration-300 overflow-hidden ${cardStyle}`}>
+                                                            {/* Top bar indicator for current/focused month - like commit cards */}
+                                                            {(isCurrent || isFocused) && (
+                                                                <div className={`
+                                                                    absolute top-1.5 rounded-full left-1/2 -translate-x-1/2 transition-all duration-300
+                                                                    ${isCurrent ? 'bg-sky-400/60' : 'bg-slate-400 dark:bg-slate-500'}
+                                                                    ${density === 'minimal'
+                                                                        ? 'w-6 h-1' // Bar matching text width (~FEB)
+                                                                        : density === 'compact' ? 'w-1/2 h-1' // 50% Bar for compact
+                                                                            : 'w-[calc(100%-12px)] h-1' // Full Bar for detailed
+                                                                    }
+                                                                `} />
+                                                            )}
                                                             {/* Month content - ENHANCED with KPI metrics */}
                                                             {(() => {
                                                                 const monthTotals = getMonthTotals(month.getFullYear(), month.getMonth());
@@ -678,23 +693,29 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                     <div className={`
                                                             flex flex-col items-center justify-center px-1 transition-all duration-200 cursor-pointer
                                                             hover:bg-slate-50 dark:hover:bg-slate-700/50
-                                                            ${density === 'minimal' ? 'py-1 min-h-[48px]' :
-                                                                            density === 'compact' ? 'py-1.5 min-h-[64px]' :
-                                                                                'py-2 min-h-[80px]'}
+                                                            ${density === 'minimal' ? 'py-1 min-h-10' :
+                                                                            density === 'compact' ? 'py-1.5 min-h-14' :
+                                                                                'py-2 min-h-20'}
                                                         `}
                                                                         onClick={() => onFocusedDateChange && onFocusedDateChange(month)}
                                                                         title={`${month.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}\nComprometido: ${formatClp(monthTotals.comprometido)}\nPagado: ${formatClp(monthTotals.pagado)}\nPendiente: ${formatClp(monthTotals.pendiente)}`}
                                                                     >
-                                                                        {/* Month name - Protagonist */}
+                                                                        {/* Month name - Protagonist (neutral text, bar carries color) */}
                                                                         <span className={`tracking-wide ${density === 'minimal' ? 'text-xs' : 'text-sm'
                                                                             } ${isCurrentMonth(month)
-                                                                                ? 'font-bold text-sky-400'
+                                                                                ? 'font-bold text-slate-100 uppercase tracking-widest'
                                                                                 : 'font-semibold text-slate-200'
                                                                             }`}>
-                                                                            {month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').charAt(0).toUpperCase() + month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').slice(1)}
+                                                                            {/* Full name for highlighted, short for others */}
+                                                                            {(isCurrent || isFocused)
+                                                                                ? density === 'minimal'
+                                                                                    ? month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').toUpperCase() // FEB
+                                                                                    : month.toLocaleDateString('es-CL', { month: 'long' }).charAt(0).toUpperCase() + month.toLocaleDateString('es-CL', { month: 'long' }).slice(1) // Febrero
+                                                                                : month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').charAt(0).toUpperCase() + month.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '').slice(1) // Feb
+                                                                            }
                                                                             {' '}
                                                                             {(month.getFullYear() !== focusedDate.getFullYear() || month.getMonth() === 0) && (
-                                                                                <span className={`text-[10px] font-normal ${isCurrentMonth(month) ? 'text-sky-500/80' : 'text-slate-500'}`}>
+                                                                                <span className="text-[11px] font-normal text-slate-400">
                                                                                     {month.getFullYear()}
                                                                                 </span>
                                                                             )}
@@ -764,7 +785,6 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             ${terminated ? 'opacity-60 grayscale-[0.5]' : ''}
                                                         `}
                                                     >
-                                                        {/* Name cell - Bento Card Style */}
                                                         <td
                                                             onClick={() => onDetailCommitment ? onDetailCommitment(commitment) : onEditCommitment(commitment)}
                                                             className={`
@@ -776,14 +796,23 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             {/* Inner Content - Card style matching data cells */}
                                                             <div className={`
                                                                 relative cursor-pointer group/card h-full rounded-xl
-                                                                ${density === 'minimal' ? 'min-h-[46px] px-2 py-1' : density === 'compact' ? 'min-h-[62px] px-2.5 py-1.5' : 'min-h-[78px] px-3 py-2'}
+                                                                ${density === 'minimal' ? 'min-h-10 px-2 py-1' : density === 'compact' ? 'min-h-14 px-2.5 py-1.5' : 'min-h-20 px-3 py-2'}
                                                                 bg-slate-50 dark:bg-slate-700/60 border border-slate-200/50 dark:border-slate-700/50
                                                                 hover:bg-slate-100 dark:hover:bg-slate-700/80 hover:border-slate-300 dark:hover:border-slate-500
                                                                 transition-all duration-200
                                                                 ${terminated ? 'opacity-70' : ''}
                                                             `}>
-                                                                {/* Flow Type Indicator - Interior left edge bar */}
-                                                                <div className={`absolute left-1.5 top-1.5 bottom-1.5 w-1 rounded-full ${commitment.flow_type === 'INCOME' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                                                {/* Flow Type Indicator - Density Aware */}
+                                                                <div className={`
+                                                                    absolute left-1.5 rounded-full transition-all duration-300
+                                                                    ${commitment.flow_type === 'INCOME' ? 'bg-emerald-500' : 'bg-rose-500'}
+                                                                    ${density === 'minimal'
+                                                                        ? 'top-1/2 -translate-y-1/2 h-3.5 w-1' // Bar height of text (~14px)
+                                                                        : density === 'compact'
+                                                                            ? 'top-2 bottom-2 w-1' // Spans full content area (minus padding)
+                                                                            : 'top-1.5 bottom-1.5 w-1' // Full bar for detailed
+                                                                    }
+                                                                `} />
 
                                                                 {/* Content Container - Different layouts for minimal/compact/detailed */}
                                                                 {density === 'minimal' ? (
@@ -810,7 +839,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                     </div>
                                                                 ) : density === 'compact' ? (
                                                                     /* === COMPACT: 2 rows === */
-                                                                    <div className="flex flex-col justify-center h-full pl-5 pr-3">
+                                                                    <div className="flex flex-col justify-center h-full pl-3.5 pr-3">
                                                                         {/* Row 1: Name (left) + Icons right-aligned (fav, linked, frequency) */}
                                                                         <div className="flex items-center justify-between gap-1.5 min-w-0">
                                                                             <span className={`font-semibold truncate text-sm ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
@@ -831,21 +860,44 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                 ) : null}
                                                                             </div>
                                                                         </div>
-                                                                        {/* Row 2: Category Badge (left) + Amount (rightmost) */}
+                                                                        {/* Row 2: Category Badge with Icon (left) + Amount with Currency (right) */}
                                                                         <div className="flex items-center justify-between gap-2 mt-1">
-                                                                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shrink-0">
-                                                                                {getTranslatedCategoryName(commitment)}
-                                                                            </span>
-                                                                            <span className="font-mono font-semibold text-sm tabular-nums text-slate-700 dark:text-slate-200 shrink-0">
-                                                                                {formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}
-                                                                            </span>
+                                                                            {(() => {
+                                                                                return (
+                                                                                    <div className="inline-flex items-center px-2 py-0.5 rounded-md text-[0.6rem] uppercase tracking-widest font-bold bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 text-slate-500 dark:text-slate-400 min-w-0">
+                                                                                        <span className="truncate">{getTranslatedCategoryName(commitment)}</span>
+                                                                                    </div>
+                                                                                );
+                                                                            })()}
+                                                                            <div className="flex items-baseline gap-1 shrink-0">
+                                                                                <span className="text-[0.625rem] font-medium text-slate-500 dark:text-slate-400 uppercase">CLP</span>
+                                                                                <span className="font-mono font-semibold text-sm tabular-nums text-slate-700 dark:text-slate-200">
+                                                                                    {formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}
+                                                                                </span>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
                                                                 ) : (
                                                                     /* === DETAILED: 4 rows to match payment cells === */
-                                                                    <div className="flex flex-col justify-between h-full pl-5 pr-3 py-2 gap-1">
-                                                                        {/* Row 1: Name + Icons */}
-                                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                                    <div className="flex flex-col justify-between h-full pl-2 pr-3 py-2 gap-1">
+                                                                        {/* Row 1: Icon Avatar + Name + Icons */}
+                                                                        <div className="flex items-center gap-2 min-w-0">
+                                                                            {/* Icon Avatar - Separate badge like mobile */}
+                                                                            {(() => {
+                                                                                const CategoryIconComponent = getCategoryIcon(commitment.category?.name || '');
+                                                                                return (
+                                                                                    <div className={`
+                                                                                        w-7 h-7 rounded-lg flex items-center justify-center shrink-0
+                                                                                        bg-slate-100 dark:bg-slate-800
+                                                                                        border border-slate-200 dark:border-slate-700
+                                                                                        ${commitment.flow_type === 'INCOME'
+                                                                                            ? 'text-emerald-600 dark:text-emerald-400'
+                                                                                            : 'text-rose-600 dark:text-rose-400'}
+                                                                                    `}>
+                                                                                        <CategoryIconComponent className="w-3.5 h-3.5" />
+                                                                                    </div>
+                                                                                );
+                                                                            })()}
                                                                             <span className={`font-bold truncate text-base ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
                                                                                 {commitment.name}
                                                                             </span>
@@ -853,33 +905,63 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                             {commitment.linked_commitment_id && <Link2 className="w-3.5 h-3.5 text-sky-500 shrink-0" />}
                                                                         </div>
 
-                                                                        {/* Row 2: Category badge */}
+                                                                        {/* Row 2: Category badge (text only, no icon) */}
                                                                         <div className="flex items-center gap-1.5">
-                                                                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                                                            <div className="inline-flex items-center px-2 py-0.5 rounded-md text-[0.6rem] uppercase tracking-widest font-bold bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 text-slate-500 dark:text-slate-400">
                                                                                 {getTranslatedCategoryName(commitment)}
-                                                                            </span>
-                                                                            {/* Removed loose frequency icons in favor of badges below */}
+                                                                            </div>
                                                                         </div>
 
-                                                                        {/* Row 3: Amount (protagonista) */}
-                                                                        <div className="font-mono font-bold text-xl tabular-nums text-slate-900 dark:text-white tracking-tight">
-                                                                            {formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}
+                                                                        {/* Row 3: Amount Stack (Secondary above, Primary below) - right-aligned */}
+                                                                        <div className="flex flex-col items-end">
+                                                                            {/* Secondary Currency (if exists) */}
+                                                                            {commitment.active_term?.currency_original && commitment.active_term.currency_original !== 'CLP' && commitment.active_term.amount_original && (
+                                                                                <div className="flex items-baseline gap-1 text-[0.625rem] text-slate-400 dark:text-slate-500">
+                                                                                    <span className="font-medium uppercase">{commitment.active_term.currency_original}</span>
+                                                                                    <span className="font-mono tabular-nums">
+                                                                                        {commitment.active_term.amount_original.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                                    </span>
+                                                                                </div>
+                                                                            )}
+                                                                            {/* Primary Amount with CLP prefix */}
+                                                                            <div className="flex items-baseline gap-1">
+                                                                                <span className="text-[0.625rem] font-medium text-slate-500 dark:text-slate-400 uppercase">CLP</span>
+                                                                                <span className="font-mono font-bold text-xl tabular-nums text-slate-900 dark:text-white tracking-tight">
+                                                                                    {formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}
+                                                                                </span>
+                                                                            </div>
                                                                         </div>
 
-                                                                        {/* Row 4: Term info - Ghost style (no bg/border) */}
+                                                                        {/* Row 4: Recurrence (left) + Term End/Cuotas (right) */}
                                                                         <div className="flex items-center justify-between">
-                                                                            {/* Recurrence/Term info - minimal */}
-                                                                            {/* Tech Badge for Term/Recurrence */}
+                                                                            {/* Recurrence Badge - Left */}
+                                                                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[0.625rem] font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                                                                <RefreshCw className="w-3 h-3 text-slate-500 dark:text-slate-400" />
+                                                                                {(() => {
+                                                                                    const freq = commitment.active_term?.frequency;
+                                                                                    switch (freq) {
+                                                                                        case 'ONCE': return 'Único';
+                                                                                        case 'MONTHLY': return 'Mensual';
+                                                                                        case 'BIMONTHLY': return 'Bimestral';
+                                                                                        case 'QUARTERLY': return 'Trimestral';
+                                                                                        case 'SEMIANNUALLY': return 'Semestral';
+                                                                                        case 'ANNUALLY': return 'Anual';
+                                                                                        default: return 'Mensual';
+                                                                                    }
+                                                                                })()}
+                                                                            </span>
+
+                                                                            {/* Term End Badge - Right (only if has end date or installments) */}
                                                                             {commitment.active_term?.effective_until ? (
-                                                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-800 ring-1 ring-sky-500/10">
+                                                                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[0.625rem] font-bold bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 border border-slate-200 dark:border-slate-700 shadow-sm">
                                                                                     {commitment.active_term.installments_count && commitment.active_term.installments_count > 1 ? (
                                                                                         <>
-                                                                                            <HashIcon className="w-3 h-3 text-sky-500" />
+                                                                                            <HashIcon className="w-3 h-3 text-sky-500 dark:text-sky-400" />
                                                                                             {commitment.active_term.installments_count} Cuotas
                                                                                         </>
                                                                                     ) : (
                                                                                         <>
-                                                                                            <CalendarIcon className="w-3 h-3 text-sky-500" />
+                                                                                            <CalendarIcon className="w-3 h-3 text-sky-500 dark:text-sky-400" />
                                                                                             {(() => {
                                                                                                 const [y, m] = commitment.active_term!.effective_until.substring(0, 7).split('-');
                                                                                                 const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -888,11 +970,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         </>
                                                                                     )}
                                                                                 </span>
-                                                                            ) : (
-                                                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                                                                                    <RefreshCw className="w-3 h-3 text-slate-400" /> Mensual
-                                                                                </span>
-                                                                            )}
+                                                                            ) : null}
+
                                                                             {/* Status icons - solo cuando hay estado especial */}
                                                                             {terminationReason === 'PAUSED' && (
                                                                                 <PauseIcon className="w-3.5 h-3.5 text-amber-500" />
@@ -1113,21 +1192,25 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                             return (
                                                                 <td
                                                                     key={mi}
-                                                                    className="p-1 h-[1px]" // Removed background track
+                                                                    className="p-0.5 h-[1px]" // Minimal cell padding
                                                                     onClick={() => onRecordPayment(commitment.id, dateToPeriod(monthDate))}
                                                                 >
-                                                                    {/* Mini Bento Card for payment cell */}
+                                                                    {/* Payment Cell with Card Lift + Neutral Card Pattern */}
                                                                     <div className={`
-                                                                        rounded-xl w-full h-full transition-all duration-200 cursor-pointer
+                                                                        group/cell relative overflow-hidden
+                                                                        rounded-xl w-full h-full cursor-pointer
                                                                         flex flex-col items-center justify-center border
-                                                                        ${density === 'minimal' ? 'px-1 py-0.5 min-h-[46px]' : density === 'compact' ? 'px-1.5 py-1 min-h-[62px]' : 'px-2 py-2 min-h-[78px]'}
+                                                                        transition-all duration-300 ease-out
+                                                                        hover:shadow-lg hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-white/10
+                                                                        ${density === 'minimal' ? 'px-0.5 py-0.5 min-h-10' : density === 'compact' ? 'px-1 py-1 min-h-14' : 'p-1 min-h-20'}
                                                                         ${isFocused || isCurrent
-                                                                            ? 'border-slate-400/40 dark:border-slate-500/50 bg-slate-100 dark:bg-slate-800/60 border-2' // Active: Unified structural style
-                                                                            : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/50' // Default
-                                                                        }
-                                                                        ${isDisabled ? 'opacity-40 bg-slate-950/30 border-slate-800/40' : ''}
-                                                                        ${isGap && !isDisabled ? 'bg-transparent border-dashed border-slate-700/40' : ''}
+                                                                            ? 'border border-slate-400/60 dark:border-slate-500/60 bg-slate-50 dark:bg-slate-800/70 ring-1 ring-slate-400/30 dark:ring-slate-400/20'
+                                                                            : 'bg-slate-900/10 dark:bg-slate-800/30 border-slate-400/30 dark:border-slate-500/30'}
+                                                                        ${isDisabled ? 'opacity-40 hover:shadow-none hover:translate-y-0' : ''}
+                                                                        ${isGap && !isDisabled ? 'bg-transparent border-dashed border-slate-300 dark:border-slate-700/40 hover:shadow-none hover:translate-y-0' : ''}
+                                                                        ${isOverdue && !isPaid ? 'bg-rose-50/30 dark:bg-rose-900/10' : ''}
                                                                     `}>
+
                                                                         {/* GAP: No term for this period */}
                                                                         {!term && !isPaid ? (
                                                                             <div className="flex items-center justify-center h-full w-full text-slate-400 dark:text-slate-600 select-none" title="Sin término activo en este período">
@@ -1208,22 +1291,22 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                                     {/* Badge de estado compacto */}
                                                                                                     {isPaid ? (
                                                                                                         <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-inset ring-emerald-500/20 px-2 py-0.5 rounded-full">
-                                                                                                            <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                                                                            <CheckCircleIcon className="w-4 h-4" />
                                                                                                             Pagado
                                                                                                         </span>
                                                                                                     ) : isOverdue ? (
                                                                                                         <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 ring-1 ring-inset ring-red-500/20 px-2 py-0.5 rounded-full">
-                                                                                                            <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                                                                                                            <ExclamationTriangleIcon className="w-4 h-4" />
                                                                                                             Vencido
                                                                                                         </span>
                                                                                                     ) : isDisabled ? (
                                                                                                         <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">
-                                                                                                            <CalendarIcon className="w-3.5 h-3.5" />
+                                                                                                            <CalendarIcon className="w-4 h-4" />
                                                                                                             Futuro
                                                                                                         </span>
                                                                                                     ) : (
                                                                                                         <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full">
-                                                                                                            <ClockIcon className="w-3.5 h-3.5" />
+                                                                                                            <ClockIcon className="w-4 h-4" />
                                                                                                             Pendiente
                                                                                                         </span>
                                                                                                     )}
@@ -1277,24 +1360,21 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         }
                                                                                     >
                                                                                         <div className="flex items-center justify-between w-full h-full px-1 gap-2">
-                                                                                            {/* Left: Status Icon (Sutil) */}
-                                                                                            <div className={`opacity-60 transition-opacity group-hover/cell:opacity-100 ${isPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                                                                                            {/* Left: Status Icon */}
+                                                                                            <div className={`transition-opacity ${isPaid ? 'text-emerald-600 dark:text-emerald-400' :
                                                                                                 isOverdue ? 'text-rose-500 dark:text-rose-400' :
-                                                                                                    'text-slate-400 dark:text-slate-500'
+                                                                                                    'text-slate-400 dark:text-slate-300'
                                                                                                 }`}>
-                                                                                                {isPaid ? <CheckCircleIcon className="w-3.5 h-3.5" /> :
-                                                                                                    isOverdue ? <ExclamationTriangleIcon className="w-3.5 h-3.5" /> :
-                                                                                                        isPending ? <ClockIcon className="w-3.5 h-3.5" /> :
-                                                                                                            (installmentsCount && installmentsCount > 1) ? <CalendarIcon className="w-3.5 h-3.5" /> :
+                                                                                                {isPaid ? <CheckCircleIcon className="w-5 h-5" /> :
+                                                                                                    isOverdue ? <ExclamationTriangleIcon className="w-5 h-5" /> :
+                                                                                                        isPending ? <ClockIcon className="w-5 h-5" /> :
+                                                                                                            (installmentsCount && installmentsCount > 1) ? <CalendarIcon className="w-5 h-5" /> :
                                                                                                                 null}
                                                                                             </div>
 
                                                                                             {/* Right: Amount + Cuota */}
                                                                                             <div className="flex flex-col items-end leading-none">
-                                                                                                <span className={`text-sm font-semibold tabular-nums ${isPaid ? 'text-emerald-800 dark:text-emerald-200' :
-                                                                                                    isOverdue ? 'text-rose-700 dark:text-rose-300' :
-                                                                                                        'text-slate-700 dark:text-slate-200'
-                                                                                                    }`}>
+                                                                                                <span className="text-sm font-semibold font-mono tabular-nums text-slate-700 dark:text-slate-100">
                                                                                                     {formatClp(displayAmount!)}
                                                                                                 </span>
                                                                                                 {(cuotaNumber && installmentsCount && installmentsCount > 1) && (
@@ -1306,62 +1386,139 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                                                                                         </div>
                                                                                     </CompactTooltip>
                                                                                 ) : (
-                                                                                    /* === FULL VIEW: Optimized hierarchy === */
+                                                                                    /* === FULL VIEW: Balances Corners Layout === */
                                                                                     <div
-                                                                                        className={`${pad} relative h-full flex flex-col justify-between cursor-pointer py-1.5`}
+                                                                                        className="relative w-full h-full flex flex-col justify-between cursor-pointer py-1.5 px-2 rounded-lg shadow-inner"
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
                                                                                             onRecordPayment(commitment.id, dateToPeriod(monthDate));
                                                                                         }}
                                                                                     >
-                                                                                        {/* ROW 1: Amount - PROTAGONISTA */}
-                                                                                        <div className="text-center">
-                                                                                            <span className="font-bold font-mono tabular-nums text-xl text-slate-900 dark:text-white tracking-tight">
-                                                                                                {formatClp(displayAmount)}
-                                                                                            </span>
-                                                                                            {/* Original currency inline */}
-                                                                                            {showOriginalCurrency && (
-                                                                                                <div className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums -mt-0.5">
-                                                                                                    {originalCurrency} {perPeriodOriginal.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                                                                </div>
-                                                                                            )}
+                                                                                        {/* ABSOLUTE: Progress Badge (bottom-left corner) */}
+                                                                                        {(cuotaNumber && installmentsCount && installmentsCount > 1) ? (
+                                                                                            <div className="absolute bottom-2 left-2 flex flex-col items-center justify-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-md min-w-10">
+                                                                                                <span className="text-[0.5rem] uppercase tracking-widest font-bold text-slate-400 dark:text-slate-500 leading-none mb-0.5">Cuota</span>
+                                                                                                <span className="text-xs tabular-nums text-slate-700 dark:text-white font-bold leading-none">{cuotaNumber}/{installmentsCount}</span>
+                                                                                            </div>
+                                                                                        ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
+                                                                                            <div className="absolute bottom-2 left-2 flex flex-col items-center justify-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 rounded-md shadow-md min-w-10">
+                                                                                                <span className="text-[0.5rem] uppercase tracking-widest font-bold text-slate-400 dark:text-slate-500 leading-none mb-0.5">Pago</span>
+                                                                                                <span className="text-xs tabular-nums text-slate-700 dark:text-white font-bold leading-none">
+                                                                                                    {(() => {
+                                                                                                        const [startYear, startMonth] = term.effective_from.split('-').map(Number);
+                                                                                                        const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
+                                                                                                            (monthDate.getMonth() + 1 - startMonth) + 1;
+                                                                                                        return paymentNumber > 0 ? paymentNumber : 1;
+                                                                                                    })()}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        ) : null}
+                                                                                        {/* TOP ROW: Insight (Left) + Original Currency (Right) */}
+                                                                                        <div className="flex items-start justify-between min-h-[16px]">
+                                                                                            {/* Left: Financial Insight / Variance / Tag */}
+                                                                                            <div className="text-[10px] font-medium truncate pr-1">
+                                                                                                {isPaid && currentPayment ? (
+                                                                                                    (() => {
+                                                                                                        // Variance Analysis
+                                                                                                        const expectedAmount = term?.is_divided_amount && installmentsCount && installmentsCount > 1
+                                                                                                            ? (term.amount_in_base ?? term.amount_original) / installmentsCount
+                                                                                                            : (term?.amount_in_base ?? term?.amount_original ?? 0);
+
+                                                                                                        const paidAmountBase = currentPayment.amount_in_base ?? currentPayment.amount_original;
+                                                                                                        const diff = paidAmountBase - expectedAmount;
+
+                                                                                                        if (Math.abs(diff) > 100) {
+                                                                                                            const isHigher = diff > 0;
+                                                                                                            return (
+                                                                                                                <span className="flex items-center gap-0.5 text-slate-400 dark:text-slate-500">
+                                                                                                                    {isHigher ? '↗' : '↘'} {Math.abs(diff).toLocaleString('es-CL')}
+                                                                                                                </span>
+                                                                                                            );
+                                                                                                        }
+                                                                                                        return <span className="text-slate-500 dark:text-slate-600 text-[10px]">Sin variación</span>;
+                                                                                                    })()
+                                                                                                ) : (
+                                                                                                    // Unpaid: Show Budget Tag (Need/Want/Savings)
+                                                                                                    commitment.category?.budget_type ? (
+                                                                                                        <span className={`
+                                                                                                    px-1.5 py-0.5 rounded-[4px] uppercase tracking-wider text-[9px] font-bold
+                                                                                                    ${commitment.category.budget_type === 'NEED' ? 'bg-indigo-100/50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300' :
+                                                                                                                commitment.category.budget_type === 'WANT' ? 'bg-pink-100/50 text-pink-600 dark:bg-pink-500/20 dark:text-pink-300' :
+                                                                                                                    'bg-emerald-100/50 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300'}
+                                                                                                `}>
+                                                                                                            {commitment.category.budget_type === 'NEED' ? 'Necesidad' :
+                                                                                                                commitment.category.budget_type === 'WANT' ? 'Deseo' : 'Ahorro'}
+                                                                                                        </span>
+                                                                                                    ) : <span className="text-slate-300 dark:text-slate-600">—</span>
+                                                                                                )}
+                                                                                            </div>
+
+                                                                                            {/* Right: Empty (secondary currency moved to amount section) */}
+                                                                                            <div />
                                                                                         </div>
 
-                                                                                        {/* ROW 2: Metadata compacta - una sola línea */}
-                                                                                        <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                                                                                            {/* Fecha */}
-                                                                                            <span>
-                                                                                                {isPaid && currentPayment?.payment_date
-                                                                                                    ? new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
-                                                                                                    : `${dueDay} ${monthDate.toLocaleDateString('es-CL', { month: 'short' })}`
-                                                                                                }
-                                                                                            </span>
-                                                                                            {/* Separator + Cuota/Pago */}
-                                                                                            {(cuotaNumber && installmentsCount && installmentsCount > 1) ? (
-                                                                                                <>
-                                                                                                    <span className="text-slate-300 dark:text-slate-600">·</span>
-                                                                                                    <span className="font-medium">{cuotaNumber}/{installmentsCount}</span>
-                                                                                                </>
-                                                                                            ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
-                                                                                                <>
-                                                                                                    <span className="text-slate-300 dark:text-slate-600">·</span>
-                                                                                                    <span className="font-medium">
-                                                                                                        {(() => {
-                                                                                                            const [startYear, startMonth] = term.effective_from.split('-').map(Number);
-                                                                                                            const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
-                                                                                                                (monthDate.getMonth() + 1 - startMonth) + 1;
-                                                                                                            return paymentNumber > 0 ? paymentNumber : 1;
-                                                                                                        })()}/∞
+                                                                                        {/* MIDDLE ROW: Status Icon + Amount Stack - Main Visual */}
+                                                                                        <div className="flex items-center justify-between py-1">
+                                                                                            <div className="flex-shrink-0">
+                                                                                                {isPaid && <CheckCircleIcon className="w-5 h-5 text-emerald-500" />}
+                                                                                                {isOverdue && <ExclamationTriangleIcon className="w-5 h-5 text-rose-500" />}
+                                                                                                {!isPaid && !isOverdue && <ClockIcon className="w-5 h-5 text-amber-500" />}
+                                                                                            </div>
+                                                                                            {/* Amount Stack: Secondary above, Primary below */}
+                                                                                            <div className="flex flex-col items-end">
+                                                                                                {/* Secondary Currency (if exists) */}
+                                                                                                {showOriginalCurrency && (
+                                                                                                    <div className="flex items-baseline gap-1 text-[0.625rem] text-slate-400 dark:text-slate-500">
+                                                                                                        <span className="font-medium uppercase">{originalCurrency}</span>
+                                                                                                        <span className="font-mono tabular-nums">
+                                                                                                            {perPeriodOriginal.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                                                        </span>
+                                                                                                    </div>
+                                                                                                )}
+                                                                                                {/* Primary Amount with CLP prefix */}
+                                                                                                <div className="flex items-baseline gap-1">
+                                                                                                    <span className="text-[0.625rem] font-medium tracking-wide text-slate-400 dark:text-slate-500 uppercase">
+                                                                                                        CLP
                                                                                                     </span>
-                                                                                                </>
-                                                                                            ) : null}
+                                                                                                    <span className="font-mono tabular-nums text-xl tracking-tighter font-semibold text-slate-800 dark:text-slate-100">
+                                                                                                        {formatClp(displayAmount)}
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                            </div>
                                                                                         </div>
 
-                                                                                        {/* ROW 3: Status - icono pequeño + texto corto */}
-                                                                                        <div className="flex items-center justify-center">
-                                                                                            {/* ROW 3: Status - Rendered via helper to avoid nesting hell */}
-                                                                                            <div className="flex items-center justify-center">
-                                                                                                {renderStatusBadge()}
+                                                                                        {/* BOTTOM ROW: Dates aligned right */}
+                                                                                        <div className="flex items-end justify-end">
+                                                                                            {/* Stacked Dates */}
+                                                                                            <div className="flex flex-col items-end gap-0.5">
+                                                                                                {/* Line 1: Due Date */}
+                                                                                                <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium lowercase">
+                                                                                                    vence {dueDay} {monthDate.toLocaleDateString('es-CL', { month: 'short' })}
+                                                                                                </div>
+
+                                                                                                {/* Line 2: Status/Context - Neutral text, icons carry the color */}
+                                                                                                <div className="text-[11px] font-semibold tracking-tight text-slate-600 dark:text-slate-300">
+                                                                                                    {isPaid ? (
+                                                                                                        currentPayment?.payment_date
+                                                                                                            ? `Pagado: ${new Date(currentPayment.payment_date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                                                                                                            : 'Pagado'
+                                                                                                    ) : isOverdue ? (
+                                                                                                        (() => {
+                                                                                                            const today = new Date();
+                                                                                                            const dueDateObj = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
+                                                                                                            const daysLate = Math.floor((today.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24));
+                                                                                                            return `Hace ${daysLate}d`;
+                                                                                                        })()
+                                                                                                    ) : (
+                                                                                                        (() => {
+                                                                                                            const today = new Date();
+                                                                                                            const dueDateObj = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
+                                                                                                            const daysLeft = Math.ceil((dueDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                                                                                                            if (daysLeft <= 0) return 'Hoy';
+                                                                                                            return `Quedan ${daysLeft}d`;
+                                                                                                        })()
+                                                                                                    )}
+                                                                                                </div>
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>

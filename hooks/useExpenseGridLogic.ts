@@ -79,11 +79,10 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
         return category?.name || t('grid.uncategorized', 'Sin categoría');
     }, [t]);
 
-    // Helper: Format CLP
+    // Helper: Format CLP - Returns only the number, currency prefix added in render
     const formatClp = useCallback((amount: number) => {
         return new Intl.NumberFormat('es-CL', {
-            style: 'currency',
-            currency: 'CLP',
+            style: 'decimal',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
         }).format(amount);
