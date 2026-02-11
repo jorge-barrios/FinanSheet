@@ -5,13 +5,21 @@ import { useCommitments } from '../context/CommitmentsContext';
 import { CommitmentWithTerm } from '../types.v2';
 import { extractYearMonth, parseDateString } from '../utils/financialUtils.v2';
 import { findTermForPeriod } from '../utils/termUtils';
-import { getCommitmentSummary } from '../utils/commitmentStatusUtils';
+import {
+    getCommitmentSummary,
+    getCommitmentCounts,
+    groupByLifecycle,
+    type CommitmentCounts
+} from '../utils/commitmentStatusUtils';
 
 // Types extracted from component
-export type StatusFilter = 'all' | 'pendiente' | 'pagado' | 'ingresos';
+export type StatusFilter = 'all' | 'pendiente' | 'pagado' | 'vencido' | 'ingresos';
 export type ViewMode = 'monthly' | 'inventory';
-export type KPIType = 'ingresos' | 'comprometido' | 'pagado' | 'pendiente';
+export type KPIType = 'ingresos' | 'comprometido' | 'pagado' | 'pendiente' | 'vencido';
 export type Density = 'minimal' | 'compact' | 'detailed';
+
+// Re-export commitment counts type for convenience
+export type { CommitmentCounts } from '../utils/commitmentStatusUtils';
 
 interface UseExpenseGridLogicProps {
     focusedDate: Date;
@@ -79,9 +87,9 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
         return category?.name || t('grid.uncategorized', 'Sin categoría');
     }, [t]);
 
-    // Helper: Format CLP - Returns only the number, currency prefix added in render
+    // Helper: Format CLP with $ prefix
     const formatClp = useCallback((amount: number) => {
-        return new Intl.NumberFormat('es-CL', {
+        return '$' + new Intl.NumberFormat('es-CL', {
             style: 'decimal',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
@@ -265,76 +273,138 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
         return months;
     }, [focusedDate, effectiveMonthCount, density]);
 
-    // Grouping Logic
-    const groupedCommitments = useMemo(() => {
-        const activeItems: CommitmentWithTerm[] = [];
+    // Commitment counts by lifecycle (for footer display)
+    const commitmentCounts = useMemo(() => {
+        return getCommitmentCounts(commitments, payments);
+    }, [commitments, payments]);
 
-        commitments.forEach(c => {
-            let isVisible = viewMode === 'inventory';
+    // Helper: Apply category/status filters to a commitment
+    const passesFilters = useCallback((c: CommitmentWithTerm): boolean => {
+        const categoryName = getTranslatedCategoryName(c);
 
-            if (!isVisible) {
-                const isActiveInVisibleRange = visibleMonths.some(m => isActiveInMonth(c, m));
-                const hasPaymentInRange = visibleMonths.some(m => {
-                    const { hasPaymentRecord } = getPaymentStatus(c.id, m, 1);
-                    return hasPaymentRecord;
-                });
-                isVisible = isActiveInVisibleRange || hasPaymentInRange;
-            }
-
-            if (!isVisible) return;
-
-            const categoryName = getTranslatedCategoryName(c);
-            if (selectedCategory === 'FILTER_IMPORTANT') {
-                if (!c.is_important) return;
-            } else if (selectedStatus === 'ingresos') {
-                if (c.flow_type !== 'INCOME') return;
-            } else if (selectedCategory !== 'all' && categoryName !== selectedCategory) {
-                return;
-            }
-
-            activeItems.push(c);
-        });
-
-        if (density === 'compact') {
-            return [{
-                category: 'all',
-                flowType: 'EXPENSE' as const,
-                commitments: activeItems.sort(performSmartSort)
-            }];
+        // Category filters
+        if (selectedCategory === 'FILTER_IMPORTANT') {
+            if (!c.is_important) return false;
+        } else if (selectedCategory !== 'all' && categoryName !== selectedCategory) {
+            return false;
         }
 
-        const groups: Record<string, { items: CommitmentWithTerm[], flowType: 'INCOME' | 'EXPENSE' }> = {};
+        // Status filters (payment status for the focused month)
+        if (selectedStatus === 'ingresos') {
+            if (c.flow_type !== 'INCOME') return false;
+        } else if (selectedStatus === 'pagado' || selectedStatus === 'pendiente' || selectedStatus === 'vencido') {
+            // Check if commitment is active in focused month
+            if (!isActiveInMonth(c, focusedDate)) return false;
 
-        activeItems.forEach(c => {
-            const categoryName = getTranslatedCategoryName(c);
-            if (!groups[categoryName]) {
-                groups[categoryName] = {
-                    items: [],
-                    flowType: c.flow_type
-                };
+            const term = getTermForPeriod(c, focusedDate);
+            if (!term) return false;
+
+            const dueDay = term.due_day_of_month || 1;
+            const { isPaid } = getPaymentStatus(c.id, focusedDate, dueDay);
+
+            // Calculate if overdue
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dueDate = new Date(focusedDate.getFullYear(), focusedDate.getMonth(), dueDay);
+            dueDate.setHours(23, 59, 59);
+
+            const isOverdue = !isPaid && today > dueDate &&
+                (focusedDate.getFullYear() < today.getFullYear() ||
+                 (focusedDate.getFullYear() === today.getFullYear() && focusedDate.getMonth() <= today.getMonth()));
+
+            if (selectedStatus === 'pagado') {
+                if (!isPaid) return false;
+            } else if (selectedStatus === 'vencido') {
+                if (!isOverdue) return false;
+            } else if (selectedStatus === 'pendiente') {
+                // Pendiente = not paid AND not overdue
+                if (isPaid || isOverdue) return false;
             }
-            groups[categoryName].items.push(c);
+        }
+
+        return true;
+    }, [selectedCategory, selectedStatus, getTranslatedCategoryName, focusedDate, isActiveInMonth, getTermForPeriod, getPaymentStatus]);
+
+    // Helper: Check if commitment is visible in current month range
+    const isVisibleInRange = useCallback((c: CommitmentWithTerm): boolean => {
+        const isActiveInVisibleRange = visibleMonths.some(m => isActiveInMonth(c, m));
+        const hasPaymentInRange = visibleMonths.some(m => {
+            const { hasPaymentRecord } = getPaymentStatus(c.id, m, 1);
+            return hasPaymentRecord;
         });
+        return isActiveInVisibleRange || hasPaymentInRange;
+    }, [visibleMonths, isActiveInMonth, getPaymentStatus]);
 
-        return Object.entries(groups)
-            .map(([category, data]) => {
-                const sortedItems = data.items.sort(performSmartSort);
-                const minPriority = sortedItems.length > 0
-                    ? Math.min(...sortedItems.map(c => getCommitmentSortData(c).statusPriority))
-                    : 2;
+    // Grouping Logic - Now returns both active and archived for inventory mode
+    const groupedCommitments = useMemo(() => {
+        // Step 1: Separate commitments by lifecycle
+        const { active: activeCommitments, archived: archivedCommitments } = groupByLifecycle(commitments, payments);
 
-                return {
-                    category,
-                    flowType: data.flowType,
-                    commitments: sortedItems,
-                    minPriority
-                };
-            })
-            .sort((a, b) => {
-                if (a.minPriority !== b.minPriority) return a.minPriority - b.minPriority;
-                return a.category.localeCompare(b.category, language === 'es' ? 'es' : 'en');
+        // Step 2: Filter based on view mode
+        let visibleActive: CommitmentWithTerm[];
+        let visibleArchived: CommitmentWithTerm[] = [];
+
+        if (viewMode === 'inventory') {
+            // Inventory mode: Show all, but apply category/status filters
+            visibleActive = activeCommitments.filter(passesFilters);
+            visibleArchived = archivedCommitments.filter(passesFilters);
+        } else {
+            // Monthly mode: Only show active commitments visible in the month range
+            visibleActive = activeCommitments
+                .filter(c => isVisibleInRange(c))
+                .filter(passesFilters);
+            // No archived in monthly view
+        }
+
+        // Step 3: Build groups for active items
+        const buildGroups = (items: CommitmentWithTerm[]) => {
+            if (density === 'compact') {
+                return [{
+                    category: 'all',
+                    flowType: 'EXPENSE' as const,
+                    commitments: items.sort(performSmartSort)
+                }];
+            }
+
+            const groups: Record<string, { items: CommitmentWithTerm[], flowType: 'INCOME' | 'EXPENSE' }> = {};
+
+            items.forEach(c => {
+                const categoryName = getTranslatedCategoryName(c);
+                if (!groups[categoryName]) {
+                    groups[categoryName] = {
+                        items: [],
+                        flowType: c.flow_type
+                    };
+                }
+                groups[categoryName].items.push(c);
             });
-    }, [commitments, viewMode, visibleMonths, isActiveInMonth, getPaymentStatus, selectedCategory, density, performSmartSort, getTranslatedCategoryName, getCommitmentSortData, language]);
+
+            return Object.entries(groups)
+                .map(([category, data]) => {
+                    const sortedItems = data.items.sort(performSmartSort);
+                    const minPriority = sortedItems.length > 0
+                        ? Math.min(...sortedItems.map(c => getCommitmentSortData(c).statusPriority))
+                        : 2;
+
+                    return {
+                        category,
+                        flowType: data.flowType,
+                        commitments: sortedItems,
+                        minPriority
+                    };
+                })
+                .sort((a, b) => {
+                    if (a.minPriority !== b.minPriority) return a.minPriority - b.minPriority;
+                    return a.category.localeCompare(b.category, language === 'es' ? 'es' : 'en');
+                });
+        };
+
+        return {
+            active: buildGroups(visibleActive),
+            archived: visibleArchived.sort(performSmartSort),
+            archivedCount: archivedCommitments.length
+        };
+    }, [commitments, payments, viewMode, passesFilters, isVisibleInRange, density, performSmartSort, getTranslatedCategoryName, getCommitmentSortData, language]);
 
     // Available Categories
     const availableCategories = useMemo(() => {
@@ -368,6 +438,9 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
         switch (kpi) {
             case 'pendiente':
                 setSelectedStatus('pendiente');
+                break;
+            case 'vencido':
+                setSelectedStatus('vencido');
                 break;
             case 'pagado':
                 setSelectedStatus('pagado');
@@ -444,6 +517,7 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
         setSelectedStatus,
         viewMode,
         setViewMode,
+        commitmentCounts,
         showMetrics,
         currentKPI,
         handleKPIChange,
@@ -453,7 +527,7 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
         // Data
         commitments,
         payments,
-        groupedCommitments,
+        groupedCommitments, // Now returns { active: [], archived: [], archivedCount: number }
         availableCategories,
         visibleMonths,
 

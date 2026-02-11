@@ -1,8 +1,8 @@
 import React from 'react';
-import { TrendingUp, Wallet, CheckCircle, Clock } from 'lucide-react';
+import { TrendingUp, Wallet, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import { type MonthTotals } from '../../types.v2';
 
-export type KPIType = 'ingresos' | 'comprometido' | 'pagado' | 'pendiente';
+export type KPIType = 'ingresos' | 'comprometido' | 'pagado' | 'pendiente' | 'vencido';
 
 interface KPISelectorModalProps {
     isOpen: boolean;
@@ -49,7 +49,8 @@ export const KPISelectorModal: React.FC<KPISelectorModalProps> = ({
                             { id: 'ingresos' as KPIType, label: 'Ingresos', value: totals.ingresos, icon: TrendingUp, color: 'emerald' },
                             { id: 'comprometido' as KPIType, label: 'Comprometido', value: totals.comprometido, icon: Wallet, color: 'sky' },
                             { id: 'pagado' as KPIType, label: 'Pagado', value: totals.pagado, icon: CheckCircle, color: 'emerald' },
-                            { id: 'pendiente' as KPIType, label: 'Pendiente', value: totals.pendiente, icon: Clock, color: 'amber' }
+                            { id: 'pendiente' as KPIType, label: 'Pendiente', value: totals.pendiente, icon: Clock, color: 'amber' },
+                            ...(totals.vencido > 0 ? [{ id: 'vencido' as KPIType, label: 'Vencido', value: totals.vencido, icon: AlertTriangle, color: 'rose' }] : [])
                         ];
 
                         return kpiOptions.map((kpi) => {

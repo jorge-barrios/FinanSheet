@@ -613,3 +613,178 @@ export function getInstallmentNumber(
         totalLabel
     };
 }
+
+// =============================================================================
+// LIFECYCLE FILTERING (Unified logic for ExpenseGrid + InventoryView)
+// =============================================================================
+
+/**
+ * Lifecycle filter options for commitment visibility.
+ */
+export type LifecycleFilter = 'all' | 'active' | 'paused' | 'completed';
+
+/**
+ * Counts of commitments by lifecycle status.
+ */
+export interface CommitmentCounts {
+    total: number;
+    active: number;       // lifecycle ACTIVE
+    paused: number;       // lifecycle PAUSED (INACTIVE from getCommitmentStatus)
+    completed: number;    // lifecycle COMPLETED
+    withDebt: number;     // any lifecycle + has overdue payments
+}
+
+/**
+ * Get counts of commitments by lifecycle status.
+ *
+ * @param commitments All commitments to count
+ * @param paymentsMap Map of commitment ID to payments
+ * @returns Counts by lifecycle status
+ */
+export function getCommitmentCounts(
+    commitments: CommitmentWithTerm[],
+    paymentsMap: Map<string, Payment[]>
+): CommitmentCounts {
+    const counts: CommitmentCounts = {
+        total: commitments.length,
+        active: 0,
+        paused: 0,
+        completed: 0,
+        withDebt: 0,
+    };
+
+    for (const c of commitments) {
+        const status = getCommitmentStatus(c);
+        const reason = getTerminationReason(c);
+        const payments = paymentsMap.get(c.id) || [];
+        const summary = getCommitmentSummary(c, payments);
+        const hasDebt = summary.estado === 'overdue';
+
+        if (hasDebt) {
+            counts.withDebt++;
+        }
+
+        switch (status) {
+            case 'ACTIVE':
+                counts.active++;
+                break;
+            case 'COMPLETED':
+                counts.completed++;
+                break;
+            case 'INACTIVE':
+                // INACTIVE can be PAUSED or TERMINATED - distinguish for UI
+                if (reason === 'PAUSED') {
+                    counts.paused++;
+                } else {
+                    // TERMINATED goes to paused bucket for simplicity
+                    counts.paused++;
+                }
+                break;
+        }
+    }
+
+    return counts;
+}
+
+/**
+ * Filter commitments by lifecycle status.
+ *
+ * IMPORTANT: Commitments with debt (overdue payments) are ALWAYS included
+ * regardless of lifecycle filter, to ensure users never miss unpaid obligations.
+ *
+ * @param commitments Commitments to filter
+ * @param paymentsMap Map of commitment ID to payments
+ * @param filter Lifecycle filter to apply
+ * @returns Filtered commitments (always includes those with debt)
+ */
+export function filterByLifecycle(
+    commitments: CommitmentWithTerm[],
+    paymentsMap: Map<string, Payment[]>,
+    filter: LifecycleFilter
+): CommitmentWithTerm[] {
+    if (filter === 'all') {
+        return commitments;
+    }
+
+    return commitments.filter(c => {
+        const status = getCommitmentStatus(c);
+        const reason = getTerminationReason(c);
+        const payments = paymentsMap.get(c.id) || [];
+        const summary = getCommitmentSummary(c, payments);
+        const hasDebt = summary.estado === 'overdue';
+
+        // Always show commitments with debt
+        if (hasDebt) {
+            return true;
+        }
+
+        switch (filter) {
+            case 'active':
+                return status === 'ACTIVE';
+            case 'completed':
+                return status === 'COMPLETED';
+            case 'paused':
+                // PAUSED filter includes both PAUSED and TERMINATED
+                return status === 'INACTIVE';
+            default:
+                return true;
+        }
+    });
+}
+
+/**
+ * Check if a commitment has debt (overdue payments).
+ * Useful for showing debt badge in UI.
+ */
+export function hasDebt(
+    commitment: CommitmentWithTerm,
+    payments: Payment[]
+): boolean {
+    const summary = getCommitmentSummary(commitment, payments);
+    return summary.estado === 'overdue';
+}
+
+/**
+ * Group commitments by lifecycle status for visual separation in inventory view.
+ * Returns active commitments and archived (paused + completed) separately.
+ *
+ * @param commitments All commitments to group
+ * @param paymentsMap Map of commitment ID to payments
+ * @returns Object with active and archived arrays
+ */
+export function groupByLifecycle(
+    commitments: CommitmentWithTerm[],
+    paymentsMap: Map<string, Payment[]>
+): {
+    active: CommitmentWithTerm[];
+    archived: CommitmentWithTerm[];
+} {
+    const active: CommitmentWithTerm[] = [];
+    const archived: CommitmentWithTerm[] = [];
+
+    for (const c of commitments) {
+        const status = getCommitmentStatus(c);
+
+        if (status === 'ACTIVE') {
+            active.push(c);
+        } else {
+            // COMPLETED and INACTIVE (paused/terminated) go to archived
+            archived.push(c);
+        }
+    }
+
+    return { active, archived };
+}
+
+/**
+ * Get the lifecycle label for a commitment (for badge display).
+ * Returns "pausado" or "completado" based on termination reason.
+ */
+export function getLifecycleLabel(commitment: CommitmentWithTerm): 'activo' | 'pausado' | 'completado' {
+    const status = getCommitmentStatus(commitment);
+    const reason = getTerminationReason(commitment);
+
+    if (status === 'ACTIVE') return 'activo';
+    if (status === 'COMPLETED' || reason === 'COMPLETED_INSTALLMENTS') return 'completado';
+    return 'pausado';
+}

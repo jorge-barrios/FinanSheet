@@ -1,5 +1,5 @@
 import React, { useCallback, useRef } from 'react';
-import { TrendingUp, Wallet, CheckCircle, Clock } from 'lucide-react';
+import { TrendingUp, Wallet, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import { type MonthTotals } from '../../types.v2';
 import { type KPIType } from './KPISelectorModal';
 
@@ -29,7 +29,7 @@ export const MobileKPICarousel: React.FC<MobileKPICarouselProps> = ({
 
     // Tap handler: rotate to next KPI
     const handleKPITap = useCallback(() => {
-        const kpiOrder: KPIType[] = ['ingresos', 'comprometido', 'pagado', 'pendiente'];
+        const kpiOrder: KPIType[] = ['ingresos', 'comprometido', 'pagado', 'pendiente', 'vencido'];
         const currentIndex = kpiOrder.indexOf(currentKPI);
         const nextIndex = (currentIndex + 1) % kpiOrder.length;
         onKPIChange(kpiOrder[nextIndex]);
@@ -98,6 +98,21 @@ export const MobileKPICarousel: React.FC<MobileKPICarouselProps> = ({
             ringColor: 'ring-amber-500/30'
         }
     ];
+
+    // Add vencido only if there's overdue amount
+    if (totals.vencido && totals.vencido > 0) {
+        kpiData.push({
+            id: 'vencido' as KPIType,
+            label: 'Vencido',
+            value: totals.vencido,
+            icon: AlertTriangle,
+            bgColor: 'bg-rose-500/10 dark:bg-rose-500/20',
+            borderColor: 'border-rose-500/50',
+            textColor: 'text-rose-600 dark:text-rose-400',
+            iconColor: 'text-rose-500',
+            ringColor: 'ring-rose-500/30'
+        });
+    }
 
     const currentKPIData = kpiData.find(k => k.id === currentKPI) || kpiData[1];
     const Icon = currentKPIData.icon;
