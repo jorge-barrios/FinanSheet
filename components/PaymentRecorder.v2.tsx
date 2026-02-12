@@ -19,7 +19,7 @@ import { getPerPeriodAmount } from '../utils/financialUtils.v2';
 import { findTermForPeriod } from '../utils/termUtils';
 import type { CommitmentWithTerm, Payment, PaymentFormData, Term } from '../types.v2';
 import { XMarkIcon, CheckCircleIcon, TrashIcon, ExclamationTriangleIcon } from './icons';
-import { Calendar, Wallet, FileText, Save } from 'lucide-react';
+import { Calendar, Wallet, FileText, Save, CalendarClock, Pencil } from 'lucide-react';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { es } from 'date-fns/locale/es';
@@ -68,11 +68,21 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     // Ref for date picker
     const datePickerRef = React.useRef<DatePicker>(null);
 
+    // Computed effective due date from term
+    const effectiveDueDate = React.useMemo(() => {
+        if (!term?.due_day_of_month) return null;
+        const lastDay = new Date(year, month + 1, 0).getDate(); // last day of this month
+        const day = Math.min(term.due_day_of_month, lastDay);
+        return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }, [term, year, month]);
+
     // Form state
     const [paymentDate, setPaymentDate] = useState('');
     const [amount, setAmount] = useState('');
     const [amountCurrency, setAmountCurrency] = useState<CurrencyType>('CLP');
     const [notes, setNotes] = useState('');
+    const [dueDateOverride, setDueDateOverride] = useState<string | null>(null); // null = use term default
+    const [isDueDateOverridden, setIsDueDateOverridden] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingPayment, setIsFetchingPayment] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -107,6 +117,14 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                     setAmount(String(payment.amount_original));
                     setAmountCurrency((payment.currency_original as CurrencyType) || 'CLP');
                     setNotes(payment.notes || '');
+                    // Load due_date override if it differs from the computed default
+                    if (payment.due_date && payment.due_date !== effectiveDueDate) {
+                        setDueDateOverride(payment.due_date);
+                        setIsDueDateOverridden(true);
+                    } else {
+                        setDueDateOverride(null);
+                        setIsDueDateOverridden(false);
+                    }
                 } else {
                     // Default values for new payment
                     setPaymentDate(new Date().toISOString().split('T')[0]);
@@ -114,6 +132,8 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                         ? expectedAmount
                         : fromUnit(expectedAmount, expectedCurrency as any);
                     setAmount(String(Math.round(amountInClp)));
+                    setDueDateOverride(null);
+                    setIsDueDateOverridden(false);
                     setAmountCurrency('CLP');
                     setNotes('');
                 }
@@ -199,6 +219,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                 currency_original: amountCurrency,
                 fx_rate_to_base: getFxRateToBase(amountCurrency),
                 notes: notes.trim() || null,
+                due_date: isDueDateOverridden ? (dueDateOverride || null) : null,
             };
 
             if (existingPayment) {
@@ -233,6 +254,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                 currency_original: amountCurrency,
                 fx_rate_to_base: getFxRateToBase(amountCurrency),
                 notes: notes.trim() || null,
+                due_date: isDueDateOverridden ? (dueDateOverride || null) : null,
             };
 
             if (existingPayment) {
@@ -386,6 +408,64 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                             )}
                         </div>
                     </div>
+
+                    {/* Due Date - Show calculated + optional override */}
+                    {effectiveDueDate && (
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                                <span className="flex items-center gap-1.5">
+                                    <CalendarClock className="w-3.5 h-3.5" />
+                                    Fecha de Vencimiento
+                                </span>
+                            </label>
+                            {!isDueDateOverridden ? (
+                                <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700/50">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-base font-semibold text-slate-900 dark:text-white">
+                                            {new Date(effectiveDueDate + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </span>
+                                        <span className="text-xs text-slate-400">(día {term?.due_day_of_month})</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsDueDateOverridden(true);
+                                            setDueDateOverride(effectiveDueDate);
+                                        }}
+                                        className="flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:text-sky-500 transition-colors"
+                                        title="Cambiar fecha de vencimiento"
+                                    >
+                                        <Pencil className="w-3 h-3" />
+                                        Cambiar
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-1.5">
+                                    <div
+                                        className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-700 rounded-lg"
+                                    >
+                                        <CalendarClock className="w-5 h-5 text-sky-500" />
+                                        <input
+                                            type="date"
+                                            value={dueDateOverride || ''}
+                                            onChange={(e) => setDueDateOverride(e.target.value || null)}
+                                            className="flex-1 bg-transparent text-base font-semibold text-slate-900 dark:text-white focus:outline-none"
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsDueDateOverridden(false);
+                                            setDueDateOverride(null);
+                                        }}
+                                        className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                    >
+                                        ← Usar fecha por defecto (día {term?.due_day_of_month})
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Date Field - Always Editable */}
                     <div>
