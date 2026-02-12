@@ -150,13 +150,13 @@ export function CommitmentCard({
 
         if (mode === 'monthly' && monthlyInfo) {
             if (monthlyInfo.isPaid) return 'bg-emerald-500';
-            if (monthlyInfo.daysOverdue && monthlyInfo.daysOverdue > 0) return 'bg-red-500';
+            if (monthlyInfo.daysOverdue && monthlyInfo.daysOverdue > 0) return 'bg-rose-500';
             return 'bg-amber-400'; // pending
         }
 
         // Inventory mode
         switch (summary.estado) {
-            case 'overdue': return 'bg-red-500';
+            case 'overdue': return 'bg-rose-500';
             case 'pending': return 'bg-amber-400';
             case 'ok': return 'bg-emerald-500';
             case 'completed': return 'bg-sky-500';
@@ -169,8 +169,9 @@ export function CommitmentCard({
         ? (monthlyInfo?.daysOverdue && monthlyInfo.daysOverdue > 0)
         : summary.estado === 'overdue';
 
+    // Stronger overdue styling - consistent with desktop cells
     const overdueClasses = isOverdue && !isInactive
-        ? 'bg-red-50/30 dark:bg-red-950/20 border-red-200/50 dark:border-red-800/30'
+        ? 'bg-rose-100/50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800'
         : '';
 
     // Remove legacy customClasses overrides

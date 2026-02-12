@@ -3,7 +3,7 @@ import { Expense, PaymentStatus } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
 import { getInstallmentAmount, isInstallmentInMonth } from '../utils/expenseCalculations';
 import { EditIcon, TrashIcon, StarIcon } from './icons';
-import { getCategoryIcon } from './ExpenseGrid';
+import { getCategoryIcon } from '../utils/categoryIcons';
 
 interface ExpenseCardProps {
     expense: Expense;

@@ -293,7 +293,8 @@ export interface MonthTotals {
     comprometido: number;   // Total committed expenses for month
     ingresos: number;       // Total committed income for month
     pagado: number;         // Total payments made (with payment_date)
-    pendiente: number;      // Active commitments without payment
+    pendiente: number;      // Active commitments without payment (not yet due)
+    vencido: number;        // Unpaid commitments past due date
     balance: number;        // ingresos - comprometido
 }
 

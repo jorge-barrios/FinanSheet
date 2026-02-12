@@ -2,8 +2,24 @@ import React, { useState, useMemo } from 'react';
 import { CommitmentWithTerm, Category, Payment } from '../types.v2';
 import { MagnifyingGlassIcon, TrashIcon, PauseIcon, ArrowPathIcon, EditIcon } from './icons';
 import { useLocalization } from '../hooks/useLocalization';
-import { getCommitmentStatus, getCommitmentSummary } from '../utils/commitmentStatusUtils';
+import {
+    getCommitmentStatus,
+    getCommitmentSummary,
+    filterByLifecycle,
+    type LifecycleFilter
+} from '../utils/commitmentStatusUtils';
 import { CommitmentCard } from './CommitmentCard';
+
+// Helper: Convert Payment[] to Map<string, Payment[]> for filterByLifecycle
+function paymentsToMap(payments: Payment[]): Map<string, Payment[]> {
+    const map = new Map<string, Payment[]>();
+    for (const p of payments) {
+        const existing = map.get(p.commitment_id) || [];
+        existing.push(p);
+        map.set(p.commitment_id, existing);
+    }
+    return map;
+}
 
 interface InventoryViewProps {
     commitments: CommitmentWithTerm[];
@@ -34,32 +50,28 @@ const InventoryView: React.FC<InventoryViewProps> = ({
 }) => {
     const { t } = useLocalization();
     // searchTerm state removed (lifted)
+    // Note: 'terminated' maps to 'paused' in the new unified lifecycle filter (INACTIVE state)
     const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'paused' | 'terminated'>('all');
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
 
+    // Convert payments array to map for centralized filter function
+    const paymentsMap = useMemo(() => paymentsToMap(payments), [payments]);
+
     const filteredCommitments = useMemo(() => {
-        return commitments.filter(c => {
-            // Search filter
-            if (searchTerm && !c.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-                return false;
-            }
+        // Map old filter values to new LifecycleFilter type
+        // 'terminated' → 'paused' (both map to INACTIVE lifecycle)
+        const lifecycleFilter: LifecycleFilter = filterStatus === 'terminated' ? 'paused' : filterStatus as LifecycleFilter;
 
-            // Status filter using centralized utility
-            const lifecycleStatus = getCommitmentStatus(c);
+        // Step 1: Apply lifecycle filter (using centralized logic)
+        const lifecycleFiltered = filterByLifecycle(commitments, paymentsMap, lifecycleFilter);
 
-            // Get financial status to check for overdue - commitments with debt should always show in "active" filter
-            const summary = getCommitmentSummary(c, payments, lastPaymentsMap);
-            const hasDebt = summary.estado === 'overdue';
+        // Step 2: Apply search filter
+        if (!searchTerm) return lifecycleFiltered;
 
-            // Active filter: show ACTIVE lifecycle OR any commitment with overdue debt
-            if (filterStatus === 'active' && lifecycleStatus !== 'ACTIVE' && !hasDebt) return false;
-
-            // Terminated filter: show non-active commitments (but exclude those with debt - they belong in active)
-            if (filterStatus === 'terminated' && (lifecycleStatus === 'ACTIVE' || hasDebt)) return false;
-
-            return true;
-        });
-    }, [commitments, searchTerm, filterStatus, payments, lastPaymentsMap]);
+        return lifecycleFiltered.filter(c =>
+            c.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [commitments, searchTerm, filterStatus, paymentsMap]);
 
     // Use centralized getCommitmentSummary for all commitment details
     // This fixes the is_divided_amount bug and removes 140 lines of duplicated logic

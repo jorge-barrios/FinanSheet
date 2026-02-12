@@ -61,14 +61,35 @@ docs/
 
 ---
 
-## Commands
+## Development (Dockerized)
 
-### Development
+**El proyecto corre dockerizado. No usar `npm run dev` en el host.**
+
 ```bash
-npm run dev              # Start dev server at http://localhost:5173
-npm run build            # Build for production
-npm run preview          # Preview production build
+# Levantar dev server (hot reload) — DEBE incluir el override con secrets
+cd /srv/repos/finansheet && docker compose -f docker-compose.yml -f /srv/apps/finansheet/compose.override.yml up finansheet-dev -d --force-recreate
+
+# Ver logs
+docker compose -f docker-compose.yml -f /srv/apps/finansheet/compose.override.yml logs finansheet-dev --tail 20
+
+# Type check
+npx tsc --noEmit
 ```
+
+> [!IMPORTANT]
+> Los secrets (`.env`) viven en `/srv/apps/finansheet/.env`, NO en el repo. El `compose.override.yml` los monta al container.
+
+**URLs de acceso:**
+
+| Método | URL |
+|--------|-----|
+| Tailscale (remoto) | `https://mini-lab.tail4b2f89.ts.net:8444/` |
+| LAN | `https://finansheet.dev.lab` |
+| Directo | `http://localhost:5175/` |
+
+**Arquitectura de red:** Caddy (:8444 HTTPS) → Docker (:5175 host → :5173 container) → Vite HMR
+
+Ver también: `.agent/workflows/dev.md`
 
 ### Testing
 ```bash
@@ -169,9 +190,10 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ## Deployment
 
-- Hosted on Vercel (finansheet.vercel.app)
+- **Prod container**: `finansheet-app` (Nginx, puerto 3001)
+- **Dev container**: `finansheet-dev` (Node 20 Alpine, puerto 5175→5173)
 - Build command: `npm run build`
-- Publish directory: `dist`
+- Deploy script: `bash /srv/apps/finansheet/deploy.sh`
 
 ---
 

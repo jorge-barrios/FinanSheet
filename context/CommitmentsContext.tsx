@@ -454,6 +454,9 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
         let ingresos = 0;
         let pagado = 0;
         let pendiente = 0;
+        let vencido = 0;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
         const targetPeriod = periodToString({ year, month: month + 1 });
 
@@ -546,10 +549,18 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
                 pagado += netPaidAmount;
             }
 
-            // Check pendiente - only if NOT paid and is expense
+            // Check pendiente vs vencido - only if NOT paid and is expense
             const isPaid = myPaidAmount > 0 || (linkedCommitment && getPaymentAmount(linkedCommitment.id) > 0);
             if (!isPaid && flowType === 'EXPENSE') {
-                pendiente += amount;
+                // Determine if past due date
+                const dueDay = term.due_day_of_month || 1;
+                const dueDate = new Date(year, month, dueDay);
+                dueDate.setHours(0, 0, 0, 0);
+                if (today > dueDate) {
+                    vencido += amount;
+                } else {
+                    pendiente += amount;
+                }
             }
         });
 
@@ -558,6 +569,7 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
             ingresos,
             pagado,
             pendiente,
+            vencido,
             balance: ingresos - comprometido
         };
     }, [commitments, payments, isTermActiveForMonth, getAmountForPeriod]);
