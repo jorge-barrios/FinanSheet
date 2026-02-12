@@ -65,8 +65,9 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     // Currency type
     type CurrencyType = 'CLP' | 'USD' | 'EUR' | 'UF' | 'UTM';
 
-    // Ref for date picker
+    // Ref for date pickers
     const datePickerRef = React.useRef<DatePicker>(null);
+    const dueDatePickerRef = React.useRef<DatePicker>(null);
 
     // Computed effective due date from term
     const effectiveDueDate = React.useMemo(() => {
@@ -442,15 +443,32 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                             ) : (
                                 <div className="space-y-1.5">
                                     <div
-                                        className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-700 rounded-lg"
+                                        onClick={() => dueDatePickerRef.current?.setFocus()}
+                                        className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-700 rounded-lg cursor-pointer hover:border-sky-300 dark:hover:border-sky-600 transition-colors"
                                     >
                                         <CalendarClock className="w-5 h-5 text-sky-500" />
-                                        <input
-                                            type="date"
-                                            value={dueDateOverride || ''}
-                                            onChange={(e) => setDueDateOverride(e.target.value || null)}
-                                            className="flex-1 bg-transparent text-base font-semibold text-slate-900 dark:text-white focus:outline-none"
-                                        />
+                                        <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+                                            <DatePicker
+                                                ref={dueDatePickerRef}
+                                                selected={dueDateOverride ? new Date(dueDateOverride + 'T12:00:00') : new Date()}
+                                                onChange={(date: Date | null) => {
+                                                    if (date) {
+                                                        const y = date.getFullYear();
+                                                        const m = String(date.getMonth() + 1).padStart(2, '0');
+                                                        const d = String(date.getDate()).padStart(2, '0');
+                                                        setDueDateOverride(`${y}-${m}-${d}`);
+                                                    }
+                                                }}
+                                                dateFormat="dd/MM/yyyy"
+                                                locale="es"
+                                                shouldCloseOnSelect={true}
+                                                placeholderText="Seleccionar fecha"
+                                                className="w-full bg-transparent text-base font-semibold text-slate-900 dark:text-white focus:outline-none cursor-pointer"
+                                                wrapperClassName="w-full"
+                                                popperClassName="z-[9999]"
+                                                portalId="root"
+                                            />
+                                        </div>
                                     </div>
                                     <button
                                         type="button"
