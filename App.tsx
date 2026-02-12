@@ -1,77 +1,8 @@
-// Category normalization utilities (Spanish canonical)
-const stripAccents = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '');
-const norm = (s: string) => stripAccents((s || '').toLowerCase().trim());
-const CATEGORY_LABELS_ES: Record<string, string> = {
-    housing: 'Vivienda',
-    utilities: 'Servicios',
-    food: 'Alimentación',
-    transport: 'Transporte',
-    health: 'Salud',
-    entertainment: 'Entretenimiento',
-    subscriptions: 'Suscripciones',
-    education: 'Educación',
-    personal: 'Personal',
-    savings: 'Ahorro',
-    debt: 'Deuda',
-    insurance: 'Seguros',
-    taxes: 'Impuestos',
-    business: 'Negocios',
-    gifts: 'Regalos',
-    travel: 'Viajes',
-    home: 'Hogar',
-    pets: 'Mascotas',
-    charity: 'Donaciones',
-    other: 'Otros',
-};
-const CATEGORY_SYNONYMS: Record<string, string> = {
-    // Vivienda / Housing
-    'vivienda': 'housing', 'arriendo': 'housing', 'hipoteca': 'housing', 'mortgage': 'housing', 'rent': 'housing', 'housing': 'housing',
-    // Servicios / Utilities
-    'servicios': 'utilities', 'luz': 'utilities', 'agua': 'utilities', 'gas': 'utilities', 'internet': 'utilities', 'electricidad': 'utilities', 'utilities': 'utilities',
-    // Alimentación / Food
-    'alimentacion': 'food', 'alimentos': 'food', 'comida': 'food', 'supermercado': 'food', 'food': 'food', 'groceries': 'food',
-    // Transporte / Transport
-    'transporte': 'transport', 'bencina': 'transport', 'gasolina': 'transport', 'auto': 'transport', 'carro': 'transport', 'bus': 'transport', 'metro': 'transport', 'estacionamiento': 'transport', 'transport': 'transport',
-    // Salud / Health
-    'salud': 'health', 'medico': 'health', 'medicina': 'health', 'isapre': 'health', 'fonasa': 'health', 'health': 'health', 'doctor': 'health', 'medicine': 'health',
-    // Entretenimiento / Entertainment
-    'entretenimiento': 'entertainment', 'cine': 'entertainment', 'salidas': 'entertainment', 'juegos': 'entertainment', 'videojuegos': 'entertainment', 'entertainment': 'entertainment',
-    // Suscripciones / Subscriptions
-    'suscripciones': 'subscriptions', 'suscripcion': 'subscriptions', 'netflix': 'subscriptions', 'spotify': 'subscriptions', 'hbo': 'subscriptions', 'prime': 'subscriptions', 'subscriptions': 'subscriptions', 'subscription': 'subscriptions',
-    // Educación / Education
-    'educacion': 'education', 'colegio': 'education', 'universidad': 'education', 'cursos': 'education', 'education': 'education',
-    // Personal
-    'personal': 'personal', 'ropa': 'personal', 'cuidado personal': 'personal', 'personal care': 'personal', 'personal expenses': 'personal',
-    // Ahorro / Savings
-    'ahorro': 'savings', 'savings': 'savings',
-    // Deuda / Debt
-    'deuda': 'debt', 'deudas': 'debt', 'creditos': 'debt', 'tarjeta': 'debt', 'debt': 'debt',
-    // Seguros / Insurance
-    'seguros': 'insurance', 'seguro': 'insurance', 'insurance': 'insurance',
-    // Impuestos / Taxes
-    'impuestos': 'taxes', 'iva': 'taxes', 'tax': 'taxes', 'taxes': 'taxes',
-    // Negocios / Business
-    'negocios': 'business', 'negocio': 'business', 'business': 'business',
-    // Regalos / Gifts
-    'regalos': 'gifts', 'regalo': 'gifts', 'gifts': 'gifts', 'gift': 'gifts',
-    // Viajes / Travel
-    'viajes': 'travel', 'viaje': 'travel', 'travel': 'travel', 'trip': 'travel',
-    // Hogar / Home (mantenimiento, muebles)
-    'hogar': 'home', 'muebles': 'home', 'mantencion': 'home', 'home': 'home', 'furniture': 'home',
-    // Mascotas / Pets
-    'mascotas': 'pets', 'mascota': 'pets', 'pets': 'pets', 'pet': 'pets',
-    // Donaciones / Charity
-    'donaciones': 'charity', 'donacion': 'charity', 'charity': 'charity',
-    // Otros / Other
-    'otros': 'other', 'otro': 'other', 'misc': 'other', 'otros gastos': 'other', 'other': 'other',
-};
-const getCategoryId = (raw: string) => CATEGORY_SYNONYMS[norm(raw)] || (norm(raw) || 'other');
-const toSpanishCanonical = (raw: string) => CATEGORY_LABELS_ES[getCategoryId(raw)] || raw || 'Otros';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Header from './components/Header';
 import { ExpenseCommitmentFormWrapper } from './components/ExpenseCommitmentFormWrapper';
-import FilterControls from './components/FilterControls';
+// FilterControls removed (legacy v1)
 // ViewSwitcher moved into Header
 import CellEditModal from './components/CellEditModal';
 // Lazy page views to keep initial bundle small
@@ -87,7 +18,7 @@ import { CommitmentDetailModal } from './components/CommitmentDetailModal';
 import { FloatingActionButton } from './components/FloatingActionButton';
 import { PWAUpdateNotifier } from './components/PWAUpdateNotifier';
 import { AppLoadingSkeleton } from './components/AppLoadingSkeleton';
-import { Expense, PaymentStatus, ExpenseType, View, PaymentDetails, PaymentFrequency, PaymentUnit } from './types';
+import { Expense, PaymentStatus, ExpenseType, View, PaymentDetails } from './types';
 import type { CommitmentWithTerm } from './types.v2';
 import type { Category } from './services/categoryService.v2';
 import { exportToExcel } from './services/exportService';
@@ -101,9 +32,7 @@ import { useCommitments } from './context/CommitmentsContext';
 import { CommitmentService, PaymentService, getCurrentUserId } from './services/dataService.v2';
 import type { Payment } from './types.v2';
 
-import { getExchangeRate } from './services/exchangeRateService';
-import { format } from 'date-fns';
-import { keysToSnakeCase } from './utils/objectUtils';
+
 
 type Theme = 'light' | 'dark';
 
@@ -117,7 +46,7 @@ const App: React.FC = () => {
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>({});
     const [categories, setCategories] = useState<Category[]>([]);
-    const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map()); // categoryName -> categoryId
+    const [, setCategoryMap] = useState<Map<string, string>>(new Map()); // categoryName -> categoryId
     const [loading, setLoading] = useState(isSupabaseConfigured);
     const [dataFetchError, setDataFetchError] = useState<string | null>(null); // Non-blocking error display
 
@@ -128,8 +57,8 @@ const App: React.FC = () => {
     const [openWithPauseForm, setOpenWithPauseForm] = useState(false); // When true, opens edit modal with pause form expanded
     const [openWithResumeForm, setOpenWithResumeForm] = useState(false); // When true, opens edit modal with resume (new term) form expanded
     // V2 data (preloaded at app startup for instant tab switching)
-    const [commitmentsV2, setCommitmentsV2] = useState<CommitmentWithTerm[]>([]);
-    const [paymentsV2, setPaymentsV2] = useState<Map<string, Payment[]>>(new Map());
+    const [, setCommitmentsV2] = useState<CommitmentWithTerm[]>([]);
+    const [, setPaymentsV2] = useState<Map<string, Payment[]>>(new Map());
     // PaymentRecorder V2 state - uses periodDate string directly (YYYY-MM-DD)
     const [paymentRecorderState, setPaymentRecorderState] = useState<{
         isOpen: boolean;
