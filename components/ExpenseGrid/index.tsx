@@ -40,6 +40,9 @@ interface ExpenseGridV2Props {
     preloadedCommitments?: CommitmentWithTerm[];
     preloadedPayments?: Map<string, Payment[]>;
     monthlyTotals?: { expenses: number; income: number };
+    // New Controlled Props for Mobile Filter
+    showMobileFilters?: boolean;
+    onCloseMobileFilters?: () => void;
 }
 
 
@@ -56,6 +59,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     onResumeCommitment,
     onRecordPayment,
     onFocusedDateChange,
+    showMobileFilters = false, // Default to false if not controlled
+    onCloseMobileFilters = () => { }, // Default no-op
 }) => {
     // Logic extracted to custom hook
     const {
@@ -72,8 +77,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         t, getMonthTotals, effectiveMonthCount
     } = useExpenseGridLogic({ focusedDate, onFocusedDateChange });
 
-    // UI State
-    const [showMobileFilters, setShowMobileFilters] = useState(false);
+    // Local state for Mobile Filters removed - now controlled by parent
 
     // Status change handler that syncs both filter AND visual KPI indicator
     type StatusFilter = 'all' | 'pendiente' | 'pagado' | 'vencido' | 'ingresos';
@@ -127,7 +131,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 setSelectedStatus={setSelectedStatus}
                 availableCategories={availableCategories}
                 setShowKPISelector={setShowKPISelector}
-                setShowMobileFilters={setShowMobileFilters}
+                setShowMobileFilters={() => { }} // No-op, button removed from toolbar or handled by global header
                 formatClp={formatClp}
             />
 
@@ -201,13 +205,14 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
             {/* Mobile Filter Bottom Sheet */}
             <MobileFilterSheet
                 isOpen={showMobileFilters}
-                onClose={() => setShowMobileFilters(false)}
-                categories={['all', 'FILTER_IMPORTANT', ...availableCategories]}
+                onClose={onCloseMobileFilters}
+                categories={availableCategories}
                 selectedCategory={selectedCategory}
                 onCategoryChange={setSelectedCategory}
                 selectedStatus={selectedStatus}
                 onStatusChange={handleStatusChange}
             />
+
 
         </div>
     );

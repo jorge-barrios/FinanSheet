@@ -17,15 +17,17 @@ interface HeaderProps {
     view: View;
     onViewChange: (view: View) => void;
     onOpenCategoryManager: () => void;
+    onToggleMobileFilters?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeChange, view, onViewChange, onOpenCategoryManager }) => {
+const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeChange, view, onViewChange, onOpenCategoryManager, onToggleMobileFilters }) => {
     const { language, setLanguage, t } = useLocalization();
     const { lastUpdated, refresh, loading: currencyLoading } = useCurrency();
     const { signOut, user } = useAuth();
     const { showToast } = useToast();
     const { flags } = useFeatureFlags();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const [isFeatureFlagsOpen, setIsFeatureFlagsOpen] = useState(false);
     // Color theme state (Ocean Teal is now default)
     const [colorTheme, setColorTheme] = useState<'identidad' | 'ocean-teal'>('ocean-teal');
@@ -55,6 +57,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
 
     // Legacy state removed
     const menuRef = useRef<HTMLDivElement | null>(null);
+    const userMenuRef = useRef<HTMLDivElement | null>(null);
 
     const handleLogout = async () => {
         const { error } = await signOut();
@@ -64,6 +67,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
             showToast(t('header.logoutSuccess', 'Sesión cerrada exitosamente'), 'success');
         }
         setIsMenuOpen(false);
+        setIsUserMenuOpen(false);
     };
 
     const handleThemeToggle = () => {
@@ -80,6 +84,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
         const onDocClick = (e: MouseEvent) => {
             const t = e.target as Node;
             if (isMenuOpen && menuRef.current && !menuRef.current.contains(t)) setIsMenuOpen(false);
+            if (isUserMenuOpen && userMenuRef.current && !userMenuRef.current.contains(t)) setIsUserMenuOpen(false);
         };
         window.addEventListener('keydown', onKey);
         document.addEventListener('mousedown', onDocClick);
@@ -91,7 +96,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
 
     return (
         <header
-            className="px-3 py-2 bg-white/80 dark:bg-slate-900/75 backdrop-blur-xl sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700/60 shadow-sm"
+            className="px-3 py-2 bg-white/80 dark:bg-slate-900/75 backdrop-blur-xl sticky top-0 z-[110] border-b border-slate-200 dark:border-slate-700/60 shadow-sm"
             style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
             data-app-header
         >
@@ -125,7 +130,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                             <div
                                 role="menu"
                                 aria-label="Menú"
-                                className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-xl ring-1 ring-slate-200 dark:ring-slate-800 p-2 z-50 animate-in fade-in zoom-in-95 duration-100"
+                                className="absolute left-0 mt-2 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-xl ring-1 ring-slate-200 dark:ring-slate-800 p-2 z-[100] animate-in fade-in zoom-in-95 duration-100"
                             >
                                 {/* Sección: Configuración */}
                                 <div className="px-2 py-1.5 text-[11px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
@@ -263,32 +268,7 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                                     <span>{t('header.export')}</span>
                                 </button>
 
-                                {/* User section */}
-                                {user && (
-                                    <>
-                                        <div className="h-px bg-slate-100 dark:bg-slate-800 my-1 mx-2"></div>
-
-                                        {/* Sección: Cuenta */}
-                                        <div className="px-2 py-1.5 text-[11px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                                            Cuenta
-                                        </div>
-
-                                        <div className="px-3 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-lg mx-2 mb-1 truncate">
-                                            {user.email}
-                                        </div>
-
-                                        <button
-                                            role="menuitem"
-                                            onClick={handleLogout}
-                                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 text-sm font-bold text-rose-600 dark:text-rose-400 transition-colors group"
-                                        >
-                                            <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-500 group-hover:bg-rose-100 dark:group-hover:bg-rose-900/30 transition-colors">
-                                                <ArrowRightOnRectangleIcon className="w-4 h-4" />
-                                            </div>
-                                            <span>{t('header.logout', 'Cerrar sesión')}</span>
-                                        </button>
-                                    </>
-                                )}
+                                {/* User section removed from here - moved to avatar menu */}
                             </div>
                         )}
                     </div>
@@ -307,6 +287,19 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
 
                 {/* RIGHT ZONE: Actions (Add Button + User Avatar) */}
                 <div className="flex items-center gap-2 sm:gap-3">
+                    {/* Add Filter Button - Mobile Only (Trigger for onToggleMobileFilters) */}
+                    {onToggleMobileFilters && (
+                        <button
+                            onClick={onToggleMobileFilters}
+                            className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors md:hidden"
+                            title={t('grid.filter') || 'Filtrar'}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
+                            </svg>
+                        </button>
+                    )}
+
                     {/* CTA principal - Desktop only (FAB used on mobile) */}
                     <button
                         onClick={onAddExpense}
@@ -319,14 +312,43 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
 
                     {/* User Avatar */}
                     {user && (
-                        <button
-                            onClick={() => setIsMenuOpen(o => !o)}
-                            className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 text-white text-xs font-bold uppercase shadow-sm hover:shadow-md transition-shadow"
-                            title={user.email || 'Usuario'}
-                            aria-label="Cuenta de usuario"
-                        >
-                            {user.email?.charAt(0) || 'U'}
-                        </button>
+                        <div className="relative" ref={userMenuRef}>
+                            <button
+                                onClick={() => setIsUserMenuOpen(o => !o)}
+                                className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 text-white text-xs font-bold uppercase shadow-sm hover:shadow-md transition-shadow"
+                                title={user.email || 'Usuario'}
+                                aria-label="Cuenta de usuario"
+                            >
+                                {user.email?.charAt(0) || 'U'}
+                            </button>
+                            {isUserMenuOpen && (
+                                <div
+                                    role="menu"
+                                    aria-label="Menú de usuario"
+                                    className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-slate-900 shadow-xl ring-1 ring-slate-200 dark:ring-slate-800 p-2 z-[100] animate-in fade-in zoom-in-95 duration-100 origin-top-right"
+                                >
+                                    {/* Sección: Cuenta */}
+                                    <div className="px-2 py-1.5 text-[11px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                        Cuenta
+                                    </div>
+
+                                    <div className="px-3 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-lg mx-2 mb-1 truncate">
+                                        {user.email}
+                                    </div>
+
+                                    <button
+                                        role="menuitem"
+                                        onClick={handleLogout}
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 text-sm font-bold text-rose-600 dark:text-rose-400 transition-colors group"
+                                    >
+                                        <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-rose-500 group-hover:bg-rose-100 dark:group-hover:bg-rose-900/30 transition-colors">
+                                            <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                                        </div>
+                                        <span>{t('header.logout', 'Cerrar sesión')}</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

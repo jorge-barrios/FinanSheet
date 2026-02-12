@@ -51,16 +51,16 @@
   --id-neo-mint-light: rgba(168, 230, 207, 0.2);
 
   /* Light Mode - Clean & Fresh */
-  --dashboard-bg: #f8fafc;
+  --dashboard-bg: #f1f5f9;
   --dashboard-surface: #ffffff;
   --dashboard-surface-elevated: #ffffff;
   --dashboard-surface-hover: #f1f5f9;
-  --dashboard-border: rgba(0, 0, 0, 0.08);
-  --dashboard-border-strong: rgba(0, 0, 0, 0.12);
+  --dashboard-border: rgba(0, 0, 0, 0.15);
+  --dashboard-border-strong: rgba(0, 0, 0, 0.20);
 
   /* Text */
   --dashboard-text-primary: #0f172a;
-  --dashboard-text-secondary: #475569;
+  --dashboard-text-secondary: #334155;
   --dashboard-text-muted: #94a3b8;
 
   /* Semantic Colors - Fintech Vibrant */

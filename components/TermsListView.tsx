@@ -13,6 +13,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useLocalization } from '../hooks/useLocalization';
+import { useCurrency } from '../hooks/useCurrency';
 import { generateExpectedPeriods } from '../utils/commitmentStatusUtils';
 import { Calendar, DollarSign, Hash, ChevronDown, ChevronUp, Edit2, Check, AlertTriangle, Pause, Clock, Trash2, Plus, X } from 'lucide-react';
 import type { Term, CommitmentWithTerm, Payment, Frequency, PaymentWithDetails } from '../types.v2';
@@ -72,6 +73,7 @@ export const TermsListView: React.FC<TermsListViewProps> = ({
     onPaymentClick,
 }) => {
     const { t, formatClp } = useLocalization();
+    const { fromUnit } = useCurrency();
     const [expandedTermId, setExpandedTermId] = useState<string | null>(
         // Default to active term if available
         commitment.active_term?.id || null
@@ -360,6 +362,7 @@ Los pagos existentes permanecerán en el término actual.
                 });
 
                 // 2. Create new term with updated values
+                const currency = originalTerm?.currency_original || 'CLP';
                 const newTermData = {
                     effective_from: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`,
                     effective_until: editingTerm.effective_until,
@@ -368,6 +371,8 @@ Los pagos existentes permanecerán en el término actual.
                     frequency: editingTerm.frequency,
                     installments_count: editingTerm.installments_count,
                     is_divided_amount: editingTerm.is_divided_amount,
+                    currency_original: currency,
+                    fx_rate_to_base: currency === 'CLP' ? 1.0 : fromUnit(1, currency as any),
                 };
 
                 if (onTermCreate) {
@@ -732,6 +737,7 @@ Los pagos existentes permanecerán en el término actual.
                 due_day_of_month: newTerm.due_day_of_month,
                 frequency: newTerm.frequency,
                 currency_original: newTerm.currency_original,
+                fx_rate_to_base: newTerm.currency_original === 'CLP' ? 1.0 : fromUnit(1, newTerm.currency_original as any),
             });
 
             setNewTerm(null);

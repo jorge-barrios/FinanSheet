@@ -92,7 +92,7 @@ export const KPIBentoCard: React.FC<KPIBentoCardProps> = ({
             return `${baseClasses} ${config.alertClasses}`;
         }
 
-        return `${baseClasses} bg-slate-800/30 border-slate-700/50 hover:bg-slate-800/50 hover:border-slate-600/50`;
+        return `${baseClasses} bg-slate-100 dark:bg-slate-800/30 border-slate-200 dark:border-slate-700/50 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:border-slate-300 dark:hover:border-slate-600/50`;
     };
 
     // Icon color classes
@@ -111,7 +111,7 @@ export const KPIBentoCard: React.FC<KPIBentoCardProps> = ({
         if (isVencidoWithAlert && config.amountAlertClass) {
             return config.amountAlertClass;
         }
-        return 'text-slate-300 dark:text-slate-200';
+        return 'text-slate-500 dark:text-slate-300';
     };
 
     return (

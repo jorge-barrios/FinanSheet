@@ -50,7 +50,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     periodDate,
 }) => {
     const { formatClp } = useLocalization();
-    const { fromUnit, convertAmount, getFxRateToBase } = useCurrency();
+    const { convertAmount, getFxRateToBase } = useCurrency();
 
     // Parse year and month from periodDate string (YYYY-MM-DD)
     const [year, month] = React.useMemo(() => {
@@ -96,7 +96,8 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     const isPaid = existingPayment?.payment_date != null;
 
     // Expected amount from term
-    const expectedAmount = term ? getPerPeriodAmount(term, false) : 0;
+    const expectedAmount = term ? getPerPeriodAmount(term, false) : 0; // In original currency (e.g., UF)
+    const expectedAmountInClp = term ? getPerPeriodAmount(term, true) : 0; // In CLP (uses stored fx_rate_to_base)
     const expectedCurrency = term?.currency_original || 'CLP';
 
     // Month names
@@ -129,9 +130,8 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                 } else {
                     // Default values for new payment
                     setPaymentDate(new Date().toISOString().split('T')[0]);
-                    const amountInClp = expectedCurrency === 'CLP'
-                        ? expectedAmount
-                        : fromUnit(expectedAmount, expectedCurrency as any);
+                    // Use stored amount_in_base for consistency with grid/commitment cards
+                    const amountInClp = expectedAmountInClp;
                     setAmount(String(Math.round(amountInClp)));
                     setDueDateOverride(null);
                     setIsDueDateOverridden(false);
@@ -404,7 +404,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                             </span>
                             {expectedCurrency !== 'CLP' && (
                                 <span className="text-xs text-slate-400">
-                                    (~{formatClp(fromUnit(expectedAmount, expectedCurrency as any))})
+                                    (~{formatClp(Math.round(expectedAmountInClp))})
                                 </span>
                             )}
                         </div>
@@ -569,7 +569,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                         </div>
                         {amountCurrency !== 'CLP' && amount && parseFloat(amount) > 0 && (
                             <p className="mt-1 text-xs text-slate-400 text-right">
-                                ≈ {formatClp(fromUnit(parseFloat(amount), amountCurrency as any))}
+                                ≈ {formatClp(Math.round(parseFloat(amount) * (term?.fx_rate_to_base || 1)))}
                             </p>
                         )}
                     </div>

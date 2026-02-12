@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { Minus, ChevronDown, Filter as FilterIcon, Star, Menu, Pause as PauseLucide } from 'lucide-react';
+import { Minus, ChevronDown, Star, Menu, Pause as PauseLucide } from 'lucide-react';
 import { MobileKPICarousel } from './MobileKPICarousel';
 import { KPIBentoCard } from './KPIBentoCard';
 import type { MonthTotals } from '../../types.v2';
@@ -28,7 +28,6 @@ export interface HeaderToolbarProps {
     setSelectedStatus: (status: StatusFilter) => void;
     availableCategories: string[];
     setShowKPISelector: (show: boolean) => void;
-    setShowMobileFilters: (show: boolean) => void;
     formatClp: (amount: number) => string;
 }
 
@@ -46,11 +45,10 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
     setSelectedStatus,
     availableCategories,
     setShowKPISelector,
-    setShowMobileFilters,
     formatClp,
 }) => {
     return (
-        <div className="sticky top-0 z-50 flex flex-col border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm transition-all duration-300">
+        <div className="sticky top-0 z-50 flex flex-col bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm transition-all duration-300">
 
             {/* ═══════════════════════════════════════════════════════════════════
                 ROW 1: FILTERS + DENSITY (Funnel UI: Navigation layer)
@@ -142,22 +140,13 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                     </div>
                 </div>
 
-                {/* Mobile: Filter Toggle */}
-                <button
-                    onClick={() => setShowMobileFilters(true)}
-                    className="lg:hidden p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 relative"
-                >
-                    <FilterIcon className="w-5 h-5" />
-                    {(selectedCategory !== 'all' || selectedStatus !== 'all') && (
-                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-sky-500 border-2 border-white dark:border-slate-900" />
-                    )}
-                </button>
+
             </div>
 
             {/* ═══════════════════════════════════════════════════════════════════
                 ROW 2: KPI BENTO CARDS (Desktop only - Funnel UI: Metrics layer)
             ═══════════════════════════════════════════════════════════════════ */}
-            <div className="hidden lg:flex items-center gap-2 px-4 pb-3">
+            <div className="hidden lg:flex items-center gap-2 px-4 pb-1">
                 <KPIBentoCard
                     type="ingresos"
                     label="Ingresos"
@@ -194,9 +183,9 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
             </div>
 
             {/* ═══════════════════════════════════════════════════════════════════
-                ROW 2 MOBILE: KPI Carousel
+                ROW 2 MOBILE: Carousel
             ═══════════════════════════════════════════════════════════════════ */}
-            <div className="lg:hidden w-full pb-2 px-2">
+            <div className="lg:hidden w-full pt-3 pb-2 px-2">
                 <MobileKPICarousel
                     totals={totals}
                     currentKPI={currentKPI}

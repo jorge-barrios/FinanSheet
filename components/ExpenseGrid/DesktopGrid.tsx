@@ -312,7 +312,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
     // ==========================================================================
     return (
         <div className="hidden lg:block px-4">
-            <div className="mt-4">
+            <div className="mt-2">
 
 
                 {/* Grid */}
@@ -451,8 +451,8 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                     {/* Month name - Protagonist (neutral text, bar carries color) */}
                                                                     <span className={`tracking-wide ${density === 'minimal' ? 'text-xs' : 'text-sm'
                                                                         } ${isCurrentMonth(month)
-                                                                            ? 'font-bold text-slate-100 uppercase tracking-widest'
-                                                                            : 'font-semibold text-slate-200'
+                                                                            ? 'font-bold text-slate-900 dark:text-slate-100 uppercase tracking-widest'
+                                                                            : 'font-semibold text-slate-400 dark:text-slate-400'
                                                                         }`}>
                                                                         {/* Full name for highlighted, short for others */}
                                                                         {(isCurrent || isFocused)
@@ -612,7 +612,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                     <div className="flex items-center justify-between gap-2 mt-1">
                                                                         {(() => {
                                                                             return (
-                                                                                <div className="inline-flex items-center px-2 py-0.5 rounded-md text-[0.6rem] uppercase tracking-widest font-bold bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 text-slate-500 dark:text-slate-400 min-w-0">
+                                                                                <div className="inline-flex items-center px-2 py-0.5 rounded-md text-[0.6rem] uppercase tracking-widest font-bold bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 text-slate-600 dark:text-slate-400 min-w-0">
                                                                                     <span className="truncate">{getTranslatedCategoryName(commitment)}</span>
                                                                                 </div>
                                                                             );
@@ -666,7 +666,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                     {/* Zone 2: Metadata Badges (Stacked) */}
                                                                     <div className="flex flex-col items-start gap-1 mt-1 shrink-0">
                                                                         {/* Category Name */}
-                                                                        <div className="inline-flex items-center px-[0.65em] py-[0.15em] rounded-[4px] text-[0.6em] uppercase tracking-widest font-bold bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 text-slate-500 dark:text-slate-400 leading-none">
+                                                                        <div className="inline-flex items-center px-[0.65em] py-[0.15em] rounded-[4px] text-[0.6em] uppercase tracking-widest font-bold bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 text-slate-600 dark:text-slate-400 leading-none">
                                                                             {getTranslatedCategoryName(commitment)}
                                                                         </div>
 

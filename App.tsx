@@ -515,6 +515,9 @@ const App: React.FC = () => {
         </div>
     ) : null;
 
+    // Mobile Filter State (Lifted for Global Header Access)
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
+
     if (loading) {
         return <AppLoadingSkeleton />;
     }
@@ -532,9 +535,10 @@ const App: React.FC = () => {
                     view={view}
                     onViewChange={setView}
                     onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
+                    onToggleMobileFilters={() => setShowMobileFilters(prev => !prev)}
                 />
                 <main className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
-                    <div className={`max-w-screen-2xl mx-auto min-h-0 px-4 pt-4 md:pt-6 ${view === 'graph' ? 'lg:h-full' : 'lg:h-full'}`}>
+                    <div className={`max-w-screen-2xl mx-auto min-h-0 px-4 pt-2 md:pt-3 ${view === 'graph' ? 'lg:h-full' : 'lg:h-full'}`}>
                         <React.Suspense fallback={<div className="p-6 text-slate-500 dark:text-slate-400">Cargando…</div>}>
                             {view === 'table' && (
                                 useV2Dashboard ? (
@@ -561,6 +565,9 @@ const App: React.FC = () => {
                                         onRecordPayment={handleOpenPaymentRecorder}
                                         onFocusedDateChange={setFocusedDate}
                                         onVisibleMonthsCountChange={setVisibleMonthsCount}
+                                        // Mobile Filter Props
+                                        showMobileFilters={showMobileFilters}
+                                        onCloseMobileFilters={() => setShowMobileFilters(false)}
                                     />
                                 ) : (
                                     <TableView
