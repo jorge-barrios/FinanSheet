@@ -349,38 +349,12 @@ const App: React.FC = () => {
 
     const confirmDeleteExpense = useCallback(async () => {
         if (!expenseToDelete) return;
-
-        console.log('Confirming deletion for expense:', expenseToDelete);
-
-        // Close modal first
+        console.warn('[LEGACY] confirmDeleteExpense called - expenses table no longer exists');
         setIsDeleteModalOpen(false);
-
-        // Remove from local state immediately for better UX
         setExpenses(prev => prev.filter(e => e.id !== expenseToDelete));
-
-        if (!isSupabaseConfigured || !supabase) {
-            setExpenseToDelete(null);
-            showToast(t('delete.expenseSuccess', 'Gasto eliminado exitosamente'), 'success');
-            return;
-        }
-
-        try {
-            // Delete the expense from Supabase
-            const { error } = await supabase.from('expenses').delete().eq('id', expenseToDelete);
-            if (error) throw error;
-
-            console.log('Expense deleted successfully');
-            showToast(t('delete.expenseSuccess', 'Gasto eliminado exitosamente'), 'success');
-        } catch (error) {
-            console.error('Error deleting expense:', error);
-            const errorMessage = error instanceof Error ? error.message : t('delete.expenseError');
-            showToast(`${t('delete.expenseError')}: ${errorMessage}`, 'error');
-            // Reload data to restore the expense if deletion failed
-            fetchData();
-        } finally {
-            setExpenseToDelete(null);
-        }
-    }, [expenseToDelete, isSupabaseConfigured, supabase, t, fetchData, showToast]);
+        setExpenseToDelete(null);
+        showToast(t('delete.expenseSuccess', 'Gasto eliminado exitosamente'), 'success');
+    }, [expenseToDelete, t, showToast]);
 
     const cancelDeleteExpense = useCallback(() => {
         console.log('Deletion cancelled');
@@ -389,349 +363,11 @@ const App: React.FC = () => {
     }, []);
 
     const handleSaveExpense = useCallback(async (expense: Omit<Expense, 'id' | 'createdAt'> & { id?: string }) => {
-        if (!isSupabaseConfigured || !supabase) return;
-
-        // Show "Saving..." toast immediately for user feedback
-        // 0 duration means it stays until we manually remove it
-        const savingToastId = showToast(t('save.saving', 'Guardando...'), 'info', 0);
-
-        try {
-            // 1. Get exchange rate
-            const dateForApi = format(new Date(expense.expenseDate), 'dd-MM-yyyy');
-            const rate = await getExchangeRate(expense.originalCurrency as PaymentUnit, dateForApi);
-
-            // 2. Calculate final amount and build the full expense object
-            let expenseToSave = {
-                ...expense,
-                id: expense.id, // id can be undefined here, which is fine for upsert
-                exchangeRate: rate,
-                amountInClp: expense.originalCurrency === 'CLP' ? expense.originalAmount : expense.originalAmount * rate,
-            };
-            // Normalize category to Spanish canonical for storage
-            expenseToSave = {
-                ...expenseToSave,
-                category: toSpanishCanonical(expenseToSave.category || '')
-            };
-
-            // 3. Handle versioning for recurring expenses and special logic for VARIABLE expenses
-            const isEditing = !!expense.id;
-            const isRecurringExpense = expense.type === 'RECURRING';
-            const isVariableExpense = expense.type === 'VARIABLE';
-
-            console.log('Versioning check:', {
-                isEditing,
-                isRecurringExpense,
-                expenseId: expense.id,
-                expenseType: expense.type,
-                expensesCount: expenses.length
-            });
-
-            // Special handling for VARIABLE expenses (Option B implementation)
-            if (isEditing && isVariableExpense && expense.id && supabase) {
-                const sb = supabase; // capture non-null instance for use inside closures
-                // For VARIABLE expenses, when editing the general template:
-                // - Preserve existing pending occurrences with their original amounts
-                // - Only new occurrences will use the updated amount
-
-                const originalExpense = expenses.find(e => e.id === expense.id);
-                if (originalExpense && originalExpense.amountInClp !== expenseToSave.amountInClp) {
-                    console.log('VARIABLE expense editing: Preserving pending occurrences with original amount', {
-                        expenseId: expense.id,
-                        originalAmount: originalExpense.amountInClp,
-                        newAmount: expenseToSave.amountInClp
-                    });
-
-                    // Create payment records for existing pending occurrences to preserve their amounts
-                    // This ensures that only new occurrences (via "+" button) will use the new amount
-                    const existingPayments = paymentStatus[expense.id] || {};
-
-                    // For each existing payment that is not paid and doesn't have overriddenAmount,
-                    // create a payment record with the original amount to preserve it
-                    const preservationPromises = Object.entries(existingPayments).map(async ([dateKey, payment]) => {
-                        // Type guard for payment object
-                        if (payment && typeof payment === 'object' && 'paid' in payment && 'overriddenAmount' in payment) {
-                            if (!payment.paid && !payment.overriddenAmount) {
-                                // This is a pending occurrence that should preserve the original amount
-                                try {
-                                    const { error } = await sb
-                                        .from('payment_details')
-                                        .upsert({
-                                            expense_id: expense.id,
-                                            date_key: dateKey,
-                                            paid: false,
-                                            overridden_amount: originalExpense.amountInClp, // Preserve original amount
-                                            payment_date: null,
-                                            user_id: user?.id || null
-                                        });
-
-                                    if (error) {
-                                        console.error('Error preserving pending occurrence amount:', error);
-                                    }
-                                } catch (error) {
-                                    console.error('Error preserving pending occurrence:', error);
-                                }
-                            }
-                        }
-                    });
-
-                    // Wait for all preservation operations to complete
-                    await Promise.all(preservationPromises);
-                }
-            }
-
-            if (isEditing && isRecurringExpense) {
-                // NUEVA ARQUITECTURA: ID ESTABLE - El ID nunca cambia
-                // Solo actualizar el mismo registro con nueva información de versionado
-
-                const today = new Date();
-                const effectiveDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-
-                console.log('Stable ID Versioning: Updating same expense with version info', {
-                    expenseId: expense.id,
-                    effectiveDate: effectiveDate,
-                    newAmount: expenseToSave.amountInClp
-                });
-
-                // Mantener el mismo ID, solo agregar información de versionado
-                expenseToSave = {
-                    ...expenseToSave,
-                    id: expense.id, // MISMO ID - NUNCA CAMBIA
-                    versionDate: effectiveDate, // Fecha cuando esta versión se vuelve efectiva
-                    isActive: true // Esta es la versión activa
-                    // NO se setea parentId porque este ES el registro principal
-                };
-
-                console.log('Stable ID Versioning: Updated expense with new version info:', {
-                    expenseId: expenseToSave.id,
-                    effectiveDate: effectiveDate,
-                    newAmount: expenseToSave.amountInClp,
-                    versionDate: expenseToSave.versionDate
-                });
-            }
-
-            // 3. Map to database schema and save to Supabase
-            // Ensure due_date is a valid integer between 1-31
-            // Validate dueDate
-            const validDueDate = expenseToSave.dueDate >= 1 && expenseToSave.dueDate <= 31 ? expenseToSave.dueDate : 1;
-
-            // Convert startDate string to JSONB object for Supabase
-            const [year, month] = expenseToSave.startDate.split('-').map(Number);
-            const startDateForDb = { month: month - 1, year }; // month is 0-indexed for JSONB
-
-            // Create due_date as actual date (YYYY-MM-DD format)
-            const dueDateForDb = `${year}-${month.toString().padStart(2, '0')}-${validDueDate.toString().padStart(2, '0')}`;
-
-            // Map category name to UUID
-            const categoryId = categoryMap.get(expenseToSave.category || '');
-            if (!categoryId) {
-                throw new Error(`Category "${expenseToSave.category}" not found in category map`);
-            }
-
-            // Map to exact Supabase schema structure
-            const dbExpense = {
-                name: expenseToSave.name,
-                category_id: categoryId, // UUID reference to categories table
-                total_amount: expenseToSave.amountInClp,
-                type: expenseToSave.type,
-                start_date: startDateForDb, // JSONB object
-                installments: expenseToSave.installments,
-                payment_frequency: expenseToSave.paymentFrequency,
-                is_important: expenseToSave.isImportant || false,
-                due_date_old_text: validDueDate, // Legacy field (required INTEGER)
-                due_date: dueDateForDb, // New field (optional DATE)
-                expense_date: expenseToSave.expenseDate || null,
-                // Currency fields (optional)
-                original_amount: expenseToSave.originalAmount || null,
-                original_currency: expenseToSave.originalCurrency || null,
-                exchange_rate: expenseToSave.exchangeRate || null,
-                amount_in_clp: expenseToSave.amountInClp,
-                // Versioning fields (optional)
-                parent_id: expenseToSave.parentId || null,
-                version_date: expenseToSave.versionDate || null,
-                end_date: expenseToSave.endDate || null,
-                is_active: expenseToSave.isActive !== undefined ? expenseToSave.isActive : true,
-                // User ID for RLS (explicitly set, though trigger also handles it)
-                user_id: user?.id || null
-            };
-
-            // Debug logging
-            console.log('Final expense object for Supabase:', dbExpense);
-            console.log('Field types:', {
-                start_date: typeof dbExpense.start_date,
-                due_date_old_text: typeof dbExpense.due_date_old_text,
-                due_date: typeof dbExpense.due_date,
-                total_amount: typeof dbExpense.total_amount
-            });
-            console.log('start_date object:', dbExpense.start_date);
-
-            // ID ESTABLE: Diferenciar entre crear nuevo vs actualizar existente
-            let error;
-            if (isEditing) {
-                // Para ediciones: ACTUALIZAR el registro existente (preserva el ID)
-                console.log('Stable ID: Updating existing expense with ID:', expense.id);
-                const { error: updateError } = await supabase
-                    .from('expenses')
-                    .update(dbExpense)
-                    .eq('id', expense.id);
-                error = updateError;
-            } else {
-                // Para nuevos gastos: INSERTAR nuevo registro
-                console.log('Stable ID: Creating new expense');
-                const { error: insertError } = await supabase
-                    .from('expenses')
-                    .insert([dbExpense]);
-                error = insertError;
-            }
-
-            if (error) {
-                throw error;
-            }
-
-            // Vinculación bidireccional automática
-            let savedExpenseId = expense.id; // For edits, we already have the ID
-
-            // For new expenses, fetch the newly created ID
-            if (!isEditing && isSupabaseConfigured && supabase) {
-                const { data: newExpense, error: fetchError } = await supabase
-                    .from('expenses')
-                    .select('id')
-                    .eq('name', dbExpense.name)
-                    .eq('total_amount', dbExpense.total_amount)
-                    .eq('type', dbExpense.type)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .single();
-
-                if (!fetchError && newExpense) {
-                    savedExpenseId = newExpense.id;
-                }
-            }
-
-            // Si tiene vinculación, actualizar el expense vinculado automáticamente
-            if (expenseToSave.linkedExpenseId && expenseToSave.linkRole && savedExpenseId) {
-                const linkedExpense = expenses.find(e => e.id === expenseToSave.linkedExpenseId);
-
-                if (linkedExpense) {
-                    // Determinar el rol opuesto
-                    const oppositeRole = expenseToSave.linkRole === 'primary' ? 'secondary' : 'primary';
-
-                    // Actualizar el expense vinculado
-                    const { error: linkError } = await supabase
-                        .from('expenses')
-                        .update({
-                            linked_expense_id: savedExpenseId,
-                            link_role: oppositeRole
-                        })
-                        .eq('id', expenseToSave.linkedExpenseId);
-
-                    if (linkError) {
-                        console.error('Error updating linked expense:', linkError);
-                    }
-                }
-            }
-
-            // Si se desvinculó (linkedExpenseId === undefined), limpiar el otro lado
-            if (editingExpense?.linkedExpenseId && !expenseToSave.linkedExpenseId) {
-                const previouslyLinked = expenses.find(e => e.id === editingExpense.linkedExpenseId);
-
-                if (previouslyLinked?.linkedExpenseId === editingExpense.id) {
-                    const { error: unlinkError } = await supabase
-                        .from('expenses')
-                        .update({
-                            linked_expense_id: null,
-                            link_role: null
-                        })
-                        .eq('id', editingExpense.linkedExpenseId);
-
-                    if (unlinkError) {
-                        console.error('Error unlinking expense:', unlinkError);
-                    }
-                }
-            }
-
-            // Auto-assign payment status for new expenses based on due date
-            if (!isEditing && isSupabaseConfigured && supabase) {
-                try {
-                    // First, get the newly created expense ID
-                    const { data: newExpense, error: fetchError } = await supabase
-                        .from('expenses')
-                        .select('id')
-                        .eq('name', dbExpense.name)
-                        .eq('total_amount', dbExpense.total_amount)
-                        .eq('type', dbExpense.type)
-                        .order('created_at', { ascending: false })
-                        .limit(1)
-                        .single();
-
-                    if (fetchError || !newExpense) {
-                        console.error('Error fetching new expense ID:', fetchError);
-                        return;
-                    }
-
-                    // Calculate if expense is overdue or pending based on due date
-                    const today = new Date();
-                    const currentYear = today.getFullYear();
-                    const currentMonth = today.getMonth(); // 0-indexed
-
-                    // For the current month, determine if expense is overdue or pending
-                    const dueDay = expenseToSave.dueDate;
-                    const dueDate = new Date(currentYear, currentMonth, dueDay);
-                    const isPastDue = today > dueDate;
-
-                    // Create payment record with appropriate status
-                    const dateKey = `${currentYear}-${currentMonth}`;
-                    const { error: paymentError } = await supabase
-                        .from('payment_details')
-                        .insert([{
-                            expense_id: newExpense.id,
-                            date_key: dateKey,
-                            paid: false, // New expenses start as unpaid
-                            overridden_amount: null, // Use default amount from expense
-                            payment_date: null,
-                            user_id: user?.id || null
-                            // Note: is_overdue is calculated dynamically, not stored
-                        }]);
-
-                    if (paymentError) {
-                        console.error('Error creating auto payment status:', paymentError);
-                    } else {
-                        console.log('Auto-assigned payment status:', {
-                            expenseId: newExpense.id,
-                            dateKey,
-                            isPastDue,
-                            status: isPastDue ? 'overdue' : 'pending'
-                        });
-
-                        // Refresh data again to ensure payment status is loaded
-                        await fetchData();
-                    }
-                } catch (error) {
-                    console.error('Error auto-assigning payment status:', error);
-                }
-            }
-
-            setIsFormOpen(false);
-            setEditingExpense(null);
-
-            // Remove "Saving..." toast immediately
-            removeToast(savingToastId);
-
-            // Show success toast
-            const message = isEditing
-                ? t('save.expenseUpdated', 'Gasto actualizado exitosamente')
-                : t('save.expenseCreated', 'Gasto creado exitosamente');
-            showToast(message, 'success');
-        } catch (error) {
-            console.error('Error saving expense:', error);
-            const errorMessage = error instanceof Error ? error.message : t('save.expenseError');
-
-            // Remove "Saving..." toast immediately
-            removeToast(savingToastId);
-
-            // Show error toast
-            showToast(`${t('save.expenseError')}: ${errorMessage}`, 'error');
-        }
-    }, [isSupabaseConfigured, supabase, user, expenses, paymentStatus, categoryMap, t, fetchData, showToast, removeToast]);
+        // [LEGACY] This function referenced the dropped 'expenses' and 'payment_details' tables.
+        // V2 commitments are saved via CommitmentForm.v2 -> CommitmentService/PaymentService.
+        console.warn('[LEGACY] handleSaveExpense called - expenses table no longer exists. Use CommitmentForm.v2 instead.');
+        showToast('Esta función legacy ha sido deshabilitada. Usa el formulario v2.', 'error');
+    }, [showToast]);
 
     const requestDeletePayment = useCallback((expenseId: string, year: number, month: number) => {
         setPaymentToDelete({ expenseId, year, month });
@@ -740,10 +376,9 @@ const App: React.FC = () => {
 
     const confirmDeletePayment = useCallback(async () => {
         if (!paymentToDelete) return;
+        console.warn('[LEGACY] confirmDeletePayment called - payment_details table no longer exists');
         const { expenseId, year, month } = paymentToDelete;
         const date_key = `${year}-${month}`;
-
-        // Optimistic update: remove from local state
         setPaymentStatus(prev => {
             const next = JSON.parse(JSON.stringify(prev));
             if (next[expenseId]) {
@@ -752,30 +387,11 @@ const App: React.FC = () => {
             }
             return next;
         });
-
-        // Close cell editor and this confirmation modal
         setEditingCell(null);
         setIsDeletePaymentModalOpen(false);
         setPaymentToDelete(null);
-
-        if (isSupabaseConfigured && supabase) {
-            try {
-                const { error } = await supabase
-                    .from('payment_details')
-                    .delete()
-                    .eq('expense_id', expenseId)
-                    .eq('date_key', date_key);
-                if (error) throw error;
-                showToast(t('delete.paymentSuccess', 'Pago eliminado exitosamente'), 'success');
-            } catch (error) {
-                console.error('Error deleting payment details:', error);
-                showToast(t('delete.paymentError') || 'Error eliminando el pago', 'error');
-                fetchData();
-            }
-        } else {
-            showToast(t('delete.paymentSuccess', 'Pago eliminado exitosamente'), 'success');
-        }
-    }, [paymentToDelete, isSupabaseConfigured, supabase, t, fetchData, showToast]);
+        showToast(t('delete.paymentSuccess', 'Pago eliminado exitosamente'), 'success');
+    }, [paymentToDelete, t, showToast]);
 
     const cancelDeletePayment = useCallback(() => {
         setIsDeletePaymentModalOpen(false);
@@ -829,8 +445,8 @@ const App: React.FC = () => {
     }, [handleOpenPaymentRecorder]);
 
     const handleSavePaymentDetails = useCallback(async (expenseId: string, year: number, month: number, details: Partial<PaymentDetails>) => {
+        console.warn('[LEGACY] handleSavePaymentDetails called - payment_details table no longer exists');
         const date_key = `${year}-${month}`;
-
         setPaymentStatus(prev => {
             const newStatus = JSON.parse(JSON.stringify(prev));
             if (!newStatus[expenseId]) newStatus[expenseId] = {};
@@ -838,47 +454,8 @@ const App: React.FC = () => {
             newStatus[expenseId][date_key] = { ...existingDetails, ...details };
             return newStatus;
         });
-
-        if (!isSupabaseConfigured || !supabase) return;
-
-        try {
-            // Convert details to database format
-            const dbPaymentDetails: any = {
-                expense_id: expenseId,
-                date_key: date_key,
-                user_id: user?.id || null
-            };
-
-            if (details.paid !== undefined) {
-                dbPaymentDetails.paid = details.paid;
-            }
-            if (details.paymentDate !== undefined) {
-                dbPaymentDetails.payment_date = details.paymentDate
-                    ? new Date(details.paymentDate).toISOString()
-                    : null;
-            }
-            if (details.overriddenAmount !== undefined) {
-                dbPaymentDetails.overridden_amount = details.overriddenAmount;
-            }
-            if (details.overriddenDueDate !== undefined) {
-                dbPaymentDetails.overridden_due_date = details.overriddenDueDate;
-            }
-
-            // Use direct upsert instead of RPC
-            const { error } = await supabase
-                .from('payment_details')
-                .upsert(dbPaymentDetails, {
-                    onConflict: 'expense_id,date_key'
-                });
-
-            if (error) throw error;
-            showToast(t('save.paymentSuccess', 'Pago guardado exitosamente'), 'success');
-        } catch (error) {
-            console.error('Error saving payment details:', error);
-            showToast(t('save.paymentError', 'Error guardando el pago'), 'error');
-            fetchData();
-        }
-    }, [isSupabaseConfigured, supabase, user, t, fetchData, showToast]);
+        showToast(t('save.paymentSuccess', 'Pago guardado exitosamente'), 'success');
+    }, [t, showToast]);
 
     const handleAddCategory = useCallback(async (newCategory: string) => {
         if (!newCategory || categories.some(c => c.name === newCategory)) return;
