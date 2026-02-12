@@ -127,6 +127,7 @@ Pagos realizados para un período específico.
 | `amount_original` | NUMERIC(15,2) | NO | - | Monto pagado |
 | `fx_rate_to_base` | NUMERIC(15,6) | NO | 1.0 | Tasa de cambio |
 | `amount_in_base` | NUMERIC(15,2) | YES | - | Monto en CLP (trigger) |
+| `notes` | TEXT | YES | - | Nota opcional del usuario (máx 500 chars) |
 | `created_at` | TIMESTAMPTZ | NO | NOW() | - |
 | `updated_at` | TIMESTAMPTZ | NO | NOW() | - |
 
@@ -761,6 +762,7 @@ ORDER BY c.name;
 | `016_validate_payment_term.sql` | Trigger para validar consistencia term_id ↔ period_date |
 | `017_fix_date_comparison.sql` | Fix: get_active_term usa DATE_TRUNC para comparar meses |
 | `018_bidirectional_term_trigger.sql` | Trigger bidireccional: ONCE siempre definido, indefinido limpia count |
+| `019_add_payment_notes.sql` | Agrega campo `notes` (TEXT) a payments para notas del usuario |
 
 ---
 

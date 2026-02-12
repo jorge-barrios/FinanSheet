@@ -134,6 +134,8 @@ export interface Payment {
     amount_original: number; // NUMERIC(15,2)
     fx_rate_to_base: number; // NUMERIC(15,6)
     amount_in_base: number | null; // NUMERIC(15,2)
+    notes: string | null; // Optional user note about the payment
+    due_date: string | null; // Specific due date override. NULL = calculate from term.due_day_of_month
     created_at: string;
     updated_at: string;
 }
@@ -375,4 +377,6 @@ export interface PaymentFormData {
     amount_original: number;
     currency_original: string;
     fx_rate_to_base?: number; // Exchange rate to CLP
+    notes?: string | null; // Optional user note
+    due_date?: string | null; // Specific due date override
 }

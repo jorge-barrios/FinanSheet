@@ -201,27 +201,11 @@ const App: React.FC = () => {
             return;
         }
 
-        // Guard: If we already have data loaded, skip refetch on window focus/auth refresh
-        // This prevents the "Failed to fetch" error when switching windows
-        if (expenses.length > 0 && categories.length > 0) {
-            console.log('fetchData: Data already loaded, skipping refetch');
-            setLoading(false);
-            return;
-        }
-
         // Clear any previous error when retrying
         setDataFetchError(null);
 
         try {
-            const { data: expensesData, error: expensesError } = await supabase
-                .from('expenses')
-                .select('*, categories(name)');
-            if (expensesError) throw expensesError;
-
-            const { data: paymentsData, error: paymentsError } = await supabase.from('payment_details').select('*');
-            if (paymentsError) throw paymentsError;
-
-            // Load categories using new v2 service (global + custom - hidden)
+            // Load categories using v2 service (global + custom - hidden)
             const userId = await getCurrentUserId();
             if (!userId) {
                 console.error('No user ID found');
@@ -246,115 +230,29 @@ const App: React.FC = () => {
                 setCategoryMap(nameToIdMap);
             }
 
-            // ID ESTABLE: Con la nueva arquitectura, los pagos siempre están asociados al ID correcto
-            const paymentsObject = (paymentsData || []).reduce((acc: any, payment: any) => {
-                if (!acc[payment.expense_id]) acc[payment.expense_id] = {};
-                acc[payment.expense_id][payment.date_key] = {
-                    paid: payment.paid,
-                    overriddenAmount: payment.overridden_amount,
-                    overriddenDueDate: payment.overridden_due_date,
-                    paymentDate: payment.payment_date ? new Date(payment.payment_date).getTime() : undefined
-                };
-                return acc;
-            }, {} as PaymentStatus);
+            // V2 data: commitments + payments
+            if (userId) {
+                const currentYear = new Date().getFullYear();
+                const [commitments, allPayments] = await Promise.all([
+                    CommitmentService.getCommitmentsWithTerms(userId),
+                    PaymentService.getPaymentsByDateRange(userId, `${currentYear}-01-01`, `${currentYear + 1}-01-01`)
+                ]);
 
-            const expensesFromSupabase = (expensesData || []).map((e: any) => {
-                // Extract category name from JOIN
-                // Supabase returns: { ..., categories: { name: "Vivienda" } }
-                const categoryName = e.categories?.name || 'Otros';
+                setCommitmentsV2(commitments);
 
-                // Convert JSONB start_date back to string format for calculations
-                let startDateString = '';
-                if (e.start_date && typeof e.start_date === 'object') {
-                    const { month, year } = e.start_date;
-                    // month is 0-indexed in JSONB, so add 1 for display
-                    const displayMonth = (month + 1).toString().padStart(2, '0');
-                    startDateString = `${year}-${displayMonth}-01`;
-                } else if (typeof e.start_date === 'string') {
-                    startDateString = e.start_date;
-                }
+                // Group payments by commitment_id
+                const paymentsByCommitment = new Map<string, Payment[]>();
+                allPayments.forEach(p => {
+                    const existing = paymentsByCommitment.get(p.commitment_id) || [];
+                    paymentsByCommitment.set(p.commitment_id, [...existing, p]);
+                });
+                setPaymentsV2(paymentsByCommitment);
 
-                return {
-                    id: e.id,
-                    name: e.name,
-                    category: categoryName,
-                    amountInClp: e.total_amount,
-                    type: (e.type?.toUpperCase() ?? 'RECURRING') as ExpenseType,
-                    startDate: startDateString,
-                    installments: e.installments,
-                    paymentFrequency: e.payment_frequency as PaymentFrequency,
-                    isImportant: e.is_important,
-                    dueDate: e.due_date_old_text, // Use the integer field for day of month
-                    created_at: e.created_at,
-                    expenseDate: e.expense_date,
-                    originalAmount: e.original_amount,
-                    originalCurrency: e.original_currency,
-                    exchangeRate: e.exchange_rate,
-                    // Versioning fields
-                    parentId: e.parent_id,
-                    versionDate: e.version_date,
-                    endDate: e.end_date,
-                    isActive: e.is_active !== undefined ? e.is_active : true
-                } as Expense;
-            });
-
-            // Filter to show only active versions for the UI
-            const activeExpenses = expensesFromSupabase.filter(expense => {
-                // If it has an endDate, it's been superseded by a newer version
-                if (expense.endDate) {
-                    return false;
-                }
-                // If it's explicitly marked as inactive, don't show it
-                if (expense.isActive === false) {
-                    return false;
-                }
-                // Show all other expenses (active ones and those without versioning)
-                return true;
-            });
-
-            console.log('Loaded expenses:', {
-                total: expensesFromSupabase.length,
-                active: activeExpenses.length,
-                filtered: expensesFromSupabase.length - activeExpenses.length
-            });
-
-            setExpenses(activeExpenses);
-            setPaymentStatus(paymentsObject);
-            // Categories already set on line 219 with Spanish canonical labels
-            // Don't overwrite them here with raw database names
-
-            // ============ V2 DATA PRELOAD (in parallel) ============
-            try {
-                const userId = await getCurrentUserId();
-                if (userId) {
-                    const currentYear = new Date().getFullYear();
-
-                    // Fetch V2 commitments and payments in parallel
-                    const [commitments, allPayments] = await Promise.all([
-                        CommitmentService.getCommitmentsWithTerms(userId),
-                        PaymentService.getPaymentsByDateRange(userId, `${currentYear}-01-01`, `${currentYear + 1}-01-01`)
-                    ]);
-
-                    setCommitmentsV2(commitments);
-
-                    // Group payments by commitment_id
-                    const paymentsByCommitment = new Map<string, Payment[]>();
-                    allPayments.forEach(p => {
-                        const existing = paymentsByCommitment.get(p.commitment_id) || [];
-                        paymentsByCommitment.set(p.commitment_id, [...existing, p]);
-                    });
-                    setPaymentsV2(paymentsByCommitment);
-
-                    console.log('V2 data preloaded:', { commitments: commitments.length, payments: allPayments.length });
-                }
-            } catch (v2Error) {
-                console.error('V2 preload error (non-fatal):', v2Error);
+                console.log('V2 data loaded:', { commitments: commitments.length, payments: allPayments.length });
             }
-            // ============ END V2 PRELOAD ============
 
         } catch (error) {
             console.error('Error fetching data:', error);
-            // Non-blocking error: show dismissible banner instead of blocking alert
             setDataFetchError('Failed to fetch data. Please check your Supabase connection and configuration.');
         } finally {
             setLoading(false);
