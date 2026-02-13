@@ -9,6 +9,7 @@ import React from 'react';
 import { Minus, ChevronDown, Star, Menu, Pause as PauseLucide } from 'lucide-react';
 import { MobileKPICarousel } from './MobileKPICarousel';
 import { KPIBentoCard } from './KPIBentoCard';
+import { useLocalization } from '../../hooks/useLocalization';
 import type { MonthTotals } from '../../types.v2';
 import type { KPIType } from './KPISelectorModal';
 import type { Density, StatusFilter, ViewMode } from '../../hooks/useExpenseGridLogic';
@@ -47,6 +48,8 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
     setShowKPISelector,
     formatClp,
 }) => {
+    const { t } = useLocalization();
+
     return (
         <div className="sticky top-0 z-50 flex flex-col bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm transition-all duration-300">
 
@@ -149,7 +152,7 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
             <div className="hidden lg:flex items-center gap-2 px-4 pb-1">
                 <KPIBentoCard
                     type="ingresos"
-                    label="Ingresos"
+                    label={t('kpi.ingresos')}
                     amount={totals.ingresos}
                     isActive={currentKPI === 'ingresos'}
                     onClick={() => handleKPIChange(currentKPI === 'ingresos' ? 'comprometido' : 'ingresos')}
@@ -157,7 +160,7 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                 />
                 <KPIBentoCard
                     type="pagado"
-                    label="Pagado"
+                    label={t('kpi.pagado')}
                     amount={totals.pagado}
                     isActive={currentKPI === 'pagado'}
                     onClick={() => handleKPIChange(currentKPI === 'pagado' ? 'comprometido' : 'pagado')}
@@ -165,7 +168,7 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                 />
                 <KPIBentoCard
                     type="pendiente"
-                    label="Pendiente"
+                    label={t('kpi.porPagar')}
                     amount={totals.pendiente}
                     isActive={currentKPI === 'pendiente'}
                     onClick={() => handleKPIChange(currentKPI === 'pendiente' ? 'comprometido' : 'pendiente')}
@@ -173,7 +176,7 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                 />
                 <KPIBentoCard
                     type="vencido"
-                    label="Vencido"
+                    label={t('kpi.vencido')}
                     amount={totals.vencido}
                     isActive={currentKPI === 'vencido'}
                     hasAlert={totals.vencido > 0}

@@ -42,6 +42,8 @@ interface CommitmentCardProps {
     };
     /** Translation function for frequency */
     translateFrequency?: (freq: string) => string;
+    /** Rate converter for live currency display */
+    rateConverter?: (amount: number, currency: string) => number;
 }
 
 
@@ -80,9 +82,10 @@ export function CommitmentCard({
     onDelete,
     monthlyInfo,
     translateFrequency,
+    rateConverter,
 }: CommitmentCardProps) {
     // Get centralized summary
-    const summary = getCommitmentSummary(commitment, payments, lastPaymentsMap);
+    const summary = getCommitmentSummary(commitment, payments, lastPaymentsMap, rateConverter);
     const activeTerm = commitment.active_term;
 
     // Determine if commitment is paused/terminated

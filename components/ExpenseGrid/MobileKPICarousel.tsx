@@ -2,6 +2,7 @@ import React, { useCallback, useRef } from 'react';
 import { TrendingUp, Wallet, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import { type MonthTotals } from '../../types.v2';
 import { type KPIType } from './KPISelectorModal';
+import { useLocalization } from '../../hooks/useLocalization';
 
 interface MobileKPICarouselProps {
     totals: MonthTotals;
@@ -25,6 +26,7 @@ export const MobileKPICarousel: React.FC<MobileKPICarouselProps> = ({
     onKPIChange,
     onSelectorOpen
 }) => {
+    const { t } = useLocalization();
     const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
     // Tap handler: rotate to next KPI
@@ -55,7 +57,7 @@ export const MobileKPICarousel: React.FC<MobileKPICarouselProps> = ({
     const kpiData = [
         {
             id: 'ingresos' as KPIType,
-            label: 'Ingresos',
+            label: t('kpi.ingresos'),
             value: totals.ingresos,
             icon: TrendingUp,
             bgColor: 'bg-emerald-500/10 dark:bg-emerald-500/20',
@@ -66,7 +68,7 @@ export const MobileKPICarousel: React.FC<MobileKPICarouselProps> = ({
         },
         {
             id: 'comprometido' as KPIType,
-            label: 'Comprometido',
+            label: t('kpi.comprometido'),
             value: totals.comprometido,
             icon: Wallet,
             bgColor: 'bg-sky-500/10 dark:bg-sky-500/20',
@@ -77,7 +79,7 @@ export const MobileKPICarousel: React.FC<MobileKPICarouselProps> = ({
         },
         {
             id: 'pagado' as KPIType,
-            label: 'Pagado',
+            label: t('kpi.pagado'),
             value: totals.pagado,
             icon: CheckCircle,
             bgColor: 'bg-emerald-500/10 dark:bg-emerald-500/20',
@@ -88,7 +90,7 @@ export const MobileKPICarousel: React.FC<MobileKPICarouselProps> = ({
         },
         {
             id: 'pendiente' as KPIType,
-            label: 'Pendiente',
+            label: t('kpi.porPagar'),
             value: totals.pendiente,
             icon: Clock,
             bgColor: 'bg-amber-500/10 dark:bg-amber-500/20',
@@ -103,7 +105,7 @@ export const MobileKPICarousel: React.FC<MobileKPICarouselProps> = ({
     if (totals.vencido && totals.vencido > 0) {
         kpiData.push({
             id: 'vencido' as KPIType,
-            label: 'Vencido',
+            label: t('kpi.vencido'),
             value: totals.vencido,
             icon: AlertTriangle,
             bgColor: 'bg-rose-500/10 dark:bg-rose-500/20',

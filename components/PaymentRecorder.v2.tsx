@@ -11,7 +11,7 @@
  * - Reduced visual noise
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocalization } from '../hooks/useLocalization';
 import { useCurrency } from '../hooks/useCurrency';
 import { PaymentService } from '../services/dataService.v2';
@@ -23,6 +23,7 @@ import { Calendar, Wallet, FileText, Save, CalendarClock, Pencil } from 'lucide-
 import DatePicker, { registerLocale } from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { es } from 'date-fns/locale/es';
+import { useCommitmentValue } from '../hooks/useCommitmentValue';
 
 registerLocale('es', es);
 
@@ -50,7 +51,8 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     periodDate,
 }) => {
     const { formatClp } = useLocalization();
-    const { convertAmount, getFxRateToBase } = useCurrency();
+    const { getDisplayValue } = useCommitmentValue();
+    const { convertAmount, getFxRateToBase, refresh } = useCurrency();
 
     // Parse year and month from periodDate string (YYYY-MM-DD)
     const [year, month] = React.useMemo(() => {
@@ -95,10 +97,25 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     // Derived: is currently marked as paid?
     const isPaid = existingPayment?.payment_date != null;
 
+    // Use centralized logic for value calculation (same as DesktopGrid)
+
+    // Force refresh on open to ensure rates are current
+    useEffect(() => {
+        if (isOpen) {
+            refresh();
+        }
+    }, [isOpen, refresh]);
+
     // Expected amount from term
     const expectedAmount = term ? getPerPeriodAmount(term, false) : 0; // In original currency (e.g., UF)
-    const expectedAmountInClp = term ? getPerPeriodAmount(term, true) : 0; // In CLP (uses stored fx_rate_to_base)
     const expectedCurrency = term?.currency_original || 'CLP';
+
+    // Calculate using shared logic to ensure consistency with Grid
+    const expectedAmountInClp = useMemo(() => {
+        return getDisplayValue(expectedAmount, expectedCurrency, null, 'CLP');
+    }, [expectedAmount, expectedCurrency, getDisplayValue]);
+
+    const currentRate = expectedCurrency !== 'CLP' ? convertAmount(1, expectedCurrency as any, 'CLP') : 1;
 
     // Month names
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -393,21 +410,30 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                     )}
 
                     {/* Expected Amount - Compact */}
-                    <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700/50">
-                        <span className="text-sm text-slate-500 dark:text-slate-400">Esperado</span>
-                        <div className="flex items-baseline gap-1.5">
-                            <span className="text-sm text-slate-400">{expectedCurrency}</span>
-                            <span className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">
-                                {expectedCurrency === 'CLP'
-                                    ? expectedAmount.toLocaleString('es-CL')
-                                    : expectedAmount.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                            {expectedCurrency !== 'CLP' && (
-                                <span className="text-xs text-slate-400">
-                                    (~{formatClp(Math.round(expectedAmountInClp))})
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700/50">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500 dark:text-slate-400">Esperado</span>
+                            <div className="flex items-baseline gap-1.5">
+                                <span className="text-sm text-slate-400">{expectedCurrency}</span>
+                                <span className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">
+                                    {expectedCurrency === 'CLP'
+                                        ? expectedAmount.toLocaleString('es-CL')
+                                        : expectedAmount.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
-                            )}
+                                {expectedCurrency !== 'CLP' && (
+                                    <span className="text-xs text-slate-500 font-semibold">
+                                        ({formatClp(Math.round(expectedAmountInClp))})
+                                    </span>
+                                )}
+                            </div>
                         </div>
+                        {expectedCurrency !== 'CLP' && (
+                            <div className="flex justify-end mt-0.5">
+                                <span className="text-[10px] text-slate-400">
+                                    1 {expectedCurrency} = {formatClp(currentRate)} (hoy)
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Due Date - Show calculated + optional override */}
@@ -569,7 +595,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                         </div>
                         {amountCurrency !== 'CLP' && amount && parseFloat(amount) > 0 && (
                             <p className="mt-1 text-xs text-slate-400 text-right">
-                                ≈ {formatClp(Math.round(parseFloat(amount) * (term?.fx_rate_to_base || 1)))}
+                                = {formatClp(convertAmount(parseFloat(amount), amountCurrency as any, 'CLP'))}
                             </p>
                         )}
                     </div>

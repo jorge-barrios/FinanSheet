@@ -23,6 +23,7 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { ContextualFooter } from './ContextualFooter';
 import { getCommitmentSummary } from '../../utils/commitmentStatusUtils';
+import { useCommitmentValue } from '../../hooks/useCommitmentValue';
 import type { Density, ViewMode, StatusFilter } from '../../hooks/useExpenseGridLogic';
 
 // =============================================================================
@@ -151,6 +152,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
 }) => {
     // UI State & Layout
     const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+    const { getDisplayValue } = useCommitmentValue();
     const [availableHeight, setAvailableHeight] = useState<number>(400);
     const footerRef = useRef<HTMLDivElement | null>(null);
     const pad = density === 'minimal' ? 'p-0.5' : density === 'compact' ? 'p-1' : 'p-3';
@@ -312,7 +314,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
     // ==========================================================================
     return (
         <div className="hidden lg:block px-4">
-            <div className="mt-2">
+            <div className="mt-4">
 
 
                 {/* Grid */}
@@ -567,7 +569,11 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                 /* === MINIMAL: Single line with tooltip === */
                                                                 <div
                                                                     className="flex items-center justify-between h-full pl-5 pr-3"
-                                                                    title={`${commitment.name} · ${getTranslatedCategoryName(commitment)} · ${formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}`}
+                                                                    title={`${commitment.name} · ${getTranslatedCategoryName(commitment)} · ${formatClp(Math.round(getDisplayValue(
+                                                                        termForMonth ? getPerPeriodAmount(termForMonth, false) : 0,
+                                                                        termForMonth?.currency_original || 'CLP',
+                                                                        getPaymentStatus(commitment.id, monthDate, dueDay).payment
+                                                                    )))}`}
                                                                 >
                                                                     <span className={`font-semibold truncate text-sm ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>
                                                                         {commitment.name}
@@ -576,11 +582,11 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                         {commitment.is_important && <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />}
                                                                         {commitment.linked_commitment_id && <Link2 className="w-2.5 h-2.5 text-sky-500" />}
                                                                         {/* Frequency indicator */}
-                                                                        {commitment.active_term?.installments_count && commitment.active_term.installments_count > 1 ? (
-                                                                            <span className="text-[9px] text-sky-400">#{commitment.active_term.installments_count}</span>
-                                                                        ) : commitment.active_term?.effective_until ? (
+                                                                        {termForMonth?.installments_count && termForMonth.installments_count > 1 ? (
+                                                                            <span className="text-[9px] text-sky-400">#{termForMonth.installments_count}</span>
+                                                                        ) : termForMonth?.effective_until ? (
                                                                             <CalendarIcon className="w-2.5 h-2.5 text-slate-500" />
-                                                                        ) : commitment.active_term ? (
+                                                                        ) : termForMonth ? (
                                                                             <RefreshCw className="w-2.5 h-2.5 text-slate-500" />
                                                                         ) : null}
                                                                     </div>
@@ -597,13 +603,13 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                             {commitment.is_important && <Star className="w-3 h-3 text-amber-500 fill-amber-500" />}
                                                                             {commitment.linked_commitment_id && <Link2 className="w-3 h-3 text-sky-500" />}
                                                                             {/* Frequency indicator */}
-                                                                            {commitment.active_term?.installments_count && commitment.active_term.installments_count > 1 ? (
-                                                                                <span className="text-[10px] text-sky-400" title={`${commitment.active_term.installments_count} cuotas`}>
-                                                                                    #{commitment.active_term.installments_count}
+                                                                            {termForMonth?.installments_count && termForMonth.installments_count > 1 ? (
+                                                                                <span className="text-[10px] text-sky-400" title={`${termForMonth.installments_count} cuotas`}>
+                                                                                    #{termForMonth.installments_count}
                                                                                 </span>
-                                                                            ) : commitment.active_term?.effective_until ? (
+                                                                            ) : termForMonth?.effective_until ? (
                                                                                 <span title="Fecha de término"><CalendarIcon className="w-3 h-3 text-slate-500" /></span>
-                                                                            ) : commitment.active_term ? (
+                                                                            ) : termForMonth ? (
                                                                                 <span title="Mensual indefinido"><RefreshCw className="w-3 h-3 text-slate-500" /></span>
                                                                             ) : null}
                                                                         </div>
@@ -620,7 +626,11 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                         <div className="flex items-baseline gap-1 shrink-0">
                                                                             <span className="text-[0.625rem] font-medium text-slate-500 dark:text-slate-400 uppercase">CLP</span>
                                                                             <span className="font-mono font-semibold text-sm tabular-nums text-slate-700 dark:text-slate-200">
-                                                                                {formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}
+                                                                                {formatClp(Math.round(getDisplayValue(
+                                                                                    termForMonth ? getPerPeriodAmount(termForMonth, false) : 0,
+                                                                                    termForMonth?.currency_original || 'CLP',
+                                                                                    getPaymentStatus(commitment.id, monthDate, dueDay).payment
+                                                                                )))}
                                                                             </span>
                                                                         </div>
                                                                     </div>
@@ -674,7 +684,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                         <span className="inline-flex items-center gap-[0.35em] px-[0.65em] py-[0.2em] rounded-[4px] text-[0.6em] font-bold bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 text-slate-500 dark:text-slate-400 leading-none">
                                                                             <RefreshCw className="w-[1em] h-[1em] opacity-70" />
                                                                             {(() => {
-                                                                                const freq = commitment.active_term?.frequency;
+                                                                                const freq = termForMonth?.frequency;
                                                                                 switch (freq) {
                                                                                     case 'ONCE': return 'ÚNICO';
                                                                                     case 'MONTHLY': return 'MENSUAL';
@@ -696,11 +706,11 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
 
                                                                     {/* Zone 4: Secondary Info (Right Aligned) */}
                                                                     <div className="flex justify-end h-4 shrink-0">
-                                                                        {commitment.active_term?.currency_original && commitment.active_term.currency_original !== 'CLP' && commitment.active_term.amount_original && (
+                                                                        {termForMonth?.currency_original && termForMonth.currency_original !== 'CLP' && termForMonth.amount_original && (
                                                                             <div className="flex items-baseline gap-1 text-[0.625rem] text-slate-400 dark:text-slate-500">
-                                                                                <span className="font-medium uppercase">{commitment.active_term.currency_original}</span>
+                                                                                <span className="font-medium uppercase">{termForMonth.currency_original}</span>
                                                                                 <span className="font-mono tabular-nums">
-                                                                                    {commitment.active_term.amount_original.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                                    {termForMonth.amount_original.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                                                 </span>
                                                                             </div>
                                                                         )}
@@ -710,12 +720,12 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                     <div className="flex items-end justify-between shrink-0 h-6">
                                                                         <div className="flex flex-col gap-0.5">
                                                                             {/* Term/Cuotas Badge (Minimal) */}
-                                                                            {commitment.active_term?.effective_until && (
+                                                                            {termForMonth?.effective_until && (
                                                                                 <div className="flex items-center gap-1 text-[0.65rem] font-medium text-slate-400 dark:text-slate-500">
-                                                                                    {commitment.active_term.installments_count && commitment.active_term.installments_count > 1 ? (
+                                                                                    {termForMonth.installments_count && termForMonth.installments_count > 1 ? (
                                                                                         <>
                                                                                             <HashIcon className="w-2.5 h-2.5 opacity-70" />
-                                                                                            <span>{commitment.active_term.installments_count} Cuotas</span>
+                                                                                            <span>{termForMonth.installments_count} Cuotas</span>
                                                                                         </>
                                                                                     ) : (
                                                                                         <>
@@ -723,7 +733,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                             <span>
                                                                                                 {(() => {
                                                                                                     // Format: "Dic 2025" or "Dic '25" if constrained
-                                                                                                    const [y, m] = commitment.active_term!.effective_until.substring(0, 7).split('-');
+                                                                                                    const [y, m] = termForMonth.effective_until.substring(0, 7).split('-');
                                                                                                     const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
                                                                                                     return `${months[parseInt(m) - 1]} ${y}`;
                                                                                                 })()}
@@ -751,7 +761,11 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                         <div className="flex items-baseline gap-1 mb-0.5">
                                                                             <span className="text-[0.625rem] font-medium text-slate-500 dark:text-slate-400 uppercase">CLP</span>
                                                                             <span className="font-mono font-bold text-lg tabular-nums text-slate-900 dark:text-white tracking-tight">
-                                                                                {formatClp(Math.round(commitment.active_term ? getPerPeriodAmount(commitment.active_term, true) : 0))}
+                                                                                {formatClp(Math.round(getDisplayValue(
+                                                                                    termForMonth ? getPerPeriodAmount(termForMonth, false) : 0,
+                                                                                    termForMonth?.currency_original || 'CLP',
+                                                                                    getPaymentStatus(commitment.id, monthDate, dueDay).payment
+                                                                                )))}
                                                                             </span>
                                                                         </div>
                                                                     </div>

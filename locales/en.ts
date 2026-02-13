@@ -122,6 +122,18 @@ export const en = {
   "filter.type": "Type",
   "filter.importance": "Importance",
   "filter.important": "Important",
+  // Status Filter Labels (fintech aligned)
+  "filter.porPagar": "Due",
+  "filter.pagado": "Paid",
+  "filter.vencido": "Overdue",
+  "filter.ingresos": "Income",
+
+  // KPI Card Labels (fintech aligned)
+  "kpi.ingresos": "Income",
+  "kpi.comprometido": "Committed",
+  "kpi.pagado": "Paid",
+  "kpi.porPagar": "Due",
+  "kpi.vencido": "Overdue",
 
   "dashboard.title": "Dashboard",
   "dashboard.totalAnnual": "Total Annual",

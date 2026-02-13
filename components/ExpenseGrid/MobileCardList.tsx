@@ -40,6 +40,7 @@ export interface MobileCardListProps {
     onResumeCommitment: (c: CommitmentWithTerm) => void;
     onDeleteCommitment: (id: string) => void;
     onRecordPayment: (id: string, period: string) => void;
+    rateConverter: (amount: number, currency: string) => number;
 }
 
 export const MobileCardList: React.FC<MobileCardListProps> = ({
@@ -64,6 +65,7 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
     onResumeCommitment,
     onDeleteCommitment,
     onRecordPayment,
+    rateConverter,
 }) => {
     return (
         <div className="lg:hidden p-3 space-y-2 pb-28">
@@ -102,7 +104,7 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
                     dueDate.setHours(23, 59, 59);
                     const isOverdue = !isPaid && today > dueDate &&
                         (focusedDate.getFullYear() < today.getFullYear() ||
-                         (focusedDate.getFullYear() === today.getFullYear() && focusedDate.getMonth() <= today.getMonth()));
+                            (focusedDate.getFullYear() === today.getFullYear() && focusedDate.getMonth() <= today.getMonth()));
 
                     if (selectedStatus === 'pagado') return isPaid;
                     if (selectedStatus === 'vencido') return isOverdue;
@@ -179,6 +181,7 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
                             onResume={() => onResumeCommitment(c)}
                             onDelete={() => onDeleteCommitment(c.id)}
                             translateFrequency={(freq) => t(`frequency.${freq}`) || freq}
+                            rateConverter={rateConverter}
                         />
                     );
                 }) : (

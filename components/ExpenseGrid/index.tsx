@@ -10,7 +10,7 @@
  * - Icon-based feedback
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useCallback } from 'react';
 
 import { useExpenseGridLogic } from '../../hooks/useExpenseGridLogic';
 import type { CommitmentWithTerm, Payment } from '../../types.v2';
@@ -74,7 +74,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         commitments, payments, groupedCommitments, availableCategories, visibleMonths,
         getPaymentStatus, performSmartSort, isActiveInMonth, getTranslatedCategoryName,
         formatClp, getTermForPeriod, getTerminationReason, isCommitmentTerminated,
-        t, getMonthTotals, effectiveMonthCount
+        t, getMonthTotals, rateConverter
     } = useExpenseGridLogic({ focusedDate, onFocusedDateChange });
 
     // Local state for Mobile Filters removed - now controlled by parent
@@ -114,8 +114,16 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         );
     }
 
+    // Safe formatter that handles null/undefined
+    const safeFormatClp = (amount: number | null | undefined): string => {
+        if (amount == null) return '-';
+        return formatClp(amount);
+    };
+
+    const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
+
     return (
-        <div>
+        <div className="w-full h-full flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
             <HeaderToolbar
                 focusedDate={focusedDate}
                 viewMode={viewMode}
@@ -124,15 +132,14 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 setDensity={setDensity}
                 currentKPI={currentKPI}
                 handleKPIChange={handleKPIChange}
-                totals={getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth())}
+                totals={totals}
                 selectedCategory={selectedCategory}
                 setSelectedCategory={setSelectedCategory}
                 selectedStatus={selectedStatus}
                 setSelectedStatus={setSelectedStatus}
                 availableCategories={availableCategories}
                 setShowKPISelector={setShowKPISelector}
-                setShowMobileFilters={() => { }} // No-op, button removed from toolbar or handled by global header
-                formatClp={formatClp}
+                formatClp={safeFormatClp as any} // Cast to satisfy strict typing if needed, or update types
             />
 
 
@@ -150,7 +157,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 performSmartSort={performSmartSort}
                 getTranslatedCategoryName={getTranslatedCategoryName}
                 getTerminationReason={getTerminationReason}
-                formatClp={formatClp}
+                formatClp={safeFormatClp}
                 t={t}
                 onEditCommitment={onEditCommitment}
                 onDetailCommitment={onDetailCommitment}
@@ -158,6 +165,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 onResumeCommitment={onResumeCommitment}
                 onDeleteCommitment={onDeleteCommitment}
                 onRecordPayment={onRecordPayment}
+                rateConverter={rateConverter}
             />
 
             {/* Desktop View Content */}
@@ -179,7 +187,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 getTranslatedCategoryName={getTranslatedCategoryName}
                 getTerminationReason={getTerminationReason}
                 getMonthTotals={getMonthTotals}
-                formatClp={formatClp}
+                formatClp={safeFormatClp}
                 onEditCommitment={onEditCommitment}
                 onDetailCommitment={onDetailCommitment}
                 onDeleteCommitment={onDeleteCommitment}

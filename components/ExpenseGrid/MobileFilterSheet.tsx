@@ -8,6 +8,7 @@
 import React from 'react';
 import { Star, X } from 'lucide-react';
 import type { StatusFilter } from '../../hooks/useExpenseGridLogic';
+import { useLocalization } from '../../hooks/useLocalization';
 
 interface MobileFilterSheetProps {
     isOpen: boolean;
@@ -19,13 +20,6 @@ interface MobileFilterSheetProps {
     onStatusChange: (status: StatusFilter) => void;
 }
 
-const statusOptions: { id: StatusFilter; label: string }[] = [
-    { id: 'all', label: 'Todos' },
-    { id: 'pendiente', label: 'Pendientes' },
-    { id: 'pagado', label: 'Pagados' },
-    { id: 'ingresos', label: 'Ingresos' },
-];
-
 export const MobileFilterSheet: React.FC<MobileFilterSheetProps> = ({
     isOpen,
     onClose,
@@ -35,6 +29,16 @@ export const MobileFilterSheet: React.FC<MobileFilterSheetProps> = ({
     selectedStatus,
     onStatusChange,
 }) => {
+    const { t } = useLocalization();
+
+    // Status options with i18n labels (fintech aligned terminology)
+    const statusOptions: { id: StatusFilter; label: string }[] = [
+        { id: 'all', label: t('filter.all') },
+        { id: 'pendiente', label: t('filter.porPagar') },
+        { id: 'pagado', label: t('filter.pagado') },
+        { id: 'ingresos', label: t('filter.ingresos') },
+    ];
+
     if (!isOpen) return null;
 
     const hasActiveFilter = selectedCategory !== 'all' || selectedStatus !== 'all';

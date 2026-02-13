@@ -1,6 +1,7 @@
 import React from 'react';
 import { TrendingUp, Wallet, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import { type MonthTotals } from '../../types.v2';
+import { useLocalization } from '../../hooks/useLocalization';
 
 export type KPIType = 'ingresos' | 'comprometido' | 'pagado' | 'pendiente' | 'vencido';
 
@@ -28,6 +29,8 @@ export const KPISelectorModal: React.FC<KPISelectorModalProps> = ({
     currentKPI,
     onSelect
 }) => {
+    const { t } = useLocalization();
+
     if (!isOpen) return null;
 
     return (
@@ -46,11 +49,11 @@ export const KPISelectorModal: React.FC<KPISelectorModalProps> = ({
                 <div className="grid grid-cols-2 gap-2">
                     {(() => {
                         const kpiOptions = [
-                            { id: 'ingresos' as KPIType, label: 'Ingresos', value: totals.ingresos, icon: TrendingUp, color: 'emerald' },
-                            { id: 'comprometido' as KPIType, label: 'Comprometido', value: totals.comprometido, icon: Wallet, color: 'sky' },
-                            { id: 'pagado' as KPIType, label: 'Pagado', value: totals.pagado, icon: CheckCircle, color: 'emerald' },
-                            { id: 'pendiente' as KPIType, label: 'Pendiente', value: totals.pendiente, icon: Clock, color: 'amber' },
-                            ...(totals.vencido > 0 ? [{ id: 'vencido' as KPIType, label: 'Vencido', value: totals.vencido, icon: AlertTriangle, color: 'rose' }] : [])
+                            { id: 'ingresos' as KPIType, label: t('kpi.ingresos'), value: totals.ingresos, icon: TrendingUp, color: 'emerald' },
+                            { id: 'comprometido' as KPIType, label: t('kpi.comprometido'), value: totals.comprometido, icon: Wallet, color: 'sky' },
+                            { id: 'pagado' as KPIType, label: t('kpi.pagado'), value: totals.pagado, icon: CheckCircle, color: 'emerald' },
+                            { id: 'pendiente' as KPIType, label: t('kpi.porPagar'), value: totals.pendiente, icon: Clock, color: 'amber' },
+                            ...(totals.vencido > 0 ? [{ id: 'vencido' as KPIType, label: t('kpi.vencido'), value: totals.vencido, icon: AlertTriangle, color: 'rose' }] : [])
                         ];
 
                         return kpiOptions.map((kpi) => {

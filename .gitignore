@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Logs
 logs
 *.log
@@ -30,3 +31,35 @@ dist-ssr
 
 # Local Netlify folder
 .netlify
+=======
+# Ignore everything by default
+*
+
+# Track these directories and their contents
+!.github/
+!.github/**
+!agents/
+!agents/**
+!commands/
+!commands/**
+!conventions/
+!conventions/**
+!skills/
+!skills/**
+!output-styles/
+!output-styles/**
+
+# Track root files
+!README.md
+!LICENSE
+!.gitignore
+
+# Always ignore these, even in tracked directories
+.DS_Store
+**/.DS_Store
+**/__pycache__
+**/.pytest_cache
+**/.hypothesis
+**/.venv
+**/*.pyc
+>>>>>>> workflow/main

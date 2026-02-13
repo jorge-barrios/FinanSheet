@@ -1,30 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
-import CurrencyService, { CurrencySnapshot } from '../services/currencyService';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import CurrencyService from '../services/currencyService';
 
 export function useCurrency() {
-  const [snapshot, setSnapshot] = useState<CurrencySnapshot | undefined>(() => CurrencyService.getSnapshot());
-  const [loading, setLoading] = useState(!snapshot);
+  const [loading, setLoading] = useState(!CurrencyService.getSnapshot());
   const [error, setError] = useState<string | null>(null);
 
+  // Subscribe to external store
+  const subscribe = useMemo(() => (onStoreChange: () => void) => {
+    return CurrencyService.subscribe(() => onStoreChange());
+  }, []);
+
+  const snapshot = useSyncExternalStore(
+    subscribe,
+    () => CurrencyService.getSnapshot()
+  );
+
+  // Initial load effect (still needed to trigger fetch if empty)
   useEffect(() => {
-    let unsub = () => { };
-    let mounted = true;
-    (async () => {
-      try {
-        const snap = await CurrencyService.init();
-        if (mounted) {
-          setSnapshot(snap);
-          setLoading(false);
-        }
-      } catch (e: any) {
-        if (mounted) {
-          setError(e?.message || 'Currency init failed');
-          setLoading(false);
-        }
-      }
-      unsub = CurrencyService.subscribe((s) => setSnapshot({ ...s }));
-    })();
-    return () => { mounted = false; unsub(); };
+    CurrencyService.init().catch(err => {
+        console.error('Currency init failed:', err);
+        setError(err instanceof Error ? err.message : 'Init failed');
+    }).finally(() => {
+        setLoading(false);
+    });
   }, []);
 
   const lastUpdated = useMemo(() => CurrencyService.lastUpdated(), [snapshot?.updatedAt]);
@@ -72,7 +70,7 @@ export function useCurrency() {
 
   return {
     snapshot,
-    loading, // Now also tracks manual refresh
+    loading: loading && !snapshot, // If we have a snapshot, we are not effectively loading for the UI
     error,
     lastUpdated,
     toUnit,

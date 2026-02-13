@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLocalization } from './useLocalization';
+import { useCurrency } from './useCurrency';
 import usePersistentState from './usePersistentState';
 import { useCommitments } from '../context/CommitmentsContext';
 import { CommitmentWithTerm } from '../types.v2';
@@ -7,9 +8,16 @@ import { extractYearMonth, parseDateString } from '../utils/financialUtils.v2';
 import { findTermForPeriod } from '../utils/termUtils';
 import {
     getCommitmentSummary,
-    getCommitmentCounts,
+    getCommitmentStatus,
+    getTerminationReason,
+    isCommitmentTerminated,
+    getLifecycleLabel,
     groupByLifecycle,
-    type CommitmentCounts
+    filterByLifecycle,
+    generateExpectedPeriods,
+    hasDebt,
+    getCommitmentCounts,
+    type RateConverter
 } from '../utils/commitmentStatusUtils';
 
 // Types extracted from component
@@ -28,6 +36,7 @@ interface UseExpenseGridLogicProps {
 
 export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) => {
     const { t, language } = useLocalization();
+    const { convertAmount } = useCurrency(); // Import currency converter
     const {
         commitments,
         payments,
@@ -37,6 +46,11 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
         setDisplayMonth,
         getMonthTotals
     } = useCommitments();
+
+    // Rate converter for live updates
+    const rateConverter: RateConverter = useCallback((amount, currency) => {
+        return convertAmount(amount, currency as any, 'CLP');
+    }, [convertAmount]);
 
     // =========================================================================
     // STATE
@@ -164,7 +178,8 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
 
     // Smart Sort Logic
     const getCommitmentSortData = useCallback((c: CommitmentWithTerm) => {
-        const summary = getCommitmentSummary(c, payments.get(c.id) || []);
+        // Pass rateConverter here to ensure Amounts used in sorting are LIVE (if unpaid)
+        const summary = getCommitmentSummary(c, payments.get(c.id) || [], undefined, rateConverter);
         const term = c.active_term;
         const dueDay = term?.due_day_of_month ?? 32;
         const amount = summary.perPeriodAmount || 0;
@@ -310,15 +325,16 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
 
             const isOverdue = !isPaid && today > dueDate &&
                 (focusedDate.getFullYear() < today.getFullYear() ||
-                 (focusedDate.getFullYear() === today.getFullYear() && focusedDate.getMonth() <= today.getMonth()));
+                    (focusedDate.getFullYear() === today.getFullYear() && focusedDate.getMonth() <= today.getMonth()));
 
             if (selectedStatus === 'pagado') {
                 if (!isPaid) return false;
             } else if (selectedStatus === 'vencido') {
+                // Vencido = solo los vencidos (para filtro específico)
                 if (!isOverdue) return false;
             } else if (selectedStatus === 'pendiente') {
-                // Pendiente = not paid AND not overdue
-                if (isPaid || isOverdue) return false;
+                // Pendiente = todo lo que falta por pagar (vencido + por vencer)
+                if (isPaid) return false;
             }
         }
 
@@ -338,7 +354,7 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
     // Grouping Logic - Now returns both active and archived for inventory mode
     const groupedCommitments = useMemo(() => {
         // Step 1: Separate commitments by lifecycle
-        const { active: activeCommitments, archived: archivedCommitments } = groupByLifecycle(commitments, payments);
+        const { active: activeCommitments, archived: archivedCommitments } = groupByLifecycle(commitments);
 
         // Step 2: Filter based on view mode
         let visibleActive: CommitmentWithTerm[];
@@ -546,5 +562,6 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
         t,
         getMonthTotals,
         effectiveMonthCount,
+        rateConverter,
     };
 };

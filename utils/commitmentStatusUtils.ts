@@ -16,6 +16,8 @@ import { extractYearMonth } from './financialUtils.v2';
  */
 export type CommitmentStatus = 'ACTIVE' | 'COMPLETED' | 'INACTIVE';
 
+export type RateConverter = (amountOriginal: number, currencyOriginal: string) => number;
+
 /**
  * Legacy termination reason type (for backwards compatibility with ExpenseGrid).
  * Maps to the simplified CommitmentStatus.
@@ -154,7 +156,8 @@ export interface CommitmentSummary {
 export function getCommitmentSummary(
     commitment: CommitmentWithTerm,
     allPayments: Payment[],
-    lastPaymentsMap?: Map<string, Payment>
+    lastPaymentsMap?: Map<string, Payment>,
+    rateConverter?: RateConverter
 ): CommitmentSummary {
     const activeTerm = commitment.active_term;
     const today = new Date();
@@ -192,8 +195,12 @@ export function getCommitmentSummary(
     const paymentCount = commitmentPayments.length;
 
     // 4. Per-period amount (using getPerPeriodAmount for correct is_divided_amount handling)
+    // If rateConverter provided -> use Live Rate on original amount
+    // If not -> use Stored Rate (amount_in_base)
     const perPeriodAmount = activeTerm
-        ? getPerPeriodAmount(activeTerm, true)
+        ? (rateConverter
+            ? rateConverter(getPerPeriodAmount(activeTerm, false), activeTerm.currency_original)
+            : getPerPeriodAmount(activeTerm, true))
         : (lastPayment?.amount_original ?? null);
 
     // 5. Get termination reason
@@ -505,7 +512,9 @@ export function generateExpectedPeriods(
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                     commitment: commitment,
-                    term: term
+                    term: term,
+                    notes: null,
+                    due_date: null
                 } as PaymentWithDetails);
             }
         }
@@ -631,6 +640,7 @@ export interface CommitmentCounts {
     active: number;       // lifecycle ACTIVE
     paused: number;       // lifecycle PAUSED (INACTIVE from getCommitmentStatus)
     completed: number;    // lifecycle COMPLETED
+    archived: number;     // PAUSED + COMPLETED
     withDebt: number;     // any lifecycle + has overdue payments
 }
 
@@ -650,6 +660,7 @@ export function getCommitmentCounts(
         active: 0,
         paused: 0,
         completed: 0,
+        archived: 0,
         withDebt: 0,
     };
 
@@ -670,6 +681,7 @@ export function getCommitmentCounts(
                 break;
             case 'COMPLETED':
                 counts.completed++;
+                counts.archived++;
                 break;
             case 'INACTIVE':
                 // INACTIVE can be PAUSED or TERMINATED - distinguish for UI
@@ -679,6 +691,7 @@ export function getCommitmentCounts(
                     // TERMINATED goes to paused bucket for simplicity
                     counts.paused++;
                 }
+                counts.archived++;
                 break;
         }
     }
@@ -707,8 +720,6 @@ export function filterByLifecycle(
     }
 
     return commitments.filter(c => {
-        const status = getCommitmentStatus(c);
-        const reason = getTerminationReason(c);
         const payments = paymentsMap.get(c.id) || [];
         const summary = getCommitmentSummary(c, payments);
         const hasDebt = summary.estado === 'overdue';
@@ -753,8 +764,7 @@ export function hasDebt(
  * @returns Object with active and archived arrays
  */
 export function groupByLifecycle(
-    commitments: CommitmentWithTerm[],
-    paymentsMap: Map<string, Payment[]>
+    commitments: CommitmentWithTerm[]
 ): {
     active: CommitmentWithTerm[];
     archived: CommitmentWithTerm[];
