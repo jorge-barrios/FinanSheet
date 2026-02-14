@@ -1,17 +1,19 @@
-<<<<<<< HEAD
 # Logs
 logs
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+.pnpm-store
+
+# Build
 dist
 dist-ssr
-
+coverage
 
 # Editor directories and files
 .vscode/*
@@ -24,42 +26,18 @@ dist-ssr
 *.sln
 *.sw?
 
+# Claude (Shared config tracked, local config ignored)
+.claude/settings.local.json
+
+# Gemini (Documentation tracked)
+# .gemini/ is tracked by default
+
 # Environment variables
 .env
 .env.local
 .env.production
+.env.development
+.env.test
 
 # Local Netlify folder
 .netlify
-=======
-# Ignore everything by default
-*
-
-# Track these directories and their contents
-!.github/
-!.github/**
-!agents/
-!agents/**
-!commands/
-!commands/**
-!conventions/
-!conventions/**
-!skills/
-!skills/**
-!output-styles/
-!output-styles/**
-
-# Track root files
-!README.md
-!LICENSE
-!.gitignore
-
-# Always ignore these, even in tracked directories
-.DS_Store
-**/.DS_Store
-**/__pycache__
-**/.pytest_cache
-**/.hypothesis
-**/.venv
-**/*.pyc
->>>>>>> workflow/main

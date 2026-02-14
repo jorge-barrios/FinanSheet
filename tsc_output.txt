@@ -1,0 +1,118 @@
+App.tsx(73,24): error TS6133: 'setSearchTerm' is declared but its value is never read.
+App.tsx(74,24): error TS6133: 'setFilterType' is declared but its value is never read.
+App.tsx(75,30): error TS6133: 'setFilterImportance' is declared but its value is never read.
+App.tsx(294,50): error TS6133: 'expense' is declared but its value is never read.
+components/Auth/LoginForm.tsx(19,10): error TS6133: 'success' is declared but its value is never read.
+components/CategoryManager.tsx(3,63): error TS6133: 'CategoryIcon' is declared but its value is never read.
+components/CommitmentForm.v2.tsx(25,15): error TS6196: 'Term' is declared but never used.
+components/CommitmentForm.v2.tsx(66,5): error TS6133: 'onCommitmentUpdated' is declared but its value is never read.
+components/CommitmentForm.v2.tsx(67,5): error TS6133: 'onPaymentClick' is declared but its value is never read.
+components/CommitmentForm.v2.tsx(158,11): error TS6133: 'hasTermsHistory' is declared but its value is never read.
+components/CommitmentForm.v2.tsx(161,11): error TS6133: 'shouldShowTermsSection' is declared but its value is never read.
+components/CommitmentForm.v2.tsx(311,11): error TS6133: 'reloadCommitmentData' is declared but its value is never read.
+components/ExpenseCard.tsx(106,25): error TS2322: Type 'IconComponent' is not assignable to type 'ReactNode'.
+components/ExpenseForm.tsx(30,12): error TS6133: 'currentStep' is declared but its value is never read.
+components/ExpenseForm.tsx(30,25): error TS6133: 'setCurrentStep' is declared but its value is never read.
+components/ExpenseForm.tsx(44,28): error TS6133: 'setVariableAmount' is declared but its value is never read.
+components/ExpenseForm.tsx(46,12): error TS6133: 'variableDueDate' is declared but its value is never read.
+components/ExpenseForm.tsx(49,29): error TS6133: 'setRecurringAmount' is declared but its value is never read.
+components/ExpenseForm.tsx(54,12): error TS6133: 'endMonth' is declared but its value is never read.
+components/ExpenseForm.tsx(54,22): error TS6133: 'setEndMonth' is declared but its value is never read.
+components/ExpenseForm.tsx(55,12): error TS6133: 'endYear' is declared but its value is never read.
+components/ExpenseForm.tsx(55,21): error TS6133: 'setEndYear' is declared but its value is never read.
+components/ExpenseForm.tsx(56,12): error TS6133: 'recurringDueDay' is declared but its value is never read.
+components/ExpenseForm.tsx(59,12): error TS6133: 'calculationMode' is declared but its value is never read.
+components/ExpenseForm.tsx(59,29): error TS6133: 'setCalculationMode' is declared but its value is never read.
+components/ExpenseForm.tsx(60,25): error TS6133: 'setTotalAmount' is declared but its value is never read.
+components/ExpenseForm.tsx(61,31): error TS6133: 'setInstallmentAmount' is declared but its value is never read.
+components/ExpenseForm.tsx(63,12): error TS6133: 'installmentFrequency' is declared but its value is never read.
+components/ExpenseForm.tsx(63,34): error TS6133: 'setInstallmentFrequency' is declared but its value is never read.
+components/ExpenseForm.tsx(64,12): error TS6133: 'firstInstallmentMonth' is declared but its value is never read.
+components/ExpenseForm.tsx(64,35): error TS6133: 'setFirstInstallmentMonth' is declared but its value is never read.
+components/ExpenseForm.tsx(65,12): error TS6133: 'firstInstallmentYear' is declared but its value is never read.
+components/ExpenseForm.tsx(65,34): error TS6133: 'setFirstInstallmentYear' is declared but its value is never read.
+components/ExpenseForm.tsx(66,12): error TS6133: 'installmentDueDay' is declared but its value is never read.
+components/ExpenseForm.tsx(120,9): error TS2304: Cannot find name 'setOriginalAmount'.
+components/ExpenseForm.tsx(123,9): error TS2304: Cannot find name 'setType'.
+components/ExpenseForm.tsx(128,9): error TS2552: Cannot find name 'setInstallments'. Did you mean 'numInstallments'?
+components/ExpenseForm.tsx(129,9): error TS2304: Cannot find name 'setDueDate'.
+components/ExpenseForm.tsx(146,17): error TS2304: Cannot find name 'setOriginalAmount'.
+components/ExpenseForm.tsx(147,37): error TS2345: Argument of type 'string' is not assignable to parameter of type 'SetStateAction<PaymentUnit>'.
+components/ExpenseForm.tsx(175,13): error TS2552: Cannot find name 'setInstallments'. Did you mean 'numInstallments'?
+components/ExpenseForm.tsx(195,40): error TS2304: Cannot find name 'originalAmount'.
+components/ExpenseForm.tsx(198,13): error TS18004: No value exists in scope for the shorthand property 'type'. Either declare one or provide an initializer.
+components/ExpenseForm.tsx(203,31): error TS2304: Cannot find name 'dueDate'.
+components/ExpenseForm.tsx(264,77): error TS2304: Cannot find name 'originalAmount'.
+components/ExpenseForm.tsx(264,108): error TS2304: Cannot find name 'setOriginalAmount'.
+components/ExpenseForm.tsx(288,40): error TS2304: Cannot find name 'dueDate'.
+components/ExpenseForm.tsx(289,48): error TS2304: Cannot find name 'setDueDate'.
+components/ExpenseForm.tsx(307,54): error TS2304: Cannot find name 'type'.
+components/ExpenseForm.tsx(307,75): error TS2304: Cannot find name 'setType'.
+components/ExpenseForm.tsx(308,60): error TS2339: Property 'FIXED' does not exist on type 'typeof ExpenseType'.
+components/ExpenseFormWorking.tsx(434,38): error TS2367: This comparison appears to be unintentional because the types 'PaymentUnit' and '""' have no overlap.
+components/ExpenseGrid/DesktopGrid.tsx(25,1): error TS6133: 'getCommitmentSummary' is declared but its value is never read.
+components/ExpenseGrid/DesktopGrid.tsx(131,5): error TS6133: 'commitments' is declared but its value is never read.
+components/ExpenseGrid/DesktopGrid.tsx(212,15): error TS6133: 'focusedPeriod' is declared but its value is never read.
+components/ExpenseGrid/DesktopGrid.tsx(906,67): error TS6133: 'renderStatusBadge' is declared but its value is never read.
+components/ExpenseGrid/DesktopGrid.tsx(1396,21): error TS2739: Type '{ active: number; paused: number; archived: number; total: number; }' is missing the following properties from type 'CommitmentCounts': completed, withDebt
+components/ExpenseGrid/HeaderToolbar.tsx(45,5): error TS6133: 'selectedStatus' is declared but its value is never read.
+components/ExpenseGrid/types.ts(34,30): error TS2339: Property 'terms' does not exist on type 'CommitmentWithTerm'.
+components/ExpenseGridVirtual.tsx(7,10): error TS6133: 'getInstallmentAmount' is declared but its value is never read.
+components/ExpenseGridVirtual.tsx(8,1): error TS6133: 'CurrencyService' is declared but its value is never read.
+components/FeatureFlagsSettings.tsx(18,11): error TS6133: 't' is declared but its value is never read.
+components/FinancialHealthWidget.tsx(8,17): error TS6133: 'useMemo' is declared but its value is never read.
+components/FinancialHealthWidget.tsx(9,40): error TS6196: 'BudgetDistribution' is declared but never used.
+components/FinancialHealthWidget.tsx(140,65): error TS6133: 'diff' is declared but its value is never read.
+components/Goals/GoalsSection.tsx(14,12): error TS6133: 'showIncomeInput' is declared but its value is never read.
+components/Goals/GoalsSection.tsx(14,29): error TS6133: 'setShowIncomeInput' is declared but its value is never read.
+components/InventoryView.tsx(3,10): error TS2305: Module '"./icons"' has no exported member 'MagnifyingGlassIcon'.
+components/InventoryView.tsx(96,21): error TS6133: 'aValue' is declared but its value is never read.
+components/InventoryView.tsx(97,21): error TS6133: 'bValue' is declared but its value is never read.
+components/MobileControlBar.tsx(2,75): error TS2305: Module '"./icons"' has no exported member 'MagnifyingGlassIcon'.
+components/MobileControlBar.tsx(57,18): error TS2367: This comparison appears to be unintentional because the types 'View' and '"inventory"' have no overlap.
+components/PWAUpdateNotifier.tsx(13,22): error TS6133: 'r' is declared but its value is never read.
+components/design-system/ColorPaletteShowcase.tsx(49,87): error TS6133: 'isDark' is declared but its value is never read.
+components/design-system/DesignShowcase.tsx(678,21): error TS6133: 'currentCumulative' is declared but its value is never read.
+components/design-system/DesignShowcase.tsx(743,38): error TS6133: 'idx' is declared but its value is never read.
+hooks/useExpenseGridLogic.ts(11,5): error TS6133: 'getCommitmentStatus' is declared but its value is never read.
+hooks/useExpenseGridLogic.ts(12,5): error TS6133: 'getTerminationReason' is declared but its value is never read.
+hooks/useExpenseGridLogic.ts(13,5): error TS6133: 'isCommitmentTerminated' is declared but its value is never read.
+hooks/useExpenseGridLogic.ts(14,5): error TS6133: 'getLifecycleLabel' is declared but its value is never read.
+hooks/useExpenseGridLogic.ts(16,5): error TS6133: 'filterByLifecycle' is declared but its value is never read.
+hooks/useExpenseGridLogic.ts(17,5): error TS6133: 'generateExpectedPeriods' is declared but its value is never read.
+hooks/useExpenseGridLogic.ts(18,5): error TS6133: 'hasDebt' is declared but its value is never read.
+tests/utils/currency.test.ts(9,8): error TS2307: Cannot find module '../../utils/currency' or its corresponding type declarations.
+tests/utils/currency.test.ts(10,20): error TS6133: 'PaymentUnit' is declared but its value is never read.
+utils/financialUtils.v2.ts(11,5): error TS6196: 'Frequency' is declared but never used.
+vitest.config.ts(6,13): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Type 'Plugin<any>[]' is not assignable to type 'PluginOption'.
+      Type 'Plugin<any>[]' is not assignable to type 'PluginOption[]'.
+        Type 'Plugin<any>' is not assignable to type 'PluginOption'.
+          Type 'import("/srv/repos/finansheet/node_modules/vite/dist/node/index").Plugin<any>' is not assignable to type 'import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").Plugin<any>'.
+            Types of property 'apply' are incompatible.
+              Type '"build" | "serve" | ((this: void, config: import("/srv/repos/finansheet/node_modules/vite/dist/node/index").UserConfig, env: import("/srv/repos/finansheet/node_modules/vite/dist/node/index").ConfigEnv) => boolean) | undefined' is not assignable to type '"build" | "serve" | ((this: void, config: import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").UserConfig, env: import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").ConfigEnv) => boolean) | undefined'.
+                Type '(this: void, config: UserConfig, env: ConfigEnv) => boolean' is not assignable to type '"build" | "serve" | ((this: void, config: UserConfig, env: ConfigEnv) => boolean) | undefined'.
+                  Type '(this: void, config: import("/srv/repos/finansheet/node_modules/vite/dist/node/index").UserConfig, env: import("/srv/repos/finansheet/node_modules/vite/dist/node/index").ConfigEnv) => boolean' is not assignable to type '(this: void, config: import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").UserConfig, env: import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").ConfigEnv) => boolean'.
+                    Types of parameters 'config' and 'config' are incompatible.
+                      Type 'import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").UserConfig' is not assignable to type 'import("/srv/repos/finansheet/node_modules/vite/dist/node/index").UserConfig'.
+                        Types of property 'plugins' are incompatible.
+                          Type 'import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").PluginOption[] | undefined' is not assignable to type 'import("/srv/repos/finansheet/node_modules/vite/dist/node/index").PluginOption[] | undefined'.
+                            Type 'import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").PluginOption[]' is not assignable to type 'import("/srv/repos/finansheet/node_modules/vite/dist/node/index").PluginOption[]'.
+                              Type 'import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").PluginOption' is not assignable to type 'import("/srv/repos/finansheet/node_modules/vite/dist/node/index").PluginOption'.
+                                Type 'Plugin<any>' is not assignable to type 'PluginOption'.
+                                  Type 'import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").Plugin<any>' is not assignable to type 'import("/srv/repos/finansheet/node_modules/vite/dist/node/index").Plugin<any>'.
+                                    Types of property 'apply' are incompatible.
+                                      Type '"build" | "serve" | ((this: void, config: import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").UserConfig, env: import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").ConfigEnv) => boolean) | undefined' is not assignable to type '"build" | "serve" | ((this: void, config: import("/srv/repos/finansheet/node_modules/vite/dist/node/index").UserConfig, env: import("/srv/repos/finansheet/node_modules/vite/dist/node/index").ConfigEnv) => boolean) | undefined'.
+                                        Type '(this: void, config: UserConfig, env: ConfigEnv) => boolean' is not assignable to type '"build" | "serve" | ((this: void, config: UserConfig, env: ConfigEnv) => boolean) | undefined'.
+                                          Type '(this: void, config: import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").UserConfig, env: import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").ConfigEnv) => boolean' is not assignable to type '(this: void, config: import("/srv/repos/finansheet/node_modules/vite/dist/node/index").UserConfig, env: import("/srv/repos/finansheet/node_modules/vite/dist/node/index").ConfigEnv) => boolean'.
+                                            Types of parameters 'config' and 'config' are incompatible.
+                                              Type 'import("/srv/repos/finansheet/node_modules/vite/dist/node/index").UserConfig' is not assignable to type 'import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").UserConfig'.
+                                                Types of property 'plugins' are incompatible.
+                                                  Type 'import("/srv/repos/finansheet/node_modules/vite/dist/node/index").PluginOption[] | undefined' is not assignable to type 'import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").PluginOption[] | undefined'.
+                                                    Type 'import("/srv/repos/finansheet/node_modules/vite/dist/node/index").PluginOption[]' is not assignable to type 'import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").PluginOption[]'.
+                                                      Type 'import("/srv/repos/finansheet/node_modules/vite/dist/node/index").PluginOption' is not assignable to type 'import("/srv/repos/finansheet/node_modules/vitest/node_modules/vite/dist/node/index").PluginOption'.
+                                                        Type 'Promise<Plugin<any> | FalsyPlugin | PluginOption[]>' is not assignable to type 'PluginOption'.
+                                                          Type 'Promise<Plugin<any> | FalsyPlugin | PluginOption[]>' is not assignable to type 'Promise<false | Plugin<any> | PluginOption[] | null | undefined>'.
+                                                            Type 'Plugin<any> | FalsyPlugin | PluginOption[]' is not assignable to type 'false | Plugin<any> | PluginOption[] | null | undefined'.
+                                                              Type 'Plugin<any>' is not assignable to type 'false | Plugin<any> | PluginOption[] | null | undefined'.

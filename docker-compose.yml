@@ -2,21 +2,30 @@ services:
   # Production Container (Nginx + Static Build)
   finansheet-app:
     build: .
+    container_name: finansheet-app
     restart: unless-stopped
     ports:
-      - "3001:80"  # PROD port as per MINI-LAB policy (3xxx)
+      - "3001:80"  # PROD port
     env_file:
       - .env
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   # Development Container (Hot Reload)
   finansheet-dev:
     image: node:20-alpine
+    container_name: finansheet-dev
     working_dir: /app
     ports:
-      - "5175:5173" # DEV port as per MINI-LAB policy (5xxx)
+      - "3000:5173" # Standard DEV port (can be overridden)
     volumes:
       - .:/app
       - /app/node_modules
-    command: npm run dev -- --host
+    command: sh -c "npm ci && npm run dev -- --host"
     env_file:
       - .env
+

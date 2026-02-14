@@ -212,6 +212,20 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
         return () => document.removeEventListener('keydown', handleEsc, { capture: true } as any);
     }, [isOpen, onClose, showDeleteConfirm]);
 
+    // Date Delta (must be declared before any early return to preserve hook order)
+    const daysDiff = useMemo(() => {
+        if (!paymentDate || !effectiveDueDate) return null;
+        try {
+            // "Due Date" - "Payment Date"
+            // If Due is 5th, Payment is 3rd. Diff = 5 - 3 = 2. Positive = Early.
+            const due = parseISO(effectiveDueDate);
+            const paid = parseISO(paymentDate);
+            return differenceInCalendarDays(due, paid);
+        } catch {
+            return null;
+        }
+    }, [paymentDate, effectiveDueDate]);
+
     if (!isOpen) return null;
 
     // Paused period message... (unchanged logic, keeping it brief for replacement context if needed, but assuming block replacement matches)
@@ -381,19 +395,6 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
 
     const diffSign = diffAmount > 0 ? '+' : ''; // Negative numbers have sign automatically
 
-    // Date Delta
-    const daysDiff = useMemo(() => {
-        if (!paymentDate || !effectiveDueDate) return null;
-        try {
-            // "Due Date" - "Payment Date"
-            // If Due is 5th, Payment is 3rd. Diff = 5 - 3 = 2. Positive = Early.
-            const due = parseISO(effectiveDueDate);
-            const paid = parseISO(paymentDate);
-            return differenceInCalendarDays(due, paid);
-        } catch {
-            return null;
-        }
-    }, [paymentDate, effectiveDueDate]);
     
     const getDaysDiffText = (diff: number) => {
         if (diff === 0) return 'Pagado el día del vencimiento';

@@ -20,16 +20,16 @@ docs/
 
 **ANTES de hacer commit**, actualizar el documento correspondiente según el tipo de cambio:
 
-| Tipo de Cambio | Documento a Actualizar | Sección |
-|----------------|------------------------|---------|
-| Nueva función centralizada | `DEVELOPMENT.md` | "Funciones Centralizadas" |
-| Nuevo componente UI | `DEVELOPMENT.md` | "Vistas Principales" o "Componentes de UI" |
-| Cambio de colores/tema | `Identidad.md` | "12.1. Paleta de Colores" |
-| Nuevo trigger/función SQL | `BACKEND_SPECS.md` | "Funciones y Triggers" |
-| Nueva migración DB | `BACKEND_SPECS.md` | "Guía de Migraciones" |
-| Cambio de tipografía | `Identidad.md` | "12.3. Tipografía" |
-| Nueva tabla/columna | `BACKEND_SPECS.md` | "Schema de Tablas" |
-| Cambio en reglas de negocio | `DEVELOPMENT.md` | Sección relevante |
+| Tipo de Cambio              | Documento a Actualizar | Sección                                    |
+| --------------------------- | ---------------------- | ------------------------------------------ |
+| Nueva función centralizada  | `DEVELOPMENT.md`       | "Funciones Centralizadas"                  |
+| Nuevo componente UI         | `DEVELOPMENT.md`       | "Vistas Principales" o "Componentes de UI" |
+| Cambio de colores/tema      | `Identidad.md`         | "12.1. Paleta de Colores"                  |
+| Nuevo trigger/función SQL   | `BACKEND_SPECS.md`     | "Funciones y Triggers"                     |
+| Nueva migración DB          | `BACKEND_SPECS.md`     | "Guía de Migraciones"                      |
+| Cambio de tipografía        | `Identidad.md`         | "12.3. Tipografía"                         |
+| Nueva tabla/columna         | `BACKEND_SPECS.md`     | "Schema de Tablas"                         |
+| Cambio en reglas de negocio | `DEVELOPMENT.md`       | Sección relevante                          |
 
 ### Al Crear Commits
 
@@ -65,6 +65,21 @@ docs/
 
 **El proyecto corre dockerizado. No usar `npm run dev` en el host.**
 
+### Recomendado: Usar script `dc`
+
+```bash
+# Iniciar / Reiniciar
+/srv/scripts/dc finansheet up -d finansheet-dev
+
+# Ver logs
+/srv/scripts/dc finansheet logs -f finansheet-dev
+
+# Ejecutar comandos (ej: install package)
+/srv/scripts/dc finansheet exec finansheet-dev npm install <package>
+```
+
+### Manual (Docker Compose nativo)
+
 ```bash
 # Levantar dev server (hot reload) — DEBE incluir el override con secrets
 cd /srv/repos/finansheet && docker compose -f docker-compose.yml -f /srv/apps/finansheet/compose.override.yml up finansheet-dev -d --force-recreate
@@ -81,17 +96,16 @@ npx tsc --noEmit
 
 **URLs de acceso:**
 
-| Método | URL |
-|--------|-----|
+| Método             | URL                                        |
+| ------------------ | ------------------------------------------ |
 | Tailscale (remoto) | `https://mini-lab.tail4b2f89.ts.net:8444/` |
-| LAN | `https://finansheet.dev.lab` |
-| Directo | `http://localhost:5175/` |
+| LAN                | `https://finansheet.dev.lab`               |
+| Directo            | `http://localhost:5175/`                   |
 
 **Arquitectura de red:** Caddy (:8444 HTTPS) → Docker (:5175 host → :5173 container) → Vite HMR
 
-Ver también: `.agent/workflows/dev.md`
-
 ### Testing
+
 ```bash
 npm test                 # Run tests in watch mode
 npm run test:ui          # Open Vitest UI for interactive testing
@@ -116,17 +130,20 @@ Commitment (Netflix)
 ```
 
 **Archivos clave:**
+
 - `types.v2.ts` - Definiciones de tipos
 - `services/dataService.v2.ts` - Capa de acceso a datos (Supabase)
 
 ### Key Architectural Patterns
 
 **Three-Tier Separation**:
+
 - Components render UI and handle user interaction
 - Services (`services/`) provide data access layer (Supabase queries)
 - Utils (`utils/`) contain pure calculation logic
 
 **Critical Functions** (ver `docs/DEVELOPMENT.md` para detalles):
+
 - `getCommitmentSummary()` - Estado y resumen de un commitment
 - `getPerPeriodAmount()` - Monto por período (maneja cuotas divididas)
 - `getInstallmentNumber()` - Número de cuota contextual
@@ -134,6 +151,7 @@ Commitment (Netflix)
 ### Component Organization
 
 **Core Components**:
+
 - `DashboardFull.v2.tsx` - Dashboard principal
 - `ExpenseGridVirtual.v2.tsx` - Grid virtualizado
 - `CommitmentForm.v2.tsx` - Formulario de commitments
@@ -141,6 +159,7 @@ Commitment (Netflix)
 - `TermsListView.tsx` - Vista de historial de términos
 
 **Authentication**:
+
 - `context/AuthContext.tsx` - Supabase auth integration
 - `components/Auth/` - Login, signup, protected routes
 - Row-level security (RLS) enabled on all tables
@@ -148,6 +167,7 @@ Commitment (Netflix)
 ### Database Schema
 
 **Core Entities** (ver `docs/BACKEND_SPECS.md` para detalles):
+
 - `commitments` - Obligación financiera (gasto o ingreso)
 - `terms` - Versión de condiciones (monto, frecuencia, fechas)
 - `payments` - Registro de pago para un período específico
@@ -161,6 +181,7 @@ Commitment (Netflix)
 ### Environment Variables
 
 Required in `.env`:
+
 ```
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -199,8 +220,8 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ## Quick Reference: Documentación
 
-| Necesito... | Ver documento |
-|-------------|---------------|
-| Funciones centralizadas, reglas de código | [DEVELOPMENT.md](docs/DEVELOPMENT.md) |
-| Tablas, triggers, SQL, migraciones | [BACKEND_SPECS.md](docs/BACKEND_SPECS.md) |
-| Colores, tipografía, componentes UI | [Identidad.md](docs/Identidad.md) |
+| Necesito...                               | Ver documento                             |
+| ----------------------------------------- | ----------------------------------------- |
+| Funciones centralizadas, reglas de código | [DEVELOPMENT.md](docs/DEVELOPMENT.md)     |
+| Tablas, triggers, SQL, migraciones        | [BACKEND_SPECS.md](docs/BACKEND_SPECS.md) |
+| Colores, tipografía, componentes UI       | [Identidad.md](docs/Identidad.md)         |
