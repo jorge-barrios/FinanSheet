@@ -34,7 +34,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md"
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-md"
             onClick={handleBackdropClick}
         >
             <div className="bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 border border-slate-700/50 ring-1 ring-white/5">

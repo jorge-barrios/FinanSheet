@@ -213,6 +213,12 @@ period_date = '2024-03-01'   -- Es para Marzo
 payment_date = '2024-02-28'  -- Pero se pagó en Febrero
 ```
 
+### Agregaciones y Totales (Footer/KPIs)
+
+**SIEMPRE usar `getDisplayValue`** para sumar totales, incluso si solo se muestra un total. Esto garantiza que la suma de las partes (celdas) coincida exactamente con el total mostrado.
+
+**NO** sumar `amount_original` convertido manualmente; usar `getDisplayValue` por cada ítem antes de sumar.
+
 ### Formato de Fechas de Período (periodDate)
 
 **SIEMPRE usar strings `periodDate` en formato `YYYY-MM-DD`** (primer día del mes) para identificar períodos de pago.

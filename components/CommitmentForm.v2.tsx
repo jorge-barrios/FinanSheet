@@ -841,7 +841,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex justify-end">
+        <div className="fixed inset-0 z-[120] flex justify-end">
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
@@ -860,7 +860,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                 {/* Header with safe area for mobile notch */}
                 <div className="sticky top-0 z-20 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-white/5 px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-4 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">
-                        <h2 className="text-lg font-bold text-slate-800 dark:text-white leading-none">
+                        <h2 className="text-lg font-bold font-brand text-slate-900 dark:text-white leading-none">
                             {commitmentToEdit ? t('form.editCommitment', 'Editar') : t('form.newCommitment', 'Nuevo')}
                         </h2>
 
@@ -924,7 +924,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                         <span className={`text-2xl sm:text-3xl font-bold mr-1 sm:mr-2 ${themeClasses.text} opacity-50`}>$</span>
                                         <input
                                             type="text"
-                                            inputMode="numeric"
+                                            inputMode="decimal"
                                             value={displayAmount}
                                             onChange={(e) => {
                                                 const rawValue = e.target.value;
@@ -1074,60 +1074,79 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
 
                                 <label className={formLabelClasses}>Primer Pago</label>
                                 <div className="relative">
-                                    <DatePicker
-                                        selected={startDate ? new Date(startDate + 'T12:00:00') : new Date()}
-                                        onChange={(date: Date | null) => {
-                                            if (date) {
-                                                // Construct YYYY-MM-DD manually to avoid timezone issues
-                                                const year = date.getFullYear();
-                                                const month = String(date.getMonth() + 1).padStart(2, '0');
-                                                const day = String(date.getDate()).padStart(2, '0');
-                                                const newDate = `${year}-${month}-${day}`;
-
+                                    {/* Mobile Native Picker */}
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => {
+                                            const newDate = e.target.value;
+                                            if (newDate) {
                                                 setStartDate(newDate);
-                                                // Update dueDay from the selected date (use local date)
-                                                setDueDay(String(date.getDate()));
+                                                // Update dueDay from the selected date
+                                                const day = parseInt(newDate.split('-')[2]);
+                                                setDueDay(String(day));
                                             }
                                         }}
-                                        dateFormat="dd/MM/yyyy"
-                                        locale="es"
-                                        shouldCloseOnSelect={true}
-                                        strictParsing
-                                        placeholderText="dd/mm/aaaa"
-                                        onKeyDown={(e) => {
-                                            // 1. Allow standard navigation/editing keys
-                                            const navKeys = ['Backspace', 'Delete', 'Tab', 'Enter', 'Escape', '/'];
-                                            if (navKeys.includes(e.key)) {
-                                                return;
-                                            }
-
-                                            // 2. Allow Arrow Keys for cursor navigation (default behavior)
-                                            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                                                return;
-                                            }
-
-                                            // 3. Block non-digits and enforce length 10
-                                            if (!/^\d$/.test(e.key)) {
-                                                e.preventDefault();
-                                                return;
-                                            }
-
-                                            // Manual maxLength check
-                                            const input = e.target as HTMLInputElement;
-                                            if (input.value.length >= 10) {
-                                                const selection = window.getSelection();
-                                                if (!selection || selection.toString().length === 0) {
-                                                    e.preventDefault();
-                                                }
-                                            }
-                                        }}
-                                        className={formInputClasses}
-                                        wrapperClassName="w-full"
-                                        popperClassName="z-[9999]"
-                                        portalId="root"
-                                        autoFocus={false}
+                                        className={`${formInputClasses} md:hidden block w-full`}
                                         required
                                     />
+                                    {/* Desktop Custom Picker */}
+                                    <div className="hidden md:block">
+                                        <DatePicker
+                                            selected={startDate ? new Date(startDate + 'T12:00:00') : new Date()}
+                                            onChange={(date: Date | null) => {
+                                                if (date) {
+                                                    // Construct YYYY-MM-DD manually to avoid timezone issues
+                                                    const year = date.getFullYear();
+                                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                                    const day = String(date.getDate()).padStart(2, '0');
+                                                    const newDate = `${year}-${month}-${day}`;
+
+                                                    setStartDate(newDate);
+                                                    // Update dueDay from the selected date (use local date)
+                                                    setDueDay(String(date.getDate()));
+                                                }
+                                            }}
+                                            dateFormat="dd/MM/yyyy"
+                                            locale="es"
+                                            shouldCloseOnSelect={true}
+                                            strictParsing
+                                            placeholderText="dd/mm/aaaa"
+                                            onKeyDown={(e) => {
+                                                // 1. Allow standard navigation/editing keys
+                                                const navKeys = ['Backspace', 'Delete', 'Tab', 'Enter', 'Escape', '/'];
+                                                if (navKeys.includes(e.key)) {
+                                                    return;
+                                                }
+
+                                                // 2. Allow Arrow Keys for cursor navigation (default behavior)
+                                                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                                                    return;
+                                                }
+
+                                                // 3. Block non-digits and enforce length 10
+                                                if (!/^\d$/.test(e.key)) {
+                                                    e.preventDefault();
+                                                    return;
+                                                }
+
+                                                // Manual maxLength check
+                                                const input = e.target as HTMLInputElement;
+                                                if (input.value.length >= 10) {
+                                                    const selection = window.getSelection();
+                                                    if (!selection || selection.toString().length === 0) {
+                                                        e.preventDefault();
+                                                    }
+                                                }
+                                            }}
+                                            className={formInputClasses}
+                                            wrapperClassName="w-full"
+                                            popperClassName="z-[9999]"
+                                            portalId="root"
+                                            autoFocus={false}
+                                            required
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -1199,31 +1218,44 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                             {/* End Date Picker - Show ONLY for 'endsOn' mode (Defined Date) */}
                                             {durationType === 'endsOn' && (
                                                 <div className="relative">
-                                                    <DatePicker
-                                                        selected={endDate ? new Date(endDate + 'T12:00:00') : null}
-                                                        onChange={(date: Date | null) => {
-                                                            if (date) {
-                                                                const year = date.getFullYear();
-                                                                const month = String(date.getMonth() + 1).padStart(2, '0');
-                                                                const day = String(date.getDate()).padStart(2, '0');
-                                                                const newDate = `${year}-${month}-${day}`;
-                                                                setEndDate(newDate);
-                                                                setLastEditedField('endDate');
-                                                            } else {
-                                                                setEndDate('');
-                                                                setLastEditedField('endDate');
-                                                            }
+                                                    {/* Mobile Native Picker */}
+                                                    <input
+                                                        type="date"
+                                                        value={endDate}
+                                                        onChange={(e) => {
+                                                            setEndDate(e.target.value);
+                                                            setLastEditedField('endDate');
                                                         }}
-                                                        dateFormat="dd/MM/yyyy"
-                                                        locale="es"
-                                                        shouldCloseOnSelect={true}
-                                                        strictParsing
-                                                        placeholderText="Fecha Término"
-                                                        className={`${formInputClasses} !h-[40px] text-sm font-bold text-sky-600`}
-                                                        wrapperClassName="w-full"
-                                                        popperClassName="z-[9999]"
-                                                        portalId="root"
+                                                        className={`${formInputClasses} !h-[40px] md:hidden block text-sm font-bold text-sky-600 w-full`}
                                                     />
+                                                    {/* Desktop Custom Picker */}
+                                                    <div className="hidden md:block">
+                                                        <DatePicker
+                                                            selected={endDate ? new Date(endDate + 'T12:00:00') : null}
+                                                            onChange={(date: Date | null) => {
+                                                                if (date) {
+                                                                    const year = date.getFullYear();
+                                                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                                                    const day = String(date.getDate()).padStart(2, '0');
+                                                                    const newDate = `${year}-${month}-${day}`;
+                                                                    setEndDate(newDate);
+                                                                    setLastEditedField('endDate');
+                                                                } else {
+                                                                    setEndDate('');
+                                                                    setLastEditedField('endDate');
+                                                                }
+                                                            }}
+                                                            dateFormat="dd/MM/yyyy"
+                                                            locale="es"
+                                                            shouldCloseOnSelect={true}
+                                                            strictParsing
+                                                            placeholderText="Fecha Término"
+                                                            className={`${formInputClasses} !h-[40px] text-sm font-bold text-sky-600`}
+                                                            wrapperClassName="w-full"
+                                                            popperClassName="z-[9999]"
+                                                            portalId="root"
+                                                        />
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>

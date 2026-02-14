@@ -177,7 +177,7 @@ const CellEditModal: React.FC<CellEditModalProps> = ({ isOpen, onClose, onSave, 
     return (
          <div
             ref={overlayRef}
-            className="fixed inset-0 bg-black bg-opacity-75 z-50 flex justify-center items-center p-4"
+            className="fixed inset-0 bg-black bg-opacity-75 z-[120] flex justify-center items-center p-4"
             onMouseDown={handleOverlayMouseDown}
             onMouseUp={handleOverlayMouseUp}
             role="dialog"

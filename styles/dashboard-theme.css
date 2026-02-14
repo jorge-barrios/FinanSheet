@@ -13,41 +13,41 @@
    ============================================================================= */
 :root {
   /* Typography */
-  --font-display: 'Geist', system-ui, -apple-system, sans-serif;
-  --font-body: 'Geist', system-ui, -apple-system, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, monospace;
-  --font-brand: 'Space Grotesk', 'Geist', system-ui, sans-serif;
-  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-display: "Geist", system-ui, -apple-system, sans-serif;
+  --font-body: "Geist", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --font-brand: "Space Grotesk", "Geist", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", Georgia, serif;
 
   /* =========================================================================
      IDENTIDAD.MD PALETTE (Available as CSS variables for testing)
      Use these with: var(--id-deep-teal) etc.
      ========================================================================= */
   /* Primary: Deep Jungle Green / Deep Teal - Confianza + Base */
-  --id-deep-teal: #00555A;
+  --id-deep-teal: #00555a;
   --id-deep-teal-light: rgba(0, 85, 90, 0.15);
   --id-deep-teal-glow: rgba(0, 85, 90, 0.25);
 
   /* Secondary: Eucalyptus - Calma + Fondos */
-  --id-eucalyptus: #9CAF88;
+  --id-eucalyptus: #9caf88;
   --id-eucalyptus-light: rgba(156, 175, 136, 0.15);
   --id-eucalyptus-bg: #f5f7f3;
 
   /* Accent: Hyper-Coral - Acción + CTAs */
-  --id-coral: #FF6F61;
+  --id-coral: #ff6f61;
   --id-coral-light: rgba(255, 111, 97, 0.15);
   --id-coral-glow: rgba(255, 111, 97, 0.25);
 
   /* Alternative Dark: Future Dusk */
-  --id-future-dusk: #4C5578;
+  --id-future-dusk: #4c5578;
   --id-future-dusk-deep: #2a3142;
 
   /* Alternative Light: Cream/Alabaster (softer than pure white) */
-  --id-cream: #F5F1E8;
-  --id-alabaster: #FAFAF8;
+  --id-cream: #f5f1e8;
+  --id-alabaster: #fafaf8;
 
   /* Neo-Mint (tech + nature) */
-  --id-neo-mint: #A8E6CF;
+  --id-neo-mint: #a8e6cf;
   --id-neo-mint-light: rgba(168, 230, 207, 0.2);
 
   /* Light Mode - Clean & Fresh */
@@ -56,7 +56,7 @@
   --dashboard-surface-elevated: #ffffff;
   --dashboard-surface-hover: #f1f5f9;
   --dashboard-border: rgba(0, 0, 0, 0.15);
-  --dashboard-border-strong: rgba(0, 0, 0, 0.20);
+  --dashboard-border-strong: rgba(0, 0, 0, 0.2);
 
   /* Text */
   --dashboard-text-primary: #0f172a;
@@ -88,8 +88,10 @@
 
   /* Shadows - Light */
   --dashboard-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --dashboard-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-  --dashboard-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --dashboard-shadow-md:
+    0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --dashboard-shadow-lg:
+    0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
   --dashboard-shadow-glow-positive: 0 0 20px rgba(16, 185, 129, 0.2);
   --dashboard-shadow-glow-negative: 0 0 20px rgba(239, 68, 68, 0.2);
   --dashboard-shadow-glow-accent: 0 0 20px rgba(13, 148, 136, 0.2);
@@ -97,7 +99,7 @@
 
 .dark {
   /* Dark Mode - Slate (original) */
-  --dashboard-bg: #020617;
+  --dashboard-bg: #0f172a;
   --dashboard-surface: #0f172a;
   --dashboard-surface-elevated: #1e293b;
   --dashboard-surface-hover: #334155;
@@ -226,7 +228,7 @@
 }
 
 .kpi-card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -250,13 +252,19 @@
 .kpi-card--hero {
   grid-row: span 1;
   padding: 1.5rem;
-  background: linear-gradient(135deg,
-      var(--dashboard-surface) 0%,
-      var(--dashboard-surface-elevated) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--dashboard-surface) 0%,
+    var(--dashboard-surface-elevated) 100%
+  );
 }
 
 .kpi-card--hero::before {
-  background: linear-gradient(90deg, var(--dashboard-accent), var(--dashboard-positive));
+  background: linear-gradient(
+    90deg,
+    var(--dashboard-accent),
+    var(--dashboard-positive)
+  );
   opacity: 1;
   height: 4px;
 }
@@ -414,7 +422,7 @@
   padding: 0.5rem 1rem;
 }
 
-.timeline-group+.timeline-group {
+.timeline-group + .timeline-group {
   margin-top: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--dashboard-border);
@@ -466,7 +474,7 @@
 }
 
 .timeline-item::before {
-  content: '';
+  content: "";
   position: absolute;
   left: -5px;
   top: 1rem;
@@ -494,7 +502,6 @@
 }
 
 @keyframes pulse-dot {
-
   0%,
   100% {
     box-shadow: 0 0 0 0 var(--dashboard-negative-glow);
@@ -695,7 +702,6 @@
 
 /* Pulse glow effect */
 @keyframes pulse-glow {
-
   0%,
   100% {
     box-shadow: 0 0 0 0 var(--dashboard-accent-glow);
@@ -722,10 +728,12 @@
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg,
-      var(--dashboard-surface) 0%,
-      var(--dashboard-surface-hover) 50%,
-      var(--dashboard-surface) 100%);
+  background: linear-gradient(
+    90deg,
+    var(--dashboard-surface) 0%,
+    var(--dashboard-surface-hover) 50%,
+    var(--dashboard-surface) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
@@ -757,7 +765,8 @@
 
 /* Hover transitions - Smooth and responsive */
 .hover-lift {
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -787,7 +796,8 @@
 
 /* Number value transitions */
 .value-transition {
-  transition: color 0.2s ease-out,
+  transition:
+    color 0.2s ease-out,
     transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -797,7 +807,7 @@
 }
 
 .hover-underline::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: -2px;
   left: 0;
@@ -947,15 +957,17 @@
 
 /* Subtle gradient overlay for depth */
 .chart-panel::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 100px;
-  background: linear-gradient(180deg,
-      var(--dashboard-accent-glow) 0%,
-      transparent 100%);
+  background: linear-gradient(
+    180deg,
+    var(--dashboard-accent-glow) 0%,
+    transparent 100%
+  );
   opacity: 0.3;
   pointer-events: none;
   transition: opacity 0.3s ease-out;
@@ -1103,7 +1115,7 @@
 }
 
 /* Month Navigator + KPIs Row responsive wrapper */
-.dashboard-container>div:last-child>div:first-child {
+.dashboard-container > div:last-child > div:first-child {
   flex-wrap: wrap;
 }
 
@@ -1186,7 +1198,7 @@
     padding: 0;
   }
 
-  .sidebar-upcoming .timeline-group+.timeline-group {
+  .sidebar-upcoming .timeline-group + .timeline-group {
     margin-top: 0;
     padding-top: 0;
     border-top: none;
@@ -1195,7 +1207,7 @@
   }
 
   /* Month Navigator + KPIs in column on tablet */
-  .dashboard-container>div:last-child>div:first-child {
+  .dashboard-container > div:last-child > div:first-child {
     flex-direction: column;
   }
 
@@ -1215,7 +1227,7 @@
   }
 
   /* Chart + Categories row */
-  .dashboard-container>div:last-child>div:last-child {
+  .dashboard-container > div:last-child > div:last-child {
     flex-direction: column;
   }
 
@@ -1264,7 +1276,7 @@
     padding: 0;
   }
 
-  .sidebar-upcoming .timeline-group+.timeline-group {
+  .sidebar-upcoming .timeline-group + .timeline-group {
     margin-top: 0;
     padding-top: 0;
     border-top: none;
@@ -1285,7 +1297,7 @@
   }
 
   /* Month Navigator + KPIs stacked */
-  .dashboard-container>div:last-child>div:first-child {
+  .dashboard-container > div:last-child > div:first-child {
     flex-direction: column;
     gap: 0.75rem;
   }
@@ -1329,7 +1341,7 @@
   }
 
   /* Chart + Categories stacked */
-  .dashboard-container>div:last-child>div:last-child {
+  .dashboard-container > div:last-child > div:last-child {
     flex-direction: column;
   }
 
@@ -1422,7 +1434,6 @@
 
 /* Reduce motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
-
   *,
   *::before,
   *::after {

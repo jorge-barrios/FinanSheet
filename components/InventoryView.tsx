@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { CommitmentWithTerm, Category, Payment } from '../types.v2';
-import { MagnifyingGlassIcon, TrashIcon, PauseIcon, ArrowPathIcon, EditIcon } from './icons';
+import { SearchIcon, TrashIcon, PauseIcon, ArrowPathIcon, EditIcon, PlayIcon } from './icons';
+import { Sparkles } from 'lucide-react';
+import { SwipeableItem } from './ui/SwipeableItem';
 import { useLocalization } from '../hooks/useLocalization';
 import {
     getCommitmentStatus,
@@ -93,9 +95,39 @@ const InventoryView: React.FC<InventoryViewProps> = ({
         let sortableItems = [...filteredCommitments];
         if (sortConfig !== null) {
             sortableItems.sort((a, b) => {
-                let aValue: any = a[sortConfig.key as keyof CommitmentWithTerm];
-                let bValue: any = b[sortConfig.key as keyof CommitmentWithTerm];
-                // ... (omitted unchanged sort logic)
+                let aValue: any;
+                let bValue: any;
+
+                if (sortConfig.key === 'amount') {
+                    aValue = a.active_term?.amount_in_base ?? 0;
+                    bValue = b.active_term?.amount_in_base ?? 0;
+                } else if (sortConfig.key === 'category') {
+                    aValue = (categories.find(c => c.id === a.category_id)?.name || '').toLowerCase();
+                    bValue = (categories.find(c => c.id === b.category_id)?.name || '').toLowerCase();
+                } else if (sortConfig.key === 'estado') {
+                    // Helper to get status priority (overdue > pending > ok)
+                    const getStatusPriority = (c: CommitmentWithTerm) => {
+                        const { estado } = getCommitmentDetails(c);
+                        if (estado === 'overdue') return 0;
+                        if (estado === 'pending') return 1;
+                        if (estado === 'ok') return 2;
+                        return 3;
+                    };
+                    aValue = getStatusPriority(a);
+                    bValue = getStatusPriority(b);
+                } else {
+                    aValue = (a as any)[sortConfig.key];
+                    bValue = (b as any)[sortConfig.key];
+                    if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+                    if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+                }
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
                 return 0;
             });
         }
@@ -131,7 +163,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                     <div className="flex flex-1 w-full sm:w-auto gap-3">
                         {/* Search Input - Hidden on Mobile (Moved to Top Bar) */}
                         <div className="hidden lg:block relative flex-1">
-                            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                             <input
                                 type="text"
                                 placeholder="Buscar compromisos..."
@@ -177,24 +209,74 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                         <>
                             {/* MOBILE: CARDS VIEW (< lg) */}
                             <div className="lg:hidden space-y-3">
-                                {sortedCommitments.map((commitment) => (
-                                    <CommitmentCard
-                                        key={commitment.id}
-                                        commitment={commitment}
-                                        payments={payments}
-                                        lastPaymentsMap={lastPaymentsMap}
-                                        mode="inventory"
-                                        categoryName={categories.find(c => c.id === commitment.category_id)?.name}
-                                        formatAmount={formatClp}
-                                        onClick={() => onDetailCommitment(commitment)}
-                                        onEdit={() => onEditCommitment(commitment)}
-                                        onDetail={() => onDetailCommitment(commitment)}
-                                        onPause={() => onPauseCommitment(commitment)}
-                                        onResume={() => onResumeCommitment(commitment)}
-                                        onDelete={() => onDeleteCommitment(commitment.id)}
-                                        translateFrequency={(freq) => t(`frequency.${freq}`) || freq}
-                                    />
-                                ))}
+                                {sortedCommitments.map((commitment) => {
+                                    // Determine Swipe Actions
+                                    const activeTerm = commitment.active_term;
+                                    const { estado } = getCommitmentDetails(commitment);
+                                    const isPaid = estado !== 'pending' && estado !== 'overdue';
+                                    const isTerminated = !activeTerm || (activeTerm.effective_until && activeTerm.effective_until < new Date().toISOString().split('T')[0]);
+                                    
+                                    // Swipe Logic Redesign (Consistent with Dashboard)
+                                    // Swipe Right -> Details (Blue)
+                                    // Swipe Left -> Edit (Slate)
+
+                                    // Left Action (Revealed on Swipe Right) -> Details
+                                    const leftActionNode = (
+                                        <div className="flex flex-col items-center justify-center h-full w-20 bg-sky-500 text-white">
+                                            <Sparkles className="w-6 h-6 mb-1" />
+                                            <span className="text-xs font-bold">Detalles</span>
+                                        </div>
+                                    );
+                                    const onSwipeRightAction = () => {
+                                         if (onDetailCommitment) {
+                                             onDetailCommitment(commitment);
+                                         } else {
+                                             onEditCommitment(commitment);
+                                         }
+                                    };
+
+                                    // Right Action (Revealed on Swipe Left) -> Edit
+                                    const rightActionNode = (
+                                        <div className="flex flex-col items-center justify-center h-full w-20 bg-slate-500 text-white">
+                                            <EditIcon className="w-6 h-6 mb-1" />
+                                            <span className="text-xs font-bold">Editar</span>
+                                        </div>
+                                    );
+                                    const onSwipeLeftAction = () => onEditCommitment(commitment);
+
+                                    return (
+                                        <SwipeableItem
+                                            key={commitment.id}
+                                            leftAction={leftActionNode}
+                                            rightAction={rightActionNode}
+                                            onSwipeLeft={onSwipeLeftAction}
+                                            onSwipeRight={onSwipeRightAction}
+                                            className="mb-3"
+                                        >
+                                            <CommitmentCard
+                                                commitment={commitment}
+                                                payments={payments}
+                                                lastPaymentsMap={lastPaymentsMap}
+                                                mode="inventory"
+                                                categoryName={categories.find(c => c.id === commitment.category_id)?.name}
+                                                formatAmount={formatClp}
+                                                onClick={() => {
+                                                    if (onDetailCommitment) {
+                                                        onDetailCommitment(commitment);
+                                                    } else {
+                                                        onEditCommitment(commitment);
+                                                    }
+                                                }}
+                                                onEdit={() => onEditCommitment(commitment)}
+                                                onDetail={onDetailCommitment ? () => onDetailCommitment(commitment) : undefined}
+                                                onPause={() => onPauseCommitment(commitment)}
+                                                onResume={() => onResumeCommitment(commitment)}
+                                                onDelete={() => onDeleteCommitment(commitment.id)}
+                                                translateFrequency={(freq) => t(`frequency.${freq}`) || freq}
+                                            />
+                                        </SwipeableItem>
+                                    );
+                                })}
                             </div>
 
                             {/* DESKTOP: TABLE VIEW (>= lg) */}

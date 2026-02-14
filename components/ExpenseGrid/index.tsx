@@ -123,7 +123,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
 
     return (
-        <div className="w-full h-full flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="w-full min-h-full flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
             <HeaderToolbar
                 focusedDate={focusedDate}
                 viewMode={viewMode}

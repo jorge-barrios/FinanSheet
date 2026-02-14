@@ -12,6 +12,8 @@ import { parseDateString } from '../../utils/financialUtils.v2';
 import { dateToPeriod } from './types';
 import type { CommitmentWithTerm, Payment } from '../../types.v2';
 import type { ViewMode, StatusFilter } from '../../hooks/useExpenseGridLogic';
+import { EditIcon } from '../icons';
+import { SwipeableItem } from '../ui/SwipeableItem';
 
 export interface MobileCardListProps {
     // Data
@@ -68,7 +70,7 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
     rateConverter,
 }) => {
     return (
-        <div className="lg:hidden p-3 space-y-2 pb-28">
+        <div className="lg:hidden p-3 space-y-2 pb-8">
             {(() => {
                 const filteredCommitments = commitments.filter(c => {
                     // In inventory mode, show ALL commitments (including terminated)
@@ -145,44 +147,67 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
                         daysOverdue: daysOverdue > 0 ? daysOverdue : undefined
                     };
 
+                    // Define Visual Action Nodes
+                    // Left Side (Revealed on Swipe Right) -> Details (Blue)
+                    const leftSwipeActionNode = (
+                        <div className="flex flex-col items-center justify-center h-full w-20 bg-sky-500 text-white">
+                            <Sparkles className="w-6 h-6 mb-1" />
+                            <span className="text-xs font-bold">Detalles</span>
+                        </div>
+                    );
+                    
+                    // Action when swiping right (Details)
+                    const onSwipeRightAction = () => {
+                         if (onDetailCommitment) {
+                             onDetailCommitment(c);
+                         } else {
+                             onEditCommitment(c);
+                         }
+                    };
+
+                    // Right Side (Revealed on Swipe Left) -> Secondary Action (Edit)
+                    // Keep as Edit (Slate)
+                    const rightSwipeActionNode = (
+                        <div className="flex flex-col items-center justify-center h-full w-20 bg-slate-500 text-white">
+                            <EditIcon className="w-6 h-6 mb-1" />
+                            <span className="text-xs font-bold">Editar</span>
+                        </div>
+                    );
+                    const onSwipeLeftAction = () => onEditCommitment(c);
+
+                    // Main Click Action (Tap Center)
+                    const handleMainClick = () => {
+                        // Always open payment recorder for consistency (View/Pay/Edit Payment)
+                        onRecordPayment(c.id, dateToPeriod(monthDate));
+                    };
+
                     return (
-                        <CommitmentCard
+                        <SwipeableItem
                             key={c.id}
-                            commitment={c}
-                            payments={payments.get(c.id) || []}
-                            mode={viewMode === 'inventory' ? 'inventory' : 'monthly'}
-                            viewDate={monthDate}
-                            monthlyInfo={monthlyInfo}
-                            categoryName={getTranslatedCategoryName(c)}
-                            formatAmount={formatClp}
-                            onClick={() => {
-                                // Contextual Intelligent Flow
-                                if (viewMode === 'inventory') {
-                                    if (onDetailCommitment) {
-                                        onDetailCommitment(c);
-                                    } else {
-                                        onEditCommitment(c);
-                                    }
-                                } else {
-                                    if (isTermActiveInMonth && !isPaid) {
-                                        onRecordPayment(c.id, dateToPeriod(monthDate));
-                                    } else if (isPaid && onDetailCommitment) {
-                                        onDetailCommitment(c);
-                                    } else if (onDetailCommitment) {
-                                        onDetailCommitment(c);
-                                    } else {
-                                        onEditCommitment(c);
-                                    }
-                                }
-                            }}
-                            onEdit={() => onEditCommitment(c)}
-                            onDetail={onDetailCommitment ? () => onDetailCommitment(c) : undefined}
-                            onPause={() => onPauseCommitment(c)}
-                            onResume={() => onResumeCommitment(c)}
-                            onDelete={() => onDeleteCommitment(c.id)}
-                            translateFrequency={(freq) => t(`frequency.${freq}`) || freq}
-                            rateConverter={rateConverter}
-                        />
+                            leftAction={leftSwipeActionNode}
+                            rightAction={rightSwipeActionNode}
+                            onSwipeLeft={onSwipeLeftAction}
+                            onSwipeRight={onSwipeRightAction}
+                            className="mb-3" // Add margin between cards
+                        >
+                            <CommitmentCard
+                                commitment={c}
+                                payments={payments.get(c.id) || []}
+                                mode={viewMode === 'inventory' ? 'inventory' : 'monthly'}
+                                viewDate={monthDate}
+                                monthlyInfo={monthlyInfo}
+                                categoryName={getTranslatedCategoryName(c)}
+                                formatAmount={formatClp}
+                                onClick={handleMainClick}
+                                onEdit={() => onEditCommitment(c)}
+                                onDetail={onDetailCommitment ? () => onDetailCommitment(c) : undefined}
+                                onPause={() => onPauseCommitment(c)}
+                                onResume={() => onResumeCommitment(c)}
+                                onDelete={() => onDeleteCommitment(c.id)}
+                                translateFrequency={(freq) => t(`frequency.${freq}`) || freq}
+                                rateConverter={rateConverter}
+                            />
+                        </SwipeableItem>
                     );
                 }) : (
                     <div className="text-center py-20 px-6 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">

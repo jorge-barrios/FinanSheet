@@ -739,19 +739,29 @@ const App: React.FC = () => {
                     <PaymentRecorderV2
                         isOpen={paymentRecorderState.isOpen}
                         onClose={() => setPaymentRecorderState(prev => ({ ...prev, isOpen: false }))}
-                        onSave={async (operation) => {
+                        onSave={async (operation, context) => {
                             // Hot reload data after saving payment
-                            const messages = {
-                                created: 'Pago registrado',
-                                updated: 'Pago actualizado',
-                                deleted: 'Pago eliminado',
-                            };
+                            let message = '';
+                            
+                            if (context === 'paid') {
+                                message = 'Pago registrado';
+                            } else if (context === 'pending') {
+                                message = 'Compromiso actualizado';
+                            } else {
+                                // Fallback / default messages
+                                switch (operation) {
+                                    case 'created': message = 'Pago registrado'; break;
+                                    case 'updated': message = 'Pago actualizado'; break;
+                                    case 'deleted': message = 'Pago eliminado'; break;
+                                }
+                            }
+
                             const toastId = showToast('Procesando...', 'loading');
                             try {
                                 // Refresh context silently (Grid now uses context data)
                                 await refreshCommitments({ silent: true, force: true });
                                 removeToast(toastId);
-                                showToast(messages[operation], 'success');
+                                showToast(message, 'success');
                             } catch {
                                 removeToast(toastId);
                                 showToast('Error al actualizar datos', 'error');

@@ -22,9 +22,9 @@ import { Sparkles, Minus, RefreshCw, Eye, Star } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { ContextualFooter } from './ContextualFooter';
-import { getCommitmentSummary } from '../../utils/commitmentStatusUtils';
+// getCommitmentSummary removed
 import { useCommitmentValue } from '../../hooks/useCommitmentValue';
-import type { Density, ViewMode, StatusFilter } from '../../hooks/useExpenseGridLogic';
+import type { Density, ViewMode, StatusFilter, CommitmentCounts } from '../../hooks/useExpenseGridLogic';
 
 // =============================================================================
 // TOOLTIP COMPONENT (same as in index.tsx)
@@ -85,7 +85,7 @@ interface DesktopGridProps {
         archived: CommitmentWithTerm[];
     };
     visibleMonths: Date[];
-    commitmentCounts: { active: number; paused: number; archived: number; total: number };
+    commitmentCounts: CommitmentCounts;
     // Hook functions
     getPaymentStatus: (commitmentId: string, monthDate: Date, dueDay: number) => {
         isPaid: boolean;
@@ -128,7 +128,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
     viewMode,
     selectedCategory,
     selectedStatus,
-    commitments,
+    // commitments removed
     payments,
     groupedCommitments,
     visibleMonths,
@@ -209,7 +209,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
     // ==========================================================================
     const footerStats = useMemo(() => {
         const today = new Date();
-        const focusedPeriod = dateToPeriod(focusedDate);
+        // focusedPeriod removed
 
         let overdueCount = 0;
         let overdueAmount = 0;
@@ -231,23 +231,28 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
         const visibleCommitments = groupedCommitments.active.flatMap(g => g.commitments);
 
         visibleCommitments.forEach(c => {
-            const commitmentPayments = payments.get(c.id) || [];
-            const summary = getCommitmentSummary(c, commitmentPayments);
             const term = getTermForPeriod(c, focusedDate);
 
             if (!term) return;
             if (!isActiveInMonth(c, focusedDate)) return;
 
-            const amount = summary.perPeriodAmount || 0;
             const dueDay = term.due_day_of_month || 1;
-            const dueDate = new Date(focusedDate.getFullYear(), focusedDate.getMonth(), dueDay);
+            const { isPaid, payment } = getPaymentStatus(c.id, focusedDate, dueDay);
 
-            // Check payment status for focused month
-            const { isPaid, hasPaymentRecord, payment } = getPaymentStatus(c.id, focusedDate, dueDay);
+            // Calculate amount using LIVE rates via getDisplayValue
+            // This ensures footer matches grid cells exactly
+            const perPeriodOriginal = getPerPeriodAmount(term, false); // false = get original currency amount
+            const originalCurrency = term.currency_original || 'CLP';
+            const amount = getDisplayValue(perPeriodOriginal, originalCurrency, payment);
+            
+            const dueDate = new Date(focusedDate.getFullYear(), focusedDate.getMonth(), dueDay);
 
             if (isPaid) {
                 paidCount++;
-                paidAmount += payment?.amount_in_base || amount;
+                // If paid, amount is already the paid amount (from getDisplayValue logic with payment)
+                // But specifically for paidAmount accumulator, we want the EXACT paid value
+                // getDisplayValue returns this, so we can use 'amount' directly.
+                paidAmount += amount;
             } else {
                 // Check if overdue
                 const isOverdue = today > dueDate && focusedDate.getMonth() <= today.getMonth() && focusedDate.getFullYear() <= today.getFullYear();
@@ -307,7 +312,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
             activeFilter,
             hasExplicitFilter,
         };
-    }, [groupedCommitments, commitmentCounts, viewMode, focusedDate, selectedCategory, selectedStatus, getPaymentStatus, getTermForPeriod, isActiveInMonth]);
+    }, [groupedCommitments, commitmentCounts, viewMode, focusedDate, selectedCategory, selectedStatus, getPaymentStatus, getTermForPeriod, isActiveInMonth, getDisplayValue]);
 
     // ==========================================================================
     // RENDER
@@ -844,18 +849,26 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                             const dueDay = term?.due_day_of_month ?? 1;
                                                             const { isPaid, amount: paidAmount, paidOnTime, payment: currentPayment, hasPaymentRecord } = getPaymentStatus(commitment.id, monthDate, dueDay);
 
-                                                            // Calculate expected per-period amount from term (only used when no payment)
-                                                            const totalAmount = term?.amount_in_base ?? term?.amount_original ?? 0;
                                                             const installmentsCount = term?.installments_count ?? null;
 
-                                                            // Solo dividir si is_divided_amount = true (tipo "En cuotas")
-                                                            const perPeriodAmount = term?.is_divided_amount && installmentsCount && installmentsCount > 1
-                                                                ? totalAmount / installmentsCount
-                                                                : totalAmount;
+                                                            // Calculate per-period ORIGINAL amount
+                                                            // This is our source of truth for conversions (live rates)
+                                                            const originalCurrency = term?.currency_original || 'CLP';
+                                                            const originalAmount = term?.amount_original ?? 0;
+                                                            const perPeriodOriginal = term?.is_divided_amount && installmentsCount && installmentsCount > 1
+                                                                ? originalAmount / installmentsCount
+                                                                : originalAmount;
 
-                                                            // Show REAL data: if there's a payment record (even if not marked paid), show that amount
-                                                            // Otherwise show expected amount from term
-                                                            const displayAmount = (hasPaymentRecord && paidAmount !== null) ? paidAmount : perPeriodAmount;
+                                                            // Calculate display amount (CLP)
+                                                            // 1. If paid, use payment record (historical)
+                                                            // 2. If unpaid, use live conversion of original amount (reactive)
+                                                            const displayAmount = getDisplayValue(
+                                                                perPeriodOriginal,
+                                                                originalCurrency,
+                                                                currentPayment
+                                                            );
+
+                                                            const showOriginalCurrency = originalCurrency && originalCurrency !== 'CLP';
 
                                                             // Calculate cuota number if installments
                                                             let cuotaNumber: number | null = null;
@@ -869,15 +882,6 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                     cuotaNumber = null; // Out of range
                                                                 }
                                                             }
-
-                                                            // Original currency display
-                                                            const originalCurrency = term?.currency_original;
-                                                            const originalAmount = term?.amount_original ?? 0;
-                                                            // Solo dividir si is_divided_amount = true (tipo "En cuotas")
-                                                            const perPeriodOriginal = term?.is_divided_amount && installmentsCount && installmentsCount > 1
-                                                                ? originalAmount / installmentsCount
-                                                                : originalAmount;
-                                                            const showOriginalCurrency = originalCurrency && originalCurrency !== 'CLP';
 
                                                             const today = new Date();
                                                             const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
@@ -898,79 +902,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                 : 0;
                                                             const isDisabled = isFutureMonth && !(hasPaymentRecord || (installmentsCount && installmentsCount > 1));
 
-                                                            // === Render Status Badge Helper ===
-                                                            const renderStatusBadge = () => {
-                                                                if (isPaid) {
-                                                                    return (
-                                                                        <div className="grid grid-cols-1 items-center justify-items-center group/badge w-full mt-1">
-                                                                            <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 group-hover/cell:opacity-0">
-                                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800 ring-1 ring-emerald-500/10">
-                                                                                    {paidOnTime && <Sparkles className="w-3 h-3" />}
-                                                                                    <CheckCircleIcon className="w-3.5 h-3.5" />
-                                                                                    Pagado
-                                                                                </span>
-                                                                            </div>
-                                                                            <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 opacity-0 group-hover/cell:opacity-100">
-                                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 cursor-pointer">
-                                                                                    <EditIcon className="w-3.5 h-3.5" />
-                                                                                    Editar
-                                                                                </span>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                }
-                                                                if (isOverdue) {
-                                                                    return (
-                                                                        <div className="flex flex-col items-center gap-1 w-full mt-1">
-                                                                            {/* Overdue countdown - always visible, larger */}
-                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-700 ring-1 ring-rose-500/20">
-                                                                                <ExclamationTriangleIcon className="w-3.5 h-3.5 animate-pulse" />
-                                                                                -{daysOverdue}d
-                                                                            </span>
-                                                                            {/* Pagar button - always visible for overdue */}
-                                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold bg-rose-600 dark:bg-rose-500 text-white border border-rose-700 dark:border-rose-400 cursor-pointer hover:bg-rose-700 dark:hover:bg-rose-600 transition-colors shadow-sm">
-                                                                                <PlusIcon className="w-3 h-3" />
-                                                                                Pagar
-                                                                            </span>
-                                                                        </div>
-                                                                    );
-                                                                }
-                                                                if (isPending && (isCurrentMonth(monthDate) || !(daysRemaining > 45))) {
-                                                                    return (
-                                                                        <div className="grid grid-cols-1 items-center justify-items-center group/badge w-full mt-1">
-                                                                            <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 group-hover/cell:opacity-0">
-                                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-800 ring-1 ring-amber-500/10">
-                                                                                    <ClockIcon className="w-3.5 h-3.5" />
-                                                                                    {daysRemaining === 0 ? 'Hoy' : `${daysRemaining}d`}
-                                                                                </span>
-                                                                            </div>
-                                                                            <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 opacity-0 group-hover/cell:opacity-100">
-                                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-700 cursor-pointer">
-                                                                                    <PlusIcon className="w-3.5 h-3.5" />
-                                                                                    Pagar
-                                                                                </span>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                }
-                                                                // Default: Scheduled / Future
-                                                                return (
-                                                                    <div className="grid grid-cols-1 items-center justify-items-center group/badge w-full mt-1">
-                                                                        <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 group-hover/cell:opacity-0">
-                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                                                                                <CalendarIcon className="w-3.5 h-3.5" />
-                                                                                Prog.
-                                                                            </span>
-                                                                        </div>
-                                                                        <div className="col-start-1 row-start-1 flex items-center justify-center w-full transition-all duration-200 opacity-0 group-hover/cell:opacity-100">
-                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 cursor-pointer">
-                                                                                <PlusIcon className="w-3.5 h-3.5" />
-                                                                                Pagar
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            };
+// renderStatusBadge removed
                                                             const isFocused = monthDate.getMonth() === focusedDate.getMonth() && monthDate.getFullYear() === focusedDate.getFullYear();
                                                             const isCurrent = isCurrentMonth(monthDate);
 
@@ -1205,9 +1137,12 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                                 {isPaid && currentPayment ? (
                                                                                                     (() => {
                                                                                                         // Variance Analysis
-                                                                                                        const expectedAmount = term?.is_divided_amount && installmentsCount && installmentsCount > 1
-                                                                                                            ? (term.amount_in_base ?? term.amount_original) / installmentsCount
-                                                                                                            : (term?.amount_in_base ?? term?.amount_original ?? 0);
+                                                                                                        // Use live rate for expected amount to show accurate variance
+                                                                                                        const expectedAmount = getDisplayValue(
+                                                                                                            perPeriodOriginal,
+                                                                                                            originalCurrency,
+                                                                                                            null 
+                                                                                                        );
 
                                                                                                         const paidAmountBase = currentPayment.amount_in_base ?? currentPayment.amount_original;
                                                                                                         const diff = paidAmountBase - expectedAmount;

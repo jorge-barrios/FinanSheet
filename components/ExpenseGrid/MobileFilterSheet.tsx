@@ -49,7 +49,7 @@ export const MobileFilterSheet: React.FC<MobileFilterSheetProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end lg:hidden">
+        <div className="fixed inset-0 z-[60] flex items-end lg:hidden">
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/50 backdrop-blur-sm"
