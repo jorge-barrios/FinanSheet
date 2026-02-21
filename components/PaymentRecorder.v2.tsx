@@ -97,6 +97,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     
     // Edit mode state: default to true only if NOT paid
     const [isEditMode, setIsEditMode] = useState(true);
+    const [markAsPaid, setMarkAsPaid] = useState(true);
 
     // Derived: is currently marked as paid?
     const isPaid = existingPayment?.payment_date != null;
@@ -375,7 +376,8 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
 
     // --- CALCULATED METRICS FOR RECEIPT VIEW ---
     const paymentAmountNum = parseFloat(amount) || 0;
-    const diffAmount = paymentAmountNum - expectedAmount;
+    const paidAmountInClp = getDisplayValue(paymentAmountNum, amountCurrency, null, 'CLP');
+    const diffAmountInClp = paidAmountInClp - expectedAmountInClp;
     
     // Determine flow type (default to EXPENSE if not specified, though usually it is)
     // Note: flow_type is 'EXPENSE' | 'INCOME'
@@ -384,8 +386,8 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     // Logic:
     // Expense: Paid < Expected -> Good (Green). Paid > Expected -> Bad (Red).
     // Income: Paid > Expected -> Good (Green). Paid < Expected -> Bad (Red).
-    const isGoodOutcome = isExpense ? diffAmount <= 0 : diffAmount >= 0;
-    const isNeutralOutcome = Math.abs(diffAmount) < 1;
+    const isGoodOutcome = isExpense ? diffAmountInClp <= 0 : diffAmountInClp >= 0;
+    const isNeutralOutcome = Math.abs(diffAmountInClp) < 1;
     
     const diffColorClass = isNeutralOutcome 
         ? 'text-slate-400' 
@@ -393,7 +395,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
             ? 'text-emerald-600 dark:text-emerald-400' 
             : 'text-rose-600 dark:text-rose-400';
 
-    const diffSign = diffAmount > 0 ? '+' : ''; // Negative numbers have sign automatically
+    const diffSign = diffAmountInClp > 0 ? '+' : ''; // Negative numbers have sign automatically
 
     
     const getDaysDiffText = (diff: number) => {
@@ -457,38 +459,30 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                     We will hide the standard header in View Mode and use the "Receipt Header" inside the body?
                     No, consistency is key. Let's keep the standard header but hide the "Edit" button in View Mode since it has a stronger "Edit" CTA in the receipt.
                 */}
-                <div className="sticky top-0 z-20 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-white/5 px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-4 flex items-center justify-between shadow-sm">
+                <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/60 dark:border-white/10 px-6 pt-[max(1rem,env(safe-area-inset-top))] pb-4 flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-3">
-                         <div className={`p-2.5 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm ${isPaid
-                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
-                            : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                            }`}>
-                            {isPaid ? <CheckCircleIcon className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
+                         <div className="p-2.5 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                            <Wallet className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold font-brand text-slate-900 dark:text-white leading-tight truncate max-w-[200px]" title={commitment.name}>
+                            <h2 className="text-base sm:text-lg font-bold font-brand text-slate-900 dark:text-white leading-tight truncate max-w-[200px]" title={commitment.name}>
                                 {commitment.name}
                             </h2>
-                            <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                {monthNames[month]} {year}
-                            </p>
+                            {isEditMode && (
+                                <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-1.5">
+                                    <span>{monthNames[month]} {year}</span>
+                                    <span className="px-1.5 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold text-sky-700 dark:text-sky-300 bg-sky-100/70 dark:bg-sky-900/30">
+                                        {existingPayment ? 'Editando' : 'Nuevo'}
+                                    </span>
+                                </p>
+                            )}
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        {/* Only show Edit pencil in header if we are NOT in View Mode (because View Mode has big Edit button) 
-                            OR if we want redundancy. Let's hide it to avoid clutter in Receipt View. coverage. */}
-                        {existingPayment && (
-                            <button
-                                onClick={() => setShowDeleteConfirm(true)}
-                                className="h-9 w-9 flex items-center justify-center text-slate-400 hover:text-rose-500 rounded-full hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
-                                title="Eliminar registro"
-                            >
-                                <TrashIcon className="w-5 h-5" />
-                            </button>
-                        )}
                         <button
+                            aria-label="Cerrar modal"
                             onClick={onClose}
-                            className="h-9 w-9 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            className="h-9 w-9 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
                         >
                             <XMarkIcon className="w-6 h-6" />
                         </button>
@@ -496,7 +490,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                 </div>
 
                 {/* Body (Scrollable) */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3 custom-scrollbar">
 
                     {/* Error */}
                     {error && (
@@ -508,156 +502,160 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
 
                     {!isEditMode ? (
                        // --- RECEIPT VIEW (Read-Only) ---
-                       <div className="space-y-8 py-4 animate-in fade-in duration-300">
+                       <div className="space-y-6 py-4 animate-in fade-in duration-300">
                            
-                           {/* 1. Receipt Header */}
-                           <div className="text-center space-y-2">
-                               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold uppercase tracking-wide">
-                                   <CheckCircleIcon className="w-3.5 h-3.5" />
-                                   <span>Pagado Exitosamente</span>
+                           {/* 1. Hero Card */}
+                           <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 p-6 text-center space-y-3">
+                               {/* Period */}
+                               <div className="text-sm sm:text-base font-bold text-slate-500 dark:text-slate-400 tracking-wide">{monthNames[month]} {year}</div>
+                               {/* Success icon */}
+                               <CheckCircleIcon className="w-10 h-10 sm:w-12 sm:h-12 text-emerald-500 dark:text-emerald-400 mx-auto" />
+                               {/* Amount */}
+                               <div className="text-3xl sm:text-4xl font-mono font-bold tabular-nums text-slate-900 dark:text-white tracking-tight">
+                                   <span className="text-base sm:text-lg font-mono font-medium text-slate-400 mr-1.5">{amountCurrency}</span>
+                                   {amountCurrency === 'CLP' 
+                                       ? Number(amount).toLocaleString('es-CL') 
+                                       : Number(amount).toLocaleString('es-CL', { minimumFractionDigits: 2 })}
                                </div>
-                               <h1 className="text-3xl font-black font-brand text-slate-900 dark:text-white leading-none">
-                                   {monthNames[month]} {year}
-                               </h1>
-                           </div>
-                           
-                           {/* Separator */}
-                           <div className="flex items-center justify-center opacity-20">
-                                <div className="w-full border-t-2 border-dashed border-slate-900 dark:border-white"></div>
-                           </div>
-
-                           {/* 2. Financials */}
-                           <div className="space-y-6">
-                               {/* Main Amount */}
-                               <div className="text-center">
-                                   <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Monto Pagado</div>
-                                   <div className="text-5xl font-black tabular-nums text-slate-900 dark:text-white tracking-tight">
-                                       {amountCurrency === 'CLP' 
-                                           ? Number(amount).toLocaleString('es-CL') 
-                                           : Number(amount).toLocaleString('es-CL', { minimumFractionDigits: 2 })}
-                                       <span className="text-xl text-slate-400 font-bold ml-2">{amountCurrency}</span>
+                               {/* Achievement indicator */}
+                               {daysDiff !== null && (
+                                   <div className={`flex items-center justify-center gap-1.5 text-xs sm:text-sm font-semibold ${daysDiffColorClass}`}>
+                                       <span>●</span>
+                                       <span>{getDaysDiffText(daysDiff)}</span>
                                    </div>
-                               </div>
+                               )}
+                           </div>
 
-                               {/* Stats Grid */}
-                               <div className="grid grid-cols-2 gap-4">
-                                   {/* Expected */}
-                                   <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
-                                       <div className="text-[10px] font-bold uppercase text-slate-400 mb-1">Esperado</div>
-                                       <div className="text-xl font-bold text-slate-600 dark:text-slate-300 tabular-nums">
-                                            {expectedCurrency === 'CLP' 
+                           {/* 2. Detail Card */}
+                           <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 overflow-hidden">
+                               <div className="divide-y divide-slate-200/60 dark:divide-slate-700/40 text-xs sm:text-sm">
+                                   {/* Esperado */}
+                                   <div className="flex justify-between items-center px-5 py-3">
+                                       <span className="text-slate-500 dark:text-slate-400 font-medium">Esperado</span>
+                                       <span className="font-mono font-bold tabular-nums text-slate-700 dark:text-slate-300">
+                                           <span className="font-medium text-slate-400 mr-1">{expectedCurrency}</span>
+                                           {expectedCurrency === 'CLP' 
                                                ? expectedAmount.toLocaleString('es-CL') 
                                                : expectedAmount.toLocaleString('es-CL', { minimumFractionDigits: 2 })}
-                                            <span className="text-[10px] ml-1">{expectedCurrency}</span>
-                                       </div>
+                                       </span>
                                    </div>
-
-                                   {/* Difference */}
-                                   <div className={`p-4 rounded-2xl text-center border ${isNeutralOutcome ? 'bg-slate-50 border-slate-100 dark:bg-slate-800/20 dark:border-slate-800' : (isGoodOutcome ? 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-900/30' : 'bg-rose-50 border-rose-100 dark:bg-rose-900/10 dark:border-rose-900/30')}`}>
-                                       <div className="text-[10px] font-bold uppercase text-slate-400 mb-1">Diferencia</div>
-                                       <div className={`text-xl font-black tabular-nums ${diffColorClass}`}>
-                                            {diffSign}{diffAmount.toLocaleString('es-CL')}
-                                            <span className="text-[10px] opacity-60 ml-1">CLP</span>
-                                       </div>
+                                   {/* Diferencia */}
+                                   <div className="flex justify-between items-center px-5 py-3">
+                                       <span className="text-slate-500 dark:text-slate-400 font-medium">Diferencia</span>
+                                       <span className={`font-mono font-bold tabular-nums ${diffColorClass}`}>
+                                           <span className="font-medium opacity-70 mr-1">CLP</span>
+                                           {diffSign}{diffAmountInClp.toLocaleString('es-CL')}
+                                       </span>
                                    </div>
-                               </div>
-                           </div>
-                           
-                           {/* Separator */}
-                           <div className="flex items-center justify-center opacity-20">
-                                <div className="w-full border-t-2 border-dashed border-slate-900 dark:border-white"></div>
-                           </div>
-
-                           {/* 3. Dates */}
-                           <div className="space-y-4 px-2">
-                               <div className="flex justify-between items-end">
-                                   <div className="text-left">
-                                       <div className="text-[10px] font-bold uppercase text-slate-400 mb-1">Fecha Pago</div>
-                                       <div className="text-lg font-bold text-slate-900 dark:text-white">
+                                   {/* Fecha de Pago */}
+                                   <div className="flex justify-between items-center px-5 py-3">
+                                       <span className="text-slate-500 dark:text-slate-400 font-medium">Fecha Pago</span>
+                                       <span className="font-medium text-slate-700 dark:text-slate-300">
                                            {formatDateShort(paymentDate)}
-                                       </div>
-                                       <div className="text-xs text-slate-500 font-medium capitalize">
-                                            {getDayName(paymentDate)}
-                                       </div>
+                                           <span className="text-slate-400 dark:text-slate-500 ml-1.5 capitalize text-xs">{getDayName(paymentDate)}</span>
+                                       </span>
                                    </div>
+                                   {/* Vencimiento */}
                                    {effectiveDueDate && (
-                                       <div className="text-right">
-                                           <div className="text-[10px] font-bold uppercase text-slate-400 mb-1">Vencimiento</div>
-                                           <div className="text-lg font-bold text-slate-900 dark:text-white">
+                                       <div className="flex justify-between items-center px-5 py-3">
+                                           <span className="text-slate-500 dark:text-slate-400 font-medium">Vencimiento</span>
+                                           <span className="font-medium text-slate-700 dark:text-slate-300">
                                                {formatDateShort(effectiveDueDate)}
-                                           </div>
-                                            <div className="text-xs text-slate-500 font-medium capitalize">
-                                                {getDayName(effectiveDueDate)}
-                                           </div>
+                                               <span className="text-slate-400 dark:text-slate-500 ml-1.5 capitalize text-xs">{getDayName(effectiveDueDate)}</span>
+                                           </span>
+                                       </div>
+                                   )}
+                                   {/* Notes (only if present) */}
+                                   {notes && (
+                                       <div className="flex justify-between items-start px-5 py-3">
+                                           <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">Nota</span>
+                                           <span className="text-slate-700 dark:text-slate-300 italic text-right ml-4">"{notes}"</span>
                                        </div>
                                    )}
                                </div>
-                               
-                               {daysDiff !== null && (
-                                   <div className={`text-center text-sm font-bold ${daysDiffColorClass} bg-slate-50 dark:bg-slate-800/50 py-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-800`}>
-                                       {getDaysDiffText(daysDiff)}
-                                   </div>
-                               )}
-                           </div>
-                           
-                           {/* Separator */}
-                           <div className="flex items-center justify-center opacity-20">
-                                <div className="w-full border-t-2 border-dashed border-slate-900 dark:border-white"></div>
-                           </div>
-
-                           {/* 4. Notes */}
-                           <div className="text-center pb-4">
-                               <div className="text-[10px] font-bold uppercase text-slate-400 mb-2">Nota</div>
-                               {notes ? (
-                                   <div className="text-base text-slate-700 dark:text-slate-300 italic">"{notes}"</div>
-                               ) : (
-                                   <div className="text-sm text-slate-300 italic">Sin notas registradas</div>
-                               )}
-                           </div>
-
-                           {/* 5. Actions */}
-                           <div className="flex justify-center pt-2">
-                               <button 
-                                   onClick={() => setIsEditMode(true)}
-                                   className="flex items-center gap-2 px-6 py-3 rounded-full font-bold text-sm text-sky-600 bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors"
-                               >
-                                   <Pencil className="w-4 h-4" />
-                                   Editar Comprobante
-                               </button>
                            </div>
 
                        </div>
                     ) : ( 
                         // --- EDIT FORM (Existing Layout) ---
-                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                             {/* --- COMPACT AMOUNT SECTION --- */}
-                            <div className="space-y-3">
-                                 {/* Expected Amount (Subtle/Secondary) */}
-                                <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800/50">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Monto Esperado:</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-bold text-slate-600 dark:text-slate-400 tabular-nums">
-                                            {expectedCurrency === 'CLP'
-                                                ? expectedAmount.toLocaleString('es-CL')
-                                                : expectedAmount.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            <span className="text-[10px] text-slate-400 font-mono ml-1">{expectedCurrency}</span>
-                                        </span>
-                                        {expectedCurrency !== 'CLP' && (
-                                            <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                                                ≈ {formatClp(Math.round(expectedAmountInClp))}
-                                            </span>
-                                        )}
+                         <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                            {/* --- DATE SECTION --- */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Vencimiento (Read-only display, tap to override) */}
+                                {effectiveDueDate && (
+                                    <div className="relative p-3 rounded-xl border transition-all bg-slate-50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-700/50">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                                Vencimiento
+                                            </label>
+                                            {isDueDateOverridden && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setIsDueDateOverridden(false);
+                                                        setDueDateOverride(''); // Native date inputs expect empty string to reset, not null
+                                                    }}
+                                                    className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                                    title="Restablecer vencimiento"
+                                                >
+                                                    Restablecer
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="relative flex items-center w-full">
+                                            <input
+                                                type="date"
+                                                value={dueDateOverride || effectiveDueDate}
+                                                onChange={(e) => {
+                                                    setDueDateOverride(e.target.value);
+                                                    setIsDueDateOverridden(true);
+                                                }}
+                                                className="bg-transparent text-base font-semibold text-slate-600 dark:text-slate-300 focus:outline-none cursor-pointer p-0 border-none transition-all w-full block pr-20 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-20 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer z-10"
+                                            />
+                                            <div className="absolute right-0 flex items-center gap-2 pointer-events-none z-0">
+                                                <CalendarClock className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                                                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium text-right min-w-[32px] uppercase">
+                                                    {getDayName(dueDateOverride || effectiveDueDate)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Fecha de Pago (Editable - Primary, highlighted) */}
+                                <div className="relative p-3 rounded-xl border transition-all duration-300 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/60 hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 focus-within:-translate-y-0.5 focus-within:shadow-md focus-within:ring-2 focus-within:ring-sky-500/50 focus-within:border-sky-500 shadow-sm">
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-1">
+                                        Fecha de Pago
+                                    </label>
+                                    <div className="relative flex items-center w-full">
+                                        <input
+                                            type="date"
+                                            value={paymentDate}
+                                            onChange={(e) => setPaymentDate(e.target.value)}
+                                            className="w-full bg-transparent text-lg font-bold text-slate-900 dark:text-white focus:outline-none cursor-pointer p-0 border-none transition-all block pr-20 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-20 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer z-10"
+                                        />
+                                        <div className="absolute right-0 flex items-center gap-2 pointer-events-none z-0">
+                                            <Calendar className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+                                            {paymentDate && (
+                                                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium text-right min-w-[32px] uppercase">
+                                                    {getDayName(paymentDate)}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
+                            </div>
 
-                                {/* Paid Amount (Prominent/Primary) */}
-                                 <div className="p-4 rounded-xl border transition-all bg-white dark:bg-slate-800 border-sky-200 dark:border-sky-700 ring-2 ring-sky-500/10 shadow-sm animate-in slide-in-from-bottom-2">
-                                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-                                        Monto Pagado
-                                    </label>
-                                    
-                                    <div className="flex items-baseline gap-1">
-                                         <input
+                            {/* Amount Input */}
+                            <div
+                                className="p-4 rounded-xl border transition-all duration-300 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/60 hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 focus-within:-translate-y-0.5 focus-within:shadow-md focus-within:ring-2 focus-within:ring-sky-500/50 focus-within:border-sky-500 shadow-sm"
+                            >    <label className="block text-[10px] sm:text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-3">
+                                    Monto Pagado
+                                </label>
+                                <div className="flex justify-end mb-2">
+                                    <div className="flex items-baseline gap-1.5">
+                                        <span className="text-sm sm:text-base font-mono font-medium text-slate-400 dark:text-slate-500 shrink-0">{amountCurrency}</span>
+                                        <input
                                             type="tel"
                                             value={amountCurrency === 'CLP' && amount ? Number(amount).toLocaleString('es-CL') : amount}
                                             onChange={(e) => {
@@ -670,123 +668,32 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                                 }
                                             }}
                                             placeholder={String(expectedAmount)}
-                                            className="w-full bg-transparent text-3xl font-black tabular-nums text-slate-900 dark:text-white placeholder-slate-300 focus:outline-none"
+                                            className="w-full bg-transparent text-2xl sm:text-3xl font-mono font-semibold tabular-nums text-slate-900 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 border-none outline-none shadow-none focus:outline-none focus:ring-0 transition-all caret-sky-400 selection:bg-sky-500/25 text-right p-0 m-0"
                                         />
                                     </div>
                                 </div>
-                            </div>
-
-                            {/* --- DATE SECTION --- */}
-                            <div className="grid grid-cols-1 gap-4">
-                                {/* Payment Date */}
-                                <div className="relative p-3 rounded-xl border transition-all bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-sky-300">
-                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                                        Fecha de Pago
-                                    </label>
-                                    
-                                     <div className="flex items-center gap-3">
-                                        <div className="p-2 rounded-lg bg-sky-50 dark:bg-sky-900/20 text-sky-500">
-                                            <Calendar className="w-5 h-5" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div onClick={() => datePickerRef.current?.setFocus()} className="cursor-pointer">
-                                                 <DatePicker
-                                                    ref={datePickerRef}
-                                                    selected={paymentDate ? new Date(paymentDate + 'T12:00:00') : new Date()}
-                                                    onChange={(date: Date | null) => {
-                                                        if (date) {
-                                                            const y = date.getFullYear();
-                                                            const m = String(date.getMonth() + 1).padStart(2, '0');
-                                                            const d = String(date.getDate()).padStart(2, '0');
-                                                            setPaymentDate(`${y}-${m}-${d}`);
-                                                        }
-                                                    }}
-                                                    dateFormat="dd/MM/yyyy"
-                                                    locale="es"
-                                                    shouldCloseOnSelect={true}
-                                                    placeholderText="Seleccionar fecha"
-                                                    className="w-full bg-transparent text-lg font-bold text-slate-900 dark:text-white focus:outline-none cursor-pointer p-0 border-none"
-                                                    wrapperClassName="w-full"
-                                                    popperClassName="z-[9999]"
-                                                    portalId="root"
-                                                />
-                                                {paymentDate && (
-                                                    <div className="text-xs text-slate-500 font-medium mt-0.5">
-                                                        ({getDayName(paymentDate)})
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
+                                <div className="flex items-center justify-end gap-1.5 text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
+                                    <span className="font-medium">Esperado:</span>
+                                    <span className="font-mono">{expectedCurrency}</span>
+                                    <span className="font-bold font-mono tabular-nums">
+                                        {expectedCurrency === 'CLP'
+                                            ? expectedAmount.toLocaleString('es-CL')
+                                            : expectedAmount.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                    {expectedCurrency !== 'CLP' && (
+                                        <span className="font-mono tabular-nums text-slate-400 dark:text-slate-500">
+                                            ≈ CLP {formatClp(Math.round(expectedAmountInClp))}
+                                        </span>
+                                    )}
                                 </div>
-
-                                 {/* Due Date (Secondary Info) */}
-                                {effectiveDueDate && (
-                                    <div className="p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <CalendarClock className="w-4 h-4 text-slate-400" />
-                                                <span className="text-xs font-bold text-slate-500">Vencimiento:</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                 <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                                    {formatDateShort(effectiveDueDate)} <span className="text-slate-400 font-normal">({getDayName(effectiveDueDate)})</span>
-                                                </span>
-                                                {!isDueDateOverridden && (
-                                                     <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setIsDueDateOverridden(true);
-                                                            setDueDateOverride(effectiveDueDate);
-                                                        }}
-                                                        className="ml-2 text-[10px] font-bold text-sky-600 hover:text-sky-500 uppercase"
-                                                    >
-                                                        Editar
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                        {isDueDateOverridden && (
-                                             <div className="mt-2 flex items-center gap-2 animate-in fade-in">
-                                                <div className="flex-1 bg-white dark:bg-slate-800 border border-sky-300 rounded-lg px-2">
-                                                    <DatePicker
-                                                        selected={dueDateOverride ? new Date(dueDateOverride + 'T12:00:00') : new Date()}
-                                                        onChange={(date: Date | null) => {
-                                                            if (date) {
-                                                                const y = date.getFullYear();
-                                                                const m = String(date.getMonth() + 1).padStart(2, '0');
-                                                                const d = String(date.getDate()).padStart(2, '0');
-                                                                setDueDateOverride(`${y}-${m}-${d}`);
-                                                            }
-                                                        }}
-                                                        dateFormat="dd/MM/yyyy"
-                                                        locale="es"
-                                                        className="w-full bg-transparent text-sm font-bold text-slate-900 dark:text-white focus:outline-none p-1"
-                                                    />
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setIsDueDateOverridden(false);
-                                                        setDueDateOverride(null);
-                                                    }}
-                                                    className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
-                                                >
-                                                    <XMarkIcon className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
 
-
-                            {/* Notes Field */}
-                            <div>
-                                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                            {/* Nota (Optional) */}
+                            <div className="p-4 rounded-xl border transition-all duration-300 bg-slate-50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-700/50 hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 focus-within:-translate-y-0.5 focus-within:shadow-md focus-within:ring-2 focus-within:ring-slate-500/50 focus-within:border-slate-500 mt-3">
+                                <label className="block text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
                                     <span className="flex items-center gap-1.5">
-                                        <FileText className="w-3.5 h-3.5" />
-                                        Nota (opcional)
+                                        <FileText className="w-3 h-3" />
+                                        Nota
                                     </span>
                                 </label>
                                 <textarea
@@ -794,47 +701,85 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                     onChange={(e) => setNotes(e.target.value.slice(0, 500))}
                                     placeholder="Agregar nota..."
                                     rows={2}
-                                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-none transition-all"
+                                    className="w-full mt-2 px-1 py-1 bg-transparent border-none text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 resize-none h-[60px]"
                                 />
                                 {notes.length > 0 && (
-                                    <p className="mt-1 text-xs text-slate-400 text-right">{notes.length}/500</p>
+                                    <p className="mt-0.5 text-[10px] text-slate-400 text-right tabular-nums">{notes.length}/500</p>
                                 )}
                             </div>
                         </div>
                     )}
                     
+                    {/* Danger Zone - Delete (only in edit mode) */}
+                    {isEditMode && existingPayment && (
+                        <button
+                            onClick={() => setShowDeleteConfirm(true)}
+                            className="w-full flex items-center justify-center gap-2 py-3 mt-6 rounded-xl text-sm font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 border border-slate-100 dark:border-slate-800/0 transition-colors"
+                        >
+                            <TrashIcon className="w-4 h-4" />
+                            Eliminar Registro
+                        </button>
+                    )}
+
                     {/* Extra space for scroll */}
-                    <div className="h-6"></div>
+                    <div className="h-2"></div>
                 </div>
 
-                {/* Footer - Sticky Actions */}
-                {isEditMode && (
-                    <div className="p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800 z-10 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                        {/* Confirm as Paid */}
+                {/* Footer - Sticky Actions (always visible) */}
+                <div className="p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800 z-10 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                    {isEditMode ? (
+                        <>
+                        {/* Paid/Pending toggle (only for new payments) */}
+                        {!isPaid && (
+                            <button
+                                type="button"
+                                onClick={() => setMarkAsPaid(!markAsPaid)}
+                                className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 transition-colors"
+                            >
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Marcar como pagado</span>
+                                <div className={`relative w-11 h-6 rounded-full transition-colors ${
+                                    markAsPaid ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
+                                }`}>
+                                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                                        markAsPaid ? 'translate-x-[22px]' : 'translate-x-0.5'
+                                    }`} />
+                                </div>
+                            </button>
+                        )}
+                        {/* Single adaptive CTA */}
                         <button
-                            onClick={handleConfirmPayment}
+                            onClick={markAsPaid || isPaid ? handleConfirmPayment : handleSavePending}
                             disabled={isLoading}
-                            className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50 disabled:scale-100"
+                            className={`w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold active:scale-[0.98] shadow-lg transition-all disabled:opacity-50 disabled:scale-100 ${
+                                markAsPaid || isPaid
+                                    ? 'text-white bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+                                    : 'text-white bg-slate-600 hover:bg-slate-500 dark:bg-slate-700 dark:hover:bg-slate-600 shadow-slate-600/20'
+                            }`}
                         >
                             {isLoading ? (
                                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
+                            ) : markAsPaid || isPaid ? (
                                 <CheckCircleIcon className="w-5 h-5" />
+                            ) : (
+                                <Save className="w-4 h-4" />
                             )}
-                            <span>{isPaid ? 'Actualizar Pago' : 'Confirmar Pago'}</span>
+                            <span>{
+                                isPaid ? 'Actualizar Pago' 
+                                : markAsPaid ? 'Confirmar Pago' 
+                                : 'Guardar Pendiente'
+                            }</span>
                         </button>
-                        
-                        {/* Save as Pending */}
-                        <button
-                            onClick={handleSavePending}
-                            disabled={isLoading}
-                            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 active:scale-[0.98] transition-all disabled:opacity-50"
+                        </>
+                    ) : (
+                        <button 
+                            onClick={() => setIsEditMode(true)}
+                            className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold text-sm text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-[0.98] transition-all"
                         >
-                            <Save className="w-4 h-4" />
-                            <span>Guardar como Pendiente</span>
+                            <Pencil className="w-4 h-4" />
+                            Editar Comprobante
                         </button>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
         </div>
     );

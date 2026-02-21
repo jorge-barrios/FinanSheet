@@ -161,8 +161,8 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
                 </div>
 
                 <div className="p-6 space-y-8">
-                    {/* Key Stats Grid - Premium Glass Style */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+{/* Key Stats Grid - Premium Glass Style */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         {/* Estado Card */}
                         <div className={`
                             relative overflow-hidden rounded-2xl p-4 border transition-all duration-300
@@ -185,10 +185,30 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
                             </div>
                         </div>
 
-                        {/* Monto Actual Card */}
-                        <div className="rounded-2xl p-4 border border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl shadow-sm">
-                            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">Monto Cuota</label>
-                            <div className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
+                        {/* Combined Next Payment & Amount Card */}
+                        <div className="rounded-2xl p-4 border border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl shadow-sm relative group">
+                            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">
+                                Próximo Vencimiento
+                            </label>
+                            
+                            {/* Date Row (Editable styling) */}
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className={`text-xl sm:text-2xl font-black tabular-nums tracking-tight
+                                    ${summary.estado === 'overdue' ? 'text-rose-500' : 'text-slate-900 dark:text-white'}
+                                `}>
+                                    {summary.nextPaymentDate 
+                                        ? new Date(summary.nextPaymentDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+                                        : '-'
+                                    }
+                                </div>
+                                {/* Edit Indicator */}
+                                <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-sky-500">
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+
+                            {/* Amount Row (Subtext) */}
+                             <div className="text-sm font-medium text-slate-500 dark:text-slate-400 tabular-nums">
                                 {formatClp(summary.perPeriodAmount ?? 0)}
                             </div>
                         </div>
@@ -198,16 +218,6 @@ export const CommitmentDetailModal: React.FC<CommitmentDetailModalProps> = ({
                             <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">Total Pagado</label>
                             <div className="text-lg sm:text-xl font-bold text-slate-700 dark:text-slate-300 tabular-nums tracking-tight">
                                 {formatClp(summary.totalPaid)}
-                            </div>
-                        </div>
-
-                        {/* Próximo Pago Card */}
-                        <div className="rounded-2xl p-4 border border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 backdrop-blur-xl shadow-sm">
-                            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">Próximo Pago</label>
-                            <div className={`text-lg sm:text-xl font-bold tabular-nums tracking-tight
-                                ${summary.estado === 'overdue' ? 'text-rose-500' : 'text-sky-600 dark:text-sky-400'}
-                            `}>
-                                {summary.nextPaymentDate ? new Date(summary.nextPaymentDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                             </div>
                         </div>
                     </div>
