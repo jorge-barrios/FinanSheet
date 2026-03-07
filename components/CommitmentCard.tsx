@@ -13,7 +13,7 @@ import { getCommitmentSummary, getCommitmentStatus, EstadoType, getInstallmentNu
 import { getCategoryIcon } from '../utils/categoryIcons';
 import { MoreVertical, Edit2, Pause, Play, Trash2, Eye } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { OnTimeMedalIcon } from './icons';
+
 
 interface CommitmentCardProps {
     commitment: CommitmentWithTerm;
@@ -59,16 +59,7 @@ interface CommitmentCardProps {
 
 
 
-// Estado badge colors
-const estadoBadgeStyles: Record<EstadoType, { bg: string; text: string; dot: string }> = {
-    overdue: { bg: 'bg-red-500/10', text: 'text-red-400', dot: 'bg-red-500' },
-    pending: { bg: 'bg-amber-500/10', text: 'text-amber-400', dot: 'bg-amber-500' },
-    ok: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', dot: 'bg-emerald-500' },
-    completed: { bg: 'bg-sky-500/10', text: 'text-sky-400', dot: 'bg-sky-500' },
-    paused: { bg: 'bg-slate-500/10', text: 'text-slate-400', dot: 'bg-slate-500' },
-    terminated: { bg: 'bg-slate-500/10', text: 'text-slate-400', dot: 'bg-slate-500' },
-    no_payments: { bg: 'bg-slate-500/10', text: 'text-slate-400', dot: 'bg-slate-500' },
-};
+// Estado badge colors context (removed)
 
 export function CommitmentCard({
     commitment,
@@ -100,176 +91,96 @@ export function CommitmentCard({
         ? (translateFrequency ? translateFrequency(activeTerm.frequency.toLowerCase()) : activeTerm.frequency)
         : '';
 
-    // Determine installment progress display
+    // Determine installment progress display - refined for the new badges
     const getPaymentProgress = () => {
-        // Mode MONTHLY + viewDate available -> Use Contextual Counter
         if (mode === 'monthly' && viewDate) {
             const viewYM = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
             const installmentInfo = getInstallmentNumber(commitment, payments, viewYM);
 
             if (installmentInfo) {
                 return (
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                        <span className="bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded text-[10px] tracking-wide uppercase">
-                            Cuota
-                        </span>
-                        <span>
-                            {installmentInfo.current} / {installmentInfo.totalLabel}
-                        </span>
+                    <div className="flex items-center gap-1.5 text-[0.65rem] text-slate-300 dark:text-slate-400 font-bold uppercase tracking-widest">
+                        <span className="opacity-70">Cuota</span>
+                        <span>{installmentInfo.current} / {installmentInfo.totalLabel}</span>
                     </div>
                 );
             }
         }
 
-        // Mode INVENTORY (or fallback) -> Use Global Progress
         if (summary.isInstallmentBased && summary.installmentsCount) {
             return (
-                <span className="text-xs font-mono text-[var(--dashboard-text-muted)]">
-                    {summary.paymentCount}/{summary.installmentsCount}
-                </span>
+                <div className="flex items-center gap-1.5 text-[0.65rem] text-slate-300 dark:text-slate-400 font-bold uppercase tracking-widest">
+                    <span className="opacity-70">Cuota</span>
+                    <span>{summary.paymentCount} / {summary.installmentsCount}</span>
+                </div>
             );
         }
 
-        // Final fallback: Frequency Label
         if (frequencyLabel) {
             return (
-                <span className="text-[10px] uppercase font-semibold tracking-wide text-[var(--dashboard-text-muted)]">
-                    {frequencyLabel}
-                </span>
+                <div className="flex items-center gap-1.5 text-[0.65rem] text-slate-300 dark:text-slate-400 font-bold uppercase tracking-widest">
+                    <svg className="w-3 h-3 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>{frequencyLabel}</span>
+                </div>
             );
         }
 
         return null;
     };
 
-    // Card variant based on estado
-    // ============================================================
-    // NEUTRAL CARD PHILOSOPHY (see DEVELOPMENT.md)
-    // Cards are ALWAYS neutral. Color expressed via:
-    // 1. Left accent bar (3px) for quick visual scanning
-    // 2. Ultra-subtle background tint ONLY for overdue items
-    // ============================================================
     const variant: BentoCardVariant = 'neutral';
 
-    // Determine left accent bar color based on financial state
     const getAccentColor = () => {
-        if (isInactive) return 'bg-slate-300 dark:bg-slate-600';
-
+        if (isInactive) return 'bg-slate-400 dark:bg-slate-600';
         if (mode === 'monthly' && monthlyInfo) {
             if (monthlyInfo.isPaid) return 'bg-emerald-500';
             if (monthlyInfo.daysOverdue && monthlyInfo.daysOverdue > 0) return 'bg-rose-500';
-            return 'bg-amber-400'; // pending
+            return 'bg-amber-400';
         }
-
-        // Inventory mode
         switch (summary.estado) {
             case 'overdue': return 'bg-rose-500';
             case 'pending': return 'bg-amber-400';
             case 'ok': return 'bg-emerald-500';
             case 'completed': return 'bg-sky-500';
-            default: return 'bg-slate-300 dark:bg-slate-600';
+            default: return 'bg-slate-400 dark:bg-slate-600';
         }
     };
 
-    // Determine if we need a subtle background tint (only for overdue)
-    const isOverdue = mode === 'monthly'
-        ? (monthlyInfo?.daysOverdue && monthlyInfo.daysOverdue > 0)
-        : summary.estado === 'overdue';
-
-    // Stronger overdue styling - consistent with desktop cells
-    const overdueClasses = isOverdue && !isInactive
-        ? 'bg-rose-100/50 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800'
-        : '';
-
-    // Remove legacy customClasses overrides
-    const customClasses = overdueClasses;
 
 
+    // Target visual overrides for the BentoCard container
+    const visualOverrides = '!backdrop-blur-none !bg-[var(--dashboard-surface)] dark:!bg-slate-800/40 !border-[var(--dashboard-border-subtle)] dark:!border-slate-700/30';
 
-    // Determine status labels based on mode
     const getStatusInfo = () => {
-        // 1. LIFECYCLE (Identity) - Sky Blue for Active
-        let lifecycle = { label: 'Inactivo', style: { bg: 'bg-slate-500/10', text: 'text-slate-500', dot: 'bg-slate-500' } };
-        const status = getCommitmentStatus(commitment); // ACTIVE, PAUSED, COMPLETED, INACTIVE
+        const status = getCommitmentStatus(commitment);
 
-        switch (status) {
-            case 'ACTIVE':
-                lifecycle = {
-                    label: 'Activo',
-                    style: { bg: 'bg-sky-500/10 dark:bg-sky-900/20', text: 'text-sky-600 dark:text-sky-400', dot: 'bg-sky-500' }
-                };
-                break;
-            case 'COMPLETED':
-                lifecycle = {
-                    label: 'Completado',
-                    style: { bg: 'bg-emerald-500/10 dark:bg-emerald-900/20', text: 'text-emerald-600 dark:text-emerald-400', dot: 'bg-emerald-500' }
-                };
-                break;
-            case 'INACTIVE':
-            default:
-                lifecycle = {
-                    label: 'Pausado',
-                    style: { bg: 'bg-slate-500/10 dark:bg-slate-800', text: 'text-slate-500 dark:text-slate-400', dot: 'bg-slate-500' }
-                };
-                break;
-        }
-
-        // 2. FINANCIAL (Alerts) - Red/Amber text for issues
         let financial = null;
 
         if (mode === 'monthly' && monthlyInfo) {
             if (monthlyInfo.daysOverdue && monthlyInfo.daysOverdue > 0) {
-                financial = {
-                    label: 'Vencido',
-                    detail: `hace ${monthlyInfo.daysOverdue}d`,
-                    style: { ...estadoBadgeStyles['overdue'], bg: 'bg-transparent', text: 'text-rose-600 dark:text-rose-400' }
-                };
+                financial = { label: 'Vencido', detail: `hace ${monthlyInfo.daysOverdue}d`, style: { bg: 'bg-transparent', text: 'text-rose-600 dark:text-rose-400' } };
             } else if (!monthlyInfo.isPaid) {
-                financial = {
-                    label: 'Pendiente',
-                    detail: monthlyInfo.dueDate || '',
-                    style: { ...estadoBadgeStyles['pending'], bg: 'bg-transparent', text: 'text-amber-600 dark:text-amber-400' }
-                };
+                financial = { label: 'Pendiente', detail: monthlyInfo.dueDate || '', style: { bg: 'bg-transparent', text: 'text-amber-600 dark:text-amber-400' } };
             } else {
-                financial = {
-                    label: monthlyInfo.paidOnTime ? 'A tiempo' : 'Pagado',
-                    detail: monthlyInfo.paymentDate || '',
-                    style: { ...estadoBadgeStyles['ok'], bg: 'bg-transparent', text: monthlyInfo.paidOnTime ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' },
-                    icon: monthlyInfo.paidOnTime ? <OnTimeMedalIcon className="w-4 h-4" strokeWidth={2} /> : undefined
-                };
+                financial = { label: monthlyInfo.paidOnTime ? 'A tiempo' : 'Pagado', detail: monthlyInfo.paymentDate || '', style: { bg: 'bg-transparent', text: monthlyInfo.paidOnTime ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' } };
             }
         } else {
-            // Inventory Logic
             if (summary.estado === 'overdue') {
-                financial = {
-                    label: 'Vencido',
-                    detail: summary.estadoDetail,
-                    style: { ...estadoBadgeStyles['overdue'], bg: 'bg-transparent', text: 'text-rose-600 dark:text-rose-400' }
-                };
+                financial = { label: 'Vencido', detail: summary.estadoDetail, style: { bg: 'bg-transparent', text: 'text-rose-600 dark:text-rose-400' } };
             } else if (summary.estado === 'pending') {
-                // For pending, show next payment date if available (more useful than generic "Pendiente")
-                const pendingDetail = summary.nextPaymentDate
-                    ? `Vence ${summary.nextPaymentDate.getDate()} ${['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][summary.nextPaymentDate.getMonth()]}`
-                    : summary.estadoDetail;
-                financial = {
-                    label: 'Pendiente',
-                    detail: pendingDetail,
-                    style: { ...estadoBadgeStyles['pending'], bg: 'bg-transparent', text: 'text-amber-600 dark:text-amber-400' }
-                };
+                const pendingDetail = summary.nextPaymentDate ? `Vence ${summary.nextPaymentDate.getDate()} ${['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][summary.nextPaymentDate.getMonth()]}` : summary.estadoDetail;
+                financial = { label: 'Pendiente', detail: pendingDetail, style: { bg: 'bg-transparent', text: 'text-amber-600 dark:text-amber-400' } };
             } else if (summary.estado === 'ok' && status === 'ACTIVE') {
-                financial = {
-                    label: summary.paidOnTime ? 'A tiempo' : 'Al día',
-                    detail: '',
-                    style: { ...estadoBadgeStyles['ok'], bg: 'bg-transparent', text: summary.paidOnTime ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' },
-                    icon: summary.paidOnTime ? <OnTimeMedalIcon className="w-4 h-4" strokeWidth={2} /> : undefined
-                };
+                financial = { label: summary.paidOnTime ? 'A tiempo' : 'Al día', detail: '', style: { bg: 'bg-transparent', text: summary.paidOnTime ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' } };
             }
         }
 
-        return { lifecycle, financial };
+        return { financial };
     };
 
-    const { lifecycle, financial } = getStatusInfo();
+    const { financial } = getStatusInfo();
     const CategoryIconComponent = getCategoryIcon(commitment.category?.name || categoryName || '');
 
     return (
@@ -278,28 +189,28 @@ export function CommitmentCard({
             interactive
             compact
             onClick={onClick}
-            className={`relative overflow-hidden ${customClasses} ${isInactive ? 'opacity-60 grayscale' : ''}`}
+            className={`relative overflow-hidden ${visualOverrides} ${isInactive ? 'opacity-60 grayscale' : ''}`}
         >
-            {/* Bottom Accent Bar - Status Indicator */}
-            <div className={`absolute left-0 right-0 bottom-0 h-1 rounded-b-xl ${getAccentColor()}`} />
+            {/* Lateral Left Accent Bar */}
+            <div className={`absolute left-0 top-3 bottom-3 w-1.5 rounded-r-md ${getAccentColor()}`} />
 
-            <div className="flex flex-col gap-1 pb-1">
-                {/* Zone 1 & 0 (Merged): Header Row: Icon + Name + Lifecycle Badge + Actions */}
+            <div className="pl-3 pb-1">
+                {/* Protocol 1: Header (Avatar + Title + Actions) */}
                 <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
                         {/* Avatar */}
                         <div className={`
-                            w-8 h-8 rounded-lg flex items-center justify-center
-                            shrink-0 bg-slate-100 dark:bg-slate-800
-                            border border-slate-200 dark:border-slate-700
+                            w-9 h-9 rounded-[10px] flex items-center justify-center
+                            shrink-0 bg-slate-200/50 dark:bg-slate-900/40
+                            border border-slate-300/50 dark:border-slate-700/50
                             ${commitment.flow_type === 'INCOME'
                                 ? 'text-emerald-600 dark:text-emerald-400'
                                 : 'text-rose-600 dark:text-rose-400'}
                         `}>
-                            <CategoryIconComponent className="w-4 h-4 opacity-90" />
+                            <CategoryIconComponent className="w-[18px] h-[18px] opacity-90" />
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2 min-w-0">
+                        <div className="flex flex-col min-w-0">
                             {/* Name */}
                             <h3 className={`
                                 font-bold text-base text-[var(--dashboard-text-primary)]
@@ -308,13 +219,6 @@ export function CommitmentCard({
                             `}>
                                 {commitment.name}
                             </h3>
-                            {/* Lifecycle Badge */}
-                            <span className={`
-                                inline-flex items-center text-[0.6rem] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider
-                                ${lifecycle.style.bg} ${lifecycle.style.text}
-                            `}>
-                                {lifecycle.label}
-                            </span>
                         </div>
                     </div>
 
@@ -370,46 +274,48 @@ export function CommitmentCard({
                     )}
                 </div>
 
-                {/* Zone 2: Category + Progress */}
-                <div className="flex items-center justify-between mt-0.5 ml-10">
+                {/* Protocol 2: Badges Column */}
+                <div className="flex flex-col gap-1.5 mt-2.5">
                     {/* Category Badge */}
-                    <div className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[0.65rem] uppercase tracking-widest font-bold bg-[var(--dashboard-surface-hover)] border border-[var(--dashboard-border-subtle)] text-[var(--dashboard-text-muted)]">
-                        <CategoryIconComponent className="w-3 h-3 opacity-60" />
-                        {categoryName || 'General'}
+                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-200/50 dark:bg-[#1a1f2c]/80 border border-slate-300/30 dark:border-white/5 w-fit">
+                        <CategoryIconComponent className="w-3 h-3 text-slate-500 dark:text-slate-400" />
+                        <span className="text-[0.65rem] uppercase tracking-widest font-bold text-slate-600 dark:text-slate-300">
+                            {categoryName || 'General'}
+                        </span>
                     </div>
 
-                    {/* Zone 0 (Relocated): Payment Progress / Frequency */}
-                    <div className="shrink-0">
-                        {getPaymentProgress()}
-                    </div>
+                    {/* Progress / Frequency Badge */}
+                    {getPaymentProgress() && (
+                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-200/50 dark:bg-[#1a1f2c]/80 border border-slate-300/30 dark:border-white/5 w-fit">
+                            {getPaymentProgress()}
+                        </div>
+                    )}
                 </div>
 
-                {/* Zone 4 & 5: Footer Row (Status Indicators + Amounts) */}
-                <div className="mt-3 pt-2 border-t border-[var(--dashboard-border-subtle)] flex items-end justify-between">
-                    {/* Left: Status & Date Info */}
+                {/* Protocol 3: Footer (Status & Amount) */}
+                <div className="mt-2.5 pt-2 flex items-end justify-between">
+                    {/* Status Text (Left) */}
                     <div className="flex flex-col gap-0.5">
                         {financial ? (
-                            <div className={`flex items-center gap-1 font-semibold text-xs ${financial.style.text}`}>
-                                {financial.icon && <span className="mr-0.5">{financial.icon}</span>}
+                            <span className={`font-semibold text-xs ${financial.style.text}`}>
                                 {financial.label}
-                            </div>
+                                {financial.detail && <span className="text-[var(--dashboard-text-muted)] ml-1 font-medium">{financial.detail}</span>}
+                            </span>
                         ) : (
                             isInactive ? <span className="text-xs font-semibold text-[var(--dashboard-text-muted)]">Sin deuda</span> : <span />
                         )}
-                        
-                        {(financial?.detail || (mode === 'inventory' && (summary.nextPaymentDate || summary.lastPayment))) && (
+                        {mode === 'inventory' && !isInactive && summary.nextPaymentDate && (
                             <span className="text-[0.65rem] font-medium text-[var(--dashboard-text-muted)]">
-                                {financial?.detail || (mode === 'inventory' && !isInactive && summary.nextPaymentDate && `Vence: ${summary.nextPaymentDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`)}
-                                {mode === 'inventory' && isInactive && summary.lastPayment && `Último: ${new Date(summary.lastPayment.payment_date || summary.lastPayment.period_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`}
+                                Vence: {summary.nextPaymentDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
                             </span>
                         )}
                     </div>
 
-                    {/* Right: Amount Stack */}
+                    {/* Amount Block (Right) */}
                     <div className="flex flex-col items-end">
-                        {/* Secondary Currency (UF/USD) */}
+                        {/* Secondary Currency */}
                         {activeTerm?.currency_original && activeTerm.currency_original !== 'CLP' && activeTerm.amount_original !== null && (
-                            <div className="flex items-baseline gap-1 text-[0.65rem] text-[var(--dashboard-text-secondary)]">
+                            <div className="flex items-baseline gap-1 text-[0.65rem] text-[var(--dashboard-text-secondary)] mb-0.5">
                                 <span className="font-semibold uppercase">{activeTerm.currency_original}</span>
                                 <span className="font-mono tabular-nums">
                                     {activeTerm.amount_original.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -422,7 +328,7 @@ export function CommitmentCard({
                             <span className="text-[0.65rem] font-bold text-[var(--dashboard-text-muted)] uppercase">
                                 CLP
                             </span>
-                            <span className="text-lg font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)]">
+                            <span className="text-xl font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)] leading-none">
                                 {mode === 'monthly' && monthlyInfo?.isPaid && monthlyInfo.paidAmount !== undefined
                                     ? formatAmount(monthlyInfo.paidAmount)
                                     : summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
@@ -430,7 +336,6 @@ export function CommitmentCard({
                         </div>
                     </div>
                 </div>
-
             </div>
         </BentoCard>
     );
