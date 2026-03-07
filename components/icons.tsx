@@ -53,6 +53,15 @@ export const ChevronDownIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) 
     </svg>
 );
 
+export const OnTimeMedalIcon: React.FC<IconProps & { strokeWidth?: number }> = ({ className = "w-6 h-6", strokeWidth = 1.5 }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M8.5 8.94 L6.5 2 L12 5 L17.5 2 L15.5 8.94" />
+        <circle cx="12" cy="15" r="7" />
+        <circle cx="12" cy="15" r="4.5" />
+        <path d="M10 15l1.5 1.5 2.5-2.5" />
+    </svg>
+);
+
 export const EyeIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />

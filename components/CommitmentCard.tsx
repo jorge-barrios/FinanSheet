@@ -6,6 +6,7 @@
  * Shared between InventoryView and ExpenseGrid.
  */
 
+import React from 'react';
 import { BentoCard, BentoCardVariant } from './BentoCard';
 import { CommitmentWithTerm, Payment } from '../types.v2';
 // useLocalization removed
@@ -13,6 +14,7 @@ import { getCommitmentSummary, getCommitmentStatus, EstadoType, getInstallmentNu
 import { getCategoryIcon } from '../utils/categoryIcons';
 import { MoreVertical, Edit2, Pause, Play, Trash2, Eye } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { OnTimeMedalIcon } from './icons';
 
 interface CommitmentCardProps {
     commitment: CommitmentWithTerm;
@@ -39,6 +41,7 @@ interface CommitmentCardProps {
         paymentDate?: string;
         dueDate?: string;
         daysOverdue?: number;
+        paidOnTime?: boolean;
     };
     /** Translation function for frequency */
     translateFrequency?: (freq: string) => string;
@@ -228,9 +231,10 @@ export function CommitmentCard({
                 };
             } else {
                 financial = {
-                    label: 'Pagado',
+                    label: monthlyInfo.paidOnTime ? 'A tiempo' : 'Pagado',
                     detail: monthlyInfo.paymentDate || '',
-                    style: { ...estadoBadgeStyles['ok'], bg: 'bg-transparent', text: 'text-emerald-600 dark:text-emerald-400' }
+                    style: { ...estadoBadgeStyles['ok'], bg: 'bg-transparent', text: monthlyInfo.paidOnTime ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' },
+                    icon: monthlyInfo.paidOnTime ? <OnTimeMedalIcon className="w-4 h-4" strokeWidth={2} /> : undefined
                 };
             }
         } else {
@@ -253,9 +257,10 @@ export function CommitmentCard({
                 };
             } else if (summary.estado === 'ok' && status === 'ACTIVE') {
                 financial = {
-                    label: 'Al día',
+                    label: summary.paidOnTime ? 'A tiempo' : 'Al día',
                     detail: '',
-                    style: { ...estadoBadgeStyles['ok'], bg: 'bg-transparent', text: 'text-emerald-600 dark:text-emerald-400' }
+                    style: { ...estadoBadgeStyles['ok'], bg: 'bg-transparent', text: summary.paidOnTime ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' },
+                    icon: summary.paidOnTime ? <OnTimeMedalIcon className="w-4 h-4" strokeWidth={2} /> : undefined
                 };
             }
         }

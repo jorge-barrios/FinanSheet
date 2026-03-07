@@ -19,7 +19,7 @@ import { getPerPeriodAmount } from '../utils/financialUtils.v2';
 import { findTermForPeriod } from '../utils/termUtils';
 import { FlowType } from '../types.v2';
 import type { CommitmentWithTerm, Payment, PaymentFormData, Term } from '../types.v2';
-import { XMarkIcon, CheckCircleIcon, TrashIcon, ExclamationTriangleIcon } from './icons';
+import { XMarkIcon, CheckCircleIcon, TrashIcon, ExclamationTriangleIcon, OnTimeMedalIcon } from './icons';
 import { Calendar, Wallet, FileText, Save, CalendarClock, Pencil } from 'lucide-react';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
@@ -28,6 +28,8 @@ import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { useCommitmentValue } from '../hooks/useCommitmentValue';
 
 registerLocale('es', es);
+
+
 
 // =============================================================================
 // TYPES
@@ -504,26 +506,43 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                        // --- RECEIPT VIEW (Read-Only) ---
                        <div className="space-y-6 py-4 animate-in fade-in duration-300">
                            
-                           {/* 1. Hero Card */}
-                           <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 p-6 text-center space-y-3">
-                               {/* Period */}
-                               <div className="text-sm sm:text-base font-bold text-slate-500 dark:text-slate-400 tracking-wide">{monthNames[month]} {year}</div>
-                               {/* Success icon */}
-                               <CheckCircleIcon className="w-10 h-10 sm:w-12 sm:h-12 text-emerald-500 dark:text-emerald-400 mx-auto" />
-                               {/* Amount */}
-                               <div className="text-3xl sm:text-4xl font-mono font-bold tabular-nums text-slate-900 dark:text-white tracking-tight">
-                                   <span className="text-base sm:text-lg font-mono font-medium text-slate-400 mr-1.5">{amountCurrency}</span>
-                                   {amountCurrency === 'CLP' 
-                                       ? Number(amount).toLocaleString('es-CL') 
-                                       : Number(amount).toLocaleString('es-CL', { minimumFractionDigits: 2 })}
+                           {/* 1. Hero Card - Asymmetrical Horizontal Layout */}
+                           <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 p-5 sm:p-6 flex items-center justify-between gap-4 sm:gap-6">
+                               {/* Left: Huge Status Icon (Outlined) - Conditional Medal for On-Time */}
+                               <div className={`flex-shrink-0 flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 ${
+                                   (daysDiff !== null && daysDiff >= 0) 
+                                       ? 'text-amber-500 dark:text-amber-400' 
+                                       : 'text-emerald-500 dark:text-emerald-400'
+                               }`}>
+                                   {(daysDiff !== null && daysDiff >= 0) ? (
+                                       <OnTimeMedalIcon className="w-14 h-14 sm:w-16 sm:h-16" strokeWidth={1} />
+                                   ) : (
+                                       <CheckCircleIcon className="w-14 h-14 sm:w-16 sm:h-16" strokeWidth={1} />
+                                   )}
                                </div>
-                               {/* Achievement indicator */}
-                               {daysDiff !== null && (
-                                   <div className={`flex items-center justify-center gap-1.5 text-xs sm:text-sm font-semibold ${daysDiffColorClass}`}>
-                                       <span>●</span>
-                                       <span>{getDaysDiffText(daysDiff)}</span>
+                               
+                               {/* Right: Data Stack */}
+                               <div className="flex flex-col items-end text-right flex-1 min-w-0 space-y-1">
+                                   {/* Period */}
+                                   <div className="text-sm font-medium tracking-wide text-slate-600 dark:text-slate-300 capitalize">
+                                       {monthNames[month]} {year}
                                    </div>
-                               )}
+                                   
+                                   {/* Amount */}
+                                   <div className="text-3xl sm:text-4xl font-mono font-bold tabular-nums text-slate-900 dark:text-white tracking-tight leading-none">
+                                       <span className="text-base sm:text-lg font-mono font-medium text-slate-400 mr-1.5">{amountCurrency}</span>
+                                       {amountCurrency === 'CLP' 
+                                           ? Number(amount).toLocaleString('es-CL') 
+                                           : Number(amount).toLocaleString('es-CL', { minimumFractionDigits: 2 })}
+                                   </div>
+
+                                   {/* Achievement indicator */}
+                                   {daysDiff !== null && (
+                                       <div className={`flex items-center justify-end gap-1.5 text-xs sm:text-sm font-semibold mt-1 ${daysDiffColorClass}`}>
+                                           <span>{getDaysDiffText(daysDiff)}</span>
+                                       </div>
+                                   )}
+                               </div>
                            </div>
 
                            {/* 2. Detail Card */}

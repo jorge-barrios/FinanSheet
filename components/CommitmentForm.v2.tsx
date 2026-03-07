@@ -10,12 +10,7 @@ import '../styles/commitmentFormAnimations.css';
 import { useLocalization } from '../hooks/useLocalization';
 import { useCurrency } from '../hooks/useCurrency';
 import { ArrowTrendingDownIcon, ArrowTrendingUpIcon, StarIcon } from './icons';
-import { Infinity, CalendarCheck, Hash, ChevronDown, Link as LinkIcon } from 'lucide-react';
-import DatePicker, { registerLocale } from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
-import { es } from 'date-fns/locale/es';
-
-registerLocale('es', es);
+import { Infinity, CalendarCheck, Hash, ChevronDown, Link as LinkIcon, Calendar, CalendarClock, FileText } from 'lucide-react';
 import {
     FlowType,
     Frequency,
@@ -50,9 +45,7 @@ interface CommitmentFormV2Props {
     onPaymentClick?: (commitment: CommitmentWithTerm, periodDate: string) => void;
 }
 
-const formInputClasses = "w-full h-[36px] bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-500 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500";
-const formLabelClasses = "block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider";
-const formSelectClasses = `${formInputClasses} appearance-none cursor-pointer pr-10`;
+// Estilos base eliminados en favor del nuevo diseño "Lifted Card"
 
 export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     isOpen,
@@ -71,6 +64,20 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     const { fromUnit, convertAmount } = useCurrency();
     // Use local date (not UTC) to avoid timezone issues
     const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
+
+    // Date formatting utilities for native inputs
+    const formatDateShort = (dateString: string) => {
+        if (!dateString) return '';
+        const [year, month, day] = dateString.split('-');
+        return `${day}/${month}/${year}`;
+    };
+
+    const getDayName = (dateString: string) => {
+        if (!dateString) return '';
+        const [year, month, day] = dateString.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString('es-CL', { weekday: 'short' });
+    };
 
     // Commitment fields
     const [name, setName] = useState('');
@@ -1000,30 +1007,41 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
 
                             {/* Card: Basic Info */}
                             <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div>
-                                    <label className={formLabelClasses}>{t('form.name', 'Nombre')}</label>
-                                    <input
-                                        type="text"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        className={`${formInputClasses} ${shakeField === 'name' ? 'animate-shake' : ''}`}
-                                        placeholder="Ej: Netflix, Arriendo..."
-                                        required
-                                    />
+                                {/* Nombre */}
+                                <div className={`p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group ${shakeField === 'name' ? 'animate-shake ring-2 ring-rose-500' : ''}`}>
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
+                                        {t('form.name', 'Nombre')}
+                                    </label>
+                                    <div className="relative flex items-center">
+                                        <input
+                                            type="text"
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0"
+                                            placeholder="Ej: Netflix, Arriendo..."
+                                            required
+                                            autoFocus={!commitmentToEdit}
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className={formLabelClasses}>{t('form.category', 'Categoría')}</label>
-                                    <div className="relative">
+
+                                {/* Categoría */}
+                                <div className={`p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group ${shakeField === 'category' ? 'animate-shake ring-2 ring-rose-500' : ''}`}>
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
+                                        {t('form.category', 'Categoría')}
+                                    </label>
+                                    <div className="relative flex items-center">
                                         <select
                                             value={categoryId || ''}
                                             onChange={(e) => setCategoryId(e.target.value || null)}
-                                            className={formSelectClasses}
+                                            className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none appearance-none cursor-pointer border-none p-0 pr-6"
                                         >
+                                            <option value="">{t('common.selectCategory', 'Sin Categoría')}</option>
                                             {categories.map((cat) => (
                                                 <option key={cat.id} value={cat.id}>{cat.name}</option>
                                             ))}
                                         </select>
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 z-10">
                                             <ChevronDown className="w-4 h-4" />
                                         </div>
                                     </div>
@@ -1052,13 +1070,16 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                     <CalendarCheck className={`w-4 h-4 ${themeClasses.text}`} />
                                     <h3 className="text-[11px] font-extrabold uppercase text-slate-400">Tiempo</h3>
                                 </div>
-                                <div>
-                                    <label className={formLabelClasses}>{t('form.frequency', 'Frecuencia')}</label>
-                                    <div className="relative">
+                                {/* Frecuencia */}
+                                <div className={`p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group`}>
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
+                                        {t('form.frequency', 'Frecuencia')}
+                                    </label>
+                                    <div className="relative flex items-center">
                                         <select
                                             value={frequency}
                                             onChange={(e) => setFrequency(e.target.value as Frequency)}
-                                            className={formSelectClasses}
+                                            className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none appearance-none cursor-pointer border-none p-0 pr-6"
                                         >
                                             <option value="MONTHLY">{t('frequency.monthly', 'Mensual')}</option>
                                             <option value="ONCE">{t('frequency.once', 'Una vez')}</option>
@@ -1066,86 +1087,40 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                             <option value="QUARTERLY">{t('frequency.quarterly', 'Trimestral')}</option>
                                             <option value="ANNUALLY">{t('frequency.annually', 'Anual')}</option>
                                         </select>
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 z-10">
                                             <ChevronDown className="w-4 h-4" />
                                         </div>
                                     </div>
                                 </div>
 
-                                <label className={formLabelClasses}>Primer Pago</label>
-                                <div className="relative">
-                                    {/* Mobile Native Picker */}
-                                    <input
-                                        type="date"
-                                        value={startDate}
-                                        onChange={(e) => {
-                                            const newDate = e.target.value;
-                                            if (newDate) {
-                                                setStartDate(newDate);
-                                                // Update dueDay from the selected date
-                                                const day = parseInt(newDate.split('-')[2]);
-                                                setDueDay(String(day));
-                                            }
-                                        }}
-                                        className={`${formInputClasses} md:hidden block w-full`}
-                                        required
-                                    />
-                                    {/* Desktop Custom Picker */}
-                                    <div className="hidden md:block">
-                                        <DatePicker
-                                            selected={startDate ? new Date(startDate + 'T12:00:00') : new Date()}
-                                            onChange={(date: Date | null) => {
-                                                if (date) {
-                                                    // Construct YYYY-MM-DD manually to avoid timezone issues
-                                                    const year = date.getFullYear();
-                                                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                                                    const day = String(date.getDate()).padStart(2, '0');
-                                                    const newDate = `${year}-${month}-${day}`;
-
+                                {/* Primer Pago */}
+                                <div className={`p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group ${shakeField === 'startDate' ? 'animate-shake ring-2 ring-rose-500' : ''}`}>
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
+                                        Primer Pago
+                                    </label>
+                                    <div className="relative flex items-center w-full">
+                                        <input
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => {
+                                                const newDate = e.target.value;
+                                                if (newDate) {
                                                     setStartDate(newDate);
-                                                    // Update dueDay from the selected date (use local date)
-                                                    setDueDay(String(date.getDate()));
+                                                    const day = parseInt(newDate.split('-')[2]);
+                                                    setDueDay(String(day));
                                                 }
                                             }}
-                                            dateFormat="dd/MM/yyyy"
-                                            locale="es"
-                                            shouldCloseOnSelect={true}
-                                            strictParsing
-                                            placeholderText="dd/mm/aaaa"
-                                            onKeyDown={(e) => {
-                                                // 1. Allow standard navigation/editing keys
-                                                const navKeys = ['Backspace', 'Delete', 'Tab', 'Enter', 'Escape', '/'];
-                                                if (navKeys.includes(e.key)) {
-                                                    return;
-                                                }
-
-                                                // 2. Allow Arrow Keys for cursor navigation (default behavior)
-                                                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                                                    return;
-                                                }
-
-                                                // 3. Block non-digits and enforce length 10
-                                                if (!/^\d$/.test(e.key)) {
-                                                    e.preventDefault();
-                                                    return;
-                                                }
-
-                                                // Manual maxLength check
-                                                const input = e.target as HTMLInputElement;
-                                                if (input.value.length >= 10) {
-                                                    const selection = window.getSelection();
-                                                    if (!selection || selection.toString().length === 0) {
-                                                        e.preventDefault();
-                                                    }
-                                                }
-                                            }}
-                                            className={formInputClasses}
-                                            wrapperClassName="w-full"
-                                            popperClassName="z-[9999]"
-                                            portalId="root"
-                                            autoFocus={false}
                                             required
+                                            className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none cursor-pointer p-0 border-none transition-all block pr-20 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-20 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer z-10"
                                         />
+                                        <div className="absolute right-0 flex items-center gap-2 pointer-events-none z-0">
+                                            <CalendarClock className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+                                            {startDate && (
+                                                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium text-right min-w-[32px] uppercase">
+                                                    {getDayName(startDate)}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1196,65 +1171,54 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                     {durationType !== 'recurring' && (
                                         <div className="pt-1 flex flex-col gap-2">
                                             <div className="flex items-center gap-2">
-                                                <div className="relative flex-1">
-                                                    <input
-                                                        type="number"
-                                                        value={installments}
-                                                        onChange={(e) => {
-                                                            setInstallments(e.target.value);
-                                                            setLastEditedField('installments');
-                                                        }}
-                                                        className={`${formInputClasses} !h-[40px] ${shakeField === 'installments' ? 'animate-shake' : ''}`}
-                                                        placeholder={durationType === 'endsOn' ? "N° Ocurrencias" : "N° de Cuotas"}
-                                                        min="1"
-                                                        autoFocus
-                                                    />
-                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold uppercase pointer-events-none">
-                                                        {durationType === 'endsOn' ? 'VECES' : 'CUOTAS'}
-                                                    </span>
+                                                <div className={`flex-1 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group ${shakeField === 'installments' ? 'animate-shake ring-2 ring-rose-500' : ''}`}>
+                                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
+                                                        {durationType === 'endsOn' ? "N° Ocurrencias" : "N° de Cuotas"}
+                                                    </label>
+                                                    <div className="relative flex items-center">
+                                                        <input
+                                                            type="number"
+                                                            value={installments}
+                                                            onChange={(e) => {
+                                                                setInstallments(e.target.value);
+                                                                setLastEditedField('installments');
+                                                            }}
+                                                            className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0 pr-16"
+                                                            placeholder="Ej: 12"
+                                                            min="1"
+                                                            autoFocus
+                                                        />
+                                                        <span className="absolute right-0 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold uppercase pointer-events-none z-10">
+                                                            {durationType === 'endsOn' ? 'VECES' : 'CUOTAS'}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
 
                                             {/* End Date Picker - Show ONLY for 'endsOn' mode (Defined Date) */}
                                             {durationType === 'endsOn' && (
-                                                <div className="relative">
-                                                    {/* Mobile Native Picker */}
-                                                    <input
-                                                        type="date"
-                                                        value={endDate}
-                                                        onChange={(e) => {
-                                                            setEndDate(e.target.value);
-                                                            setLastEditedField('endDate');
-                                                        }}
-                                                        className={`${formInputClasses} !h-[40px] md:hidden block text-sm font-bold text-sky-600 w-full`}
-                                                    />
-                                                    {/* Desktop Custom Picker */}
-                                                    <div className="hidden md:block">
-                                                        <DatePicker
-                                                            selected={endDate ? new Date(endDate + 'T12:00:00') : null}
-                                                            onChange={(date: Date | null) => {
-                                                                if (date) {
-                                                                    const year = date.getFullYear();
-                                                                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                                                                    const day = String(date.getDate()).padStart(2, '0');
-                                                                    const newDate = `${year}-${month}-${day}`;
-                                                                    setEndDate(newDate);
-                                                                    setLastEditedField('endDate');
-                                                                } else {
-                                                                    setEndDate('');
-                                                                    setLastEditedField('endDate');
-                                                                }
+                                                <div className={`p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group ${shakeField === 'endDate' ? 'animate-shake ring-2 ring-rose-500' : ''}`}>
+                                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
+                                                        Fecha Término
+                                                    </label>
+                                                    <div className="relative flex items-center w-full">
+                                                        <input
+                                                            type="date"
+                                                            value={endDate}
+                                                            onChange={(e) => {
+                                                                setEndDate(e.target.value);
+                                                                setLastEditedField('endDate');
                                                             }}
-                                                            dateFormat="dd/MM/yyyy"
-                                                            locale="es"
-                                                            shouldCloseOnSelect={true}
-                                                            strictParsing
-                                                            placeholderText="Fecha Término"
-                                                            className={`${formInputClasses} !h-[40px] text-sm font-bold text-sky-600`}
-                                                            wrapperClassName="w-full"
-                                                            popperClassName="z-[9999]"
-                                                            portalId="root"
+                                                            className="w-full bg-transparent text-sky-600 dark:text-sky-400 font-bold focus:outline-none cursor-pointer p-0 border-none transition-all block pr-20 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-20 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer z-10"
                                                         />
+                                                        <div className="absolute right-0 flex items-center gap-2 pointer-events-none z-0">
+                                                            <CalendarClock className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+                                                            {endDate && (
+                                                                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium text-right min-w-[32px] uppercase">
+                                                                    {getDayName(endDate)}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
@@ -1274,25 +1238,24 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                             {/* Row 4: Link & Notes */}
                             <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {/* Link Commitment Selector */}
-                                <div>
-                                    <label className={formLabelClasses}>
-                                        {t('form.linkTo', 'Compensar con')} <span className="text-slate-300 font-normal normal-case">(Opcional)</span>
+                                {/* Link Commitment Selector */}
+                                <div className={`flex flex-col p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm focus-within:ring-2 focus-within:ring-slate-400 focus-within:border-slate-400 transition-all group`}>
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-slate-700 dark:group-focus-within:text-slate-300 transition-colors">
+                                        {t('form.linkTo', 'Compensar con')} <span className="text-slate-400 font-normal lowercase">(opcional)</span>
                                     </label>
-                                    <div className="relative">
+                                    <div className="relative flex items-center">
                                         <select
                                             value={linkedCommitmentId || ''}
                                             onChange={(e) => setLinkedCommitmentId(e.target.value || null)}
-                                            className={`${formSelectClasses} ${linkedCommitmentId ? 'font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/10' : ''}`}
+                                            className={`w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none appearance-none cursor-pointer border-none p-0 pr-6 ${linkedCommitmentId && linkedCommitmentId !== '__UNLINK__' ? 'text-sky-600 dark:text-sky-400 font-bold' : ''}`}
                                         >
                                             <option value="">{t('form.noLink', 'Sin compensación')}</option>
-
                                             {/* Opción para desvincular explícitamente si ya venía vinculado de BD */}
                                             {commitmentToEdit?.linked_commitment_id && (
                                                 <option value="__UNLINK__" className="text-rose-500 font-bold">
                                                     -- Desvincular --
                                                 </option>
                                             )}
-
                                             {existingCommitments
                                                 .filter(c => c.id !== commitmentToEdit?.id) // No self-link
                                                 .map((c) => (
@@ -1301,27 +1264,31 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
                                                     </option>
                                                 ))}
                                         </select>
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 z-10">
                                             <ChevronDown className="w-4 h-4" />
                                         </div>
                                     </div>
                                     {linkedCommitmentId && linkedCommitmentId !== '__UNLINK__' && (
-                                        <p className="text-[10px] text-sky-500 mt-1.5 ml-1 flex items-center gap-1">
-                                            <LinkIcon className="w-3 h-3" />
-                                            Este compromiso se pagará usando fondos de la selección.
-                                        </p>
+                                        <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700/50">
+                                            <p className="text-[10px] text-sky-500 flex items-center gap-1 font-medium leading-tight">
+                                                <LinkIcon className="w-3 h-3 shrink-0" />
+                                                Este compromiso se pagará usando fondos de la selección.
+                                            </p>
+                                        </div>
                                     )}
                                 </div>
 
                                 {/* Notes */}
-                                <div>
-                                    <label className={formLabelClasses}>{t('form.notes', 'Notas')}</label>
-                                    <input
-                                        type="text"
+                                <div className={`p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm focus-within:ring-2 focus-within:ring-slate-400 focus-within:border-slate-400 transition-all group`}>
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-slate-700 dark:group-focus-within:text-slate-300 transition-colors">
+                                        {t('form.notes', 'Notas')} <span className="text-slate-400 font-normal lowercase">(opcional)</span>
+                                    </label>
+                                    <textarea
                                         value={notes}
                                         onChange={(e) => setNotes(e.target.value)}
-                                        className={`${formInputClasses} bg-white/50 dark:bg-slate-800/50`}
-                                        placeholder="Agregar nota..."
+                                        className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0 resize-none leading-relaxed"
+                                        placeholder="Agregar nota o descripción adicional..."
+                                        rows={2}
                                     />
                                 </div>
                             </div>

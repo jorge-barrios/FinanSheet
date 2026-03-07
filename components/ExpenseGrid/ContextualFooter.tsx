@@ -58,6 +58,9 @@ export interface ContextualFooterProps {
     pendingCount: number;
     pendingAmount: number;
 
+    hasLinkedOverdue?: boolean;
+    hasLinkedPending?: boolean;
+
     // Active filter (if any)
     activeFilter?: ActiveFilter;
 
@@ -95,19 +98,21 @@ function getContextualAlert(props: ContextualFooterProps): FooterAlert {
                     color: 'teal',
                 };
             case 'pendiente':
+                const pendingSuffix = props.hasLinkedPending ? ' (neto vinculado)' : '';
                 return {
                     type: 'upcoming',
                     icon: <Clock className="w-3.5 h-3.5" />,
-                    text: `${formatClp(props.pendingAmount)} por pagar`,
+                    text: `${formatClp(props.pendingAmount)} por pagar${pendingSuffix}`,
                     color: 'amber',
                 };
             case 'vencido':
+                const overdueSuffix = props.hasLinkedOverdue ? ' (neto vinculado)' : '';
                 return {
                     type: 'overdue',
                     icon: <AlertTriangle className="w-3.5 h-3.5" />,
                     text: oldestOverdueDays
-                        ? `${formatClp(overdueAmount)} · -${oldestOverdueDays}d más antiguo`
-                        : `${formatClp(overdueAmount)} atrasado`,
+                        ? `${formatClp(overdueAmount)} · -${oldestOverdueDays}d más antiguo${overdueSuffix}`
+                        : `${formatClp(overdueAmount)} atrasado${overdueSuffix}`,
                     color: 'rose',
                     pulse: true,
                 };
@@ -116,10 +121,11 @@ function getContextualAlert(props: ContextualFooterProps): FooterAlert {
 
     // Priority 1: Overdue items (most urgent)
     if (overdueCount > 0) {
+        const linkedSuffix = props.hasLinkedOverdue ? ' (neto vinculado)' : '';
         return {
             type: 'overdue',
             icon: <AlertTriangle className="w-3.5 h-3.5" />,
-            text: `${overdueCount} vencido${overdueCount > 1 ? 's' : ''} · ${formatClp(overdueAmount)}`,
+            text: `${overdueCount} vencido${overdueCount > 1 ? 's' : ''} · ${formatClp(overdueAmount)}${linkedSuffix}`,
             color: 'rose',
             pulse: true,
         };
@@ -127,10 +133,11 @@ function getContextualAlert(props: ContextualFooterProps): FooterAlert {
 
     // Priority 2: Upcoming payments (< 3 days)
     if (upcomingCount > 0) {
+        const linkedSuffix = props.hasLinkedPending ? ' (neto vinculado)' : '';
         return {
             type: 'upcoming',
             icon: <Clock className="w-3.5 h-3.5" />,
-            text: `${upcomingCount} próximo${upcomingCount > 1 ? 's' : ''} a vencer`,
+            text: `${upcomingCount} próximo${upcomingCount > 1 ? 's' : ''} a vencer${linkedSuffix}`,
             color: 'amber',
         };
     }
@@ -161,13 +168,17 @@ function getContextualAlert(props: ContextualFooterProps): FooterAlert {
 // COLOR MAPS
 // =============================================================================
 
-const alertColorClasses: Record<FooterAlert['color'], string> = {
+// Icon colors: semantic (rose, amber, etc.)
+const alertIconClasses: Record<FooterAlert['color'], string> = {
     rose: 'text-rose-500 dark:text-rose-400',
     amber: 'text-amber-500 dark:text-amber-400',
     teal: 'text-teal-500 dark:text-teal-400',
     emerald: 'text-emerald-500 dark:text-emerald-400',
-    slate: 'text-slate-500 dark:text-slate-400',
+    slate: 'text-slate-400 dark:text-slate-500',
 };
+
+// Text colors: always neutral
+const alertTextClass = 'text-slate-500 dark:text-slate-400';
 
 const filterIconMap: Record<string, React.ReactNode> = {
     important: <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />,
@@ -248,15 +259,9 @@ export const ContextualFooter: React.FC<ContextualFooterProps> = (props) => {
         return <span className="font-semibold">{showingCount} activos</span>;
     };
 
-    const hasOverdue = props.overdueCount > 0;
-
     return (
         <div
-            className={`flex items-center justify-between px-4 py-2.5 h-11 mx-3 mb-2 rounded-xl border shadow-sm backdrop-blur-xl transition-all ${
-                hasOverdue
-                    ? 'bg-rose-50/95 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800 shadow-rose-100 dark:shadow-rose-900/20'
-                    : 'bg-white/80 dark:bg-slate-900/80 border-slate-200/60 dark:border-slate-700/60 shadow-slate-100 dark:shadow-slate-900/20'
-            }`}
+            className="flex items-center justify-between px-4 py-2.5 h-11 mx-3 mb-2 rounded-xl border shadow-sm backdrop-blur-xl transition-all bg-white/80 dark:bg-slate-900/80 border-slate-200/60 dark:border-slate-700/60 shadow-slate-100 dark:shadow-slate-900/20"
         >
             {/* Left: Counter with filter context */}
             <div className="flex items-center gap-2 text-xs font-medium">
@@ -285,20 +290,20 @@ export const ContextualFooter: React.FC<ContextualFooterProps> = (props) => {
                 alert.type === 'overdue' && props.onOverdueClick ? (
                     <button
                         onClick={props.onOverdueClick}
-                        className={`flex items-center gap-1.5 text-xs font-medium ${alertColorClasses[alert.color]} hover:opacity-80 transition-opacity cursor-pointer`}
+                        className={`flex items-center gap-1.5 text-xs font-medium hover:opacity-80 transition-opacity cursor-pointer`}
                     >
-                        <span className={alert.pulse ? 'animate-pulse' : ''}>
+                        <span className={`${alertIconClasses[alert.color]} ${alert.pulse ? 'animate-pulse' : ''}`}>
                             {alert.icon}
                         </span>
-                        <span>{alert.text}</span>
-                        <span className="text-[10px] opacity-70">Ver →</span>
+                        <span className={alertTextClass}>{alert.text}</span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500">Ver →</span>
                     </button>
                 ) : (
-                    <div className={`flex items-center gap-1.5 text-xs font-medium ${alertColorClasses[alert.color]}`}>
-                        <span className={alert.pulse ? 'animate-pulse' : ''}>
+                    <div className="flex items-center gap-1.5 text-xs font-medium">
+                        <span className={`${alertIconClasses[alert.color]} ${alert.pulse ? 'animate-pulse' : ''}`}>
                             {alert.icon}
                         </span>
-                        <span>{alert.text}</span>
+                        <span className={alertTextClass}>{alert.text}</span>
                     </div>
                 )
             )}

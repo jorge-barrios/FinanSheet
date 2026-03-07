@@ -52,8 +52,8 @@ export const KPISelectorModal: React.FC<KPISelectorModalProps> = ({
                             { id: 'ingresos' as KPIType, label: t('kpi.ingresos'), value: totals.ingresos, icon: TrendingUp, color: 'emerald' },
                             { id: 'comprometido' as KPIType, label: t('kpi.comprometido'), value: totals.comprometido, icon: Wallet, color: 'sky' },
                             { id: 'pagado' as KPIType, label: t('kpi.pagado'), value: totals.pagado, icon: CheckCircle, color: 'emerald' },
-                            { id: 'pendiente' as KPIType, label: t('kpi.porPagar'), value: totals.pendiente, icon: Clock, color: 'amber' },
-                            ...(totals.vencido > 0 ? [{ id: 'vencido' as KPIType, label: t('kpi.vencido'), value: totals.vencido, icon: AlertTriangle, color: 'rose' }] : [])
+                            { id: 'pendiente' as KPIType, label: t('kpi.porPagar'), subLabel: totals.hasLinkedPending ? '(neto)' : undefined, value: totals.pendiente, icon: Clock, color: 'amber' },
+                            ...(totals.vencido > 0 ? [{ id: 'vencido' as KPIType, label: t('kpi.vencido'), subLabel: totals.hasLinkedOverdue ? '(neto)' : undefined, value: totals.vencido, icon: AlertTriangle, color: 'rose' }] : [])
                         ];
 
                         return kpiOptions.map((kpi) => {
@@ -69,7 +69,10 @@ export const KPISelectorModal: React.FC<KPISelectorModalProps> = ({
                                         }`}
                                 >
                                     <Icon className={`w-5 h-5 text-${kpi.color}-500 mb-1`} />
-                                    <p className="text-xs font-bold text-slate-900 dark:text-white">{kpi.label}</p>
+                                    <p className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                                        {kpi.label}
+                                        {kpi.subLabel && <span className="font-normal text-[9px] text-sky-500">{kpi.subLabel}</span>}
+                                    </p>
                                     <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{formatClp(kpi.value)}</p>
                                 </button>
                             );

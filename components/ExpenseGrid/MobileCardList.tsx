@@ -110,7 +110,7 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
 
                     if (selectedStatus === 'pagado') return isPaid;
                     if (selectedStatus === 'vencido') return isOverdue;
-                    if (selectedStatus === 'pendiente') return !isPaid && !isOverdue;
+                    if (selectedStatus === 'pendiente') return !isPaid;
                     return true;
                 }).sort(performSmartSort);
 
@@ -125,7 +125,7 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
                     const isTermActiveInMonth = !!term && (!termEnds || termEnds >= monthStart);
 
                     const dueDay = term?.due_day_of_month ?? 1;
-                    const { isPaid, payment: currentPayment } = getPaymentStatus(c.id, monthDate, dueDay);
+                    const { isPaid, payment: currentPayment, paidOnTime } = getPaymentStatus(c.id, monthDate, dueDay);
 
                     const today = new Date();
                     const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
@@ -144,7 +144,8 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
                         dueDate: !isPaid && isTermActiveInMonth
                             ? `Vence: ${dueDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
                             : undefined,
-                        daysOverdue: daysOverdue > 0 ? daysOverdue : undefined
+                        daysOverdue: daysOverdue > 0 ? daysOverdue : undefined,
+                        paidOnTime
                     };
 
                     // Define Visual Action Nodes

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { CommitmentWithTerm, Category, Payment } from '../types.v2';
-import { SearchIcon, TrashIcon, PauseIcon, ArrowPathIcon, EditIcon, PlayIcon } from './icons';
+import { SearchIcon, TrashIcon, PauseIcon, ArrowPathIcon, EditIcon, PlayIcon, OnTimeMedalIcon } from './icons';
 import { Sparkles } from 'lucide-react';
 import { SwipeableItem } from './ui/SwipeableItem';
 import { useLocalization } from '../hooks/useLocalization';
@@ -88,6 +88,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
             overdueCount: summary.overdueCount,
             nextPaymentDate: summary.nextPaymentDate,
             lastPayment: summary.lastPayment,
+            paidOnTime: summary.paidOnTime,
         };
     };
 
@@ -297,7 +298,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {sortedCommitments.map(commitment => {
                                             const activeTerm = commitment.active_term;
-                                            const { displayAmount, estado, estadoDetail, nextPaymentDate, lastPayment } = getCommitmentDetails(commitment);
+                                            const { displayAmount, estado, estadoDetail, nextPaymentDate, lastPayment, paidOnTime } = getCommitmentDetails(commitment);
                                             const isTerminated = !activeTerm || (activeTerm.effective_until && activeTerm.effective_until < new Date().toISOString().split('T')[0]);
 
                                             // Split Status Logic (Lifecycle vs Financial)
@@ -366,10 +367,10 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                                             } else if (estado === 'ok' && lifecycleStatus === 'ACTIVE') {
                                                 // Active and OK -> Show "Al día" and Next Payment
                                                 financialBadge = {
-                                                    label: 'Al día',
+                                                    label: paidOnTime ? 'A tiempo' : 'Al día',
                                                     bg: 'bg-transparent',
-                                                    text: 'text-emerald-600 dark:text-emerald-400',
-                                                    dot: 'bg-emerald-500'
+                                                    text: paidOnTime ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400',
+                                                    dot: paidOnTime ? 'bg-amber-500' : 'bg-emerald-500'
                                                 };
 
                                                 if (nextPaymentDate) {

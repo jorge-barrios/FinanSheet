@@ -143,10 +143,10 @@ export interface CommitmentSummary {
     nextPaymentDate: Date | null;
 
     // Installment progress (for cuotas)
-    // Installment progress (for cuotas)
     installmentsCount: number;
     isInstallmentBased: boolean;
     firstOverduePeriod?: Date | null;
+    paidOnTime: boolean;
 }
 
 /**
@@ -405,6 +405,22 @@ export function getCommitmentSummary(
         estadoDetail = 'Sin pagos';
     }
 
+    // Calculate paidOnTime based on last payment
+    let paidOnTime = false;
+    if (lastPayment && lastPayment.payment_date) {
+        const paymentDate = new Date(lastPayment.payment_date);
+        const periodStr = lastPayment.period_date || lastPayment.payment_date;
+        const [pYear, pMonth] = periodStr.split('-').map(Number);
+        const term = commitment.all_terms?.find(t => t.id === lastPayment.term_id) || activeTerm;
+        const dueDay = term?.due_day_of_month || 1;
+        // pMonth from split is 1-indexed (e.g. 2024-05 -> 5)
+        const dueDate = new Date(pYear, pMonth - 1, dueDay);
+        // Normalize time to midnight for accurate day comparison
+        paymentDate.setHours(0,0,0,0);
+        dueDate.setHours(0,0,0,0);
+        paidOnTime = paymentDate <= dueDate;
+    }
+
     return {
         estado,
         estadoDetail,
@@ -417,7 +433,8 @@ export function getCommitmentSummary(
         nextPaymentDate,
         installmentsCount,
         isInstallmentBased,
-        firstOverduePeriod
+        firstOverduePeriod,
+        paidOnTime
     };
 }
 

@@ -455,6 +455,14 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
         let pagado = 0;
         let pendiente = 0;
         let vencido = 0;
+        let overdueCount = 0;
+        let paidCount = 0;
+        let pendingCount = 0;
+        let upcomingCount = 0;
+        let totalActiveCount = 0;
+        let oldestOverdueDays = 0;
+        let hasLinkedOverdue = false;
+        let hasLinkedPending = false;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -517,6 +525,7 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
             // Categorize by flow type (comprometido / ingresos use NET amount)
             if (flowType === 'EXPENSE') {
                 comprometido += amount;
+                totalActiveCount++;
             } else {
                 ingresos += amount;
             }
@@ -550,17 +559,45 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
             }
 
             // Check pendiente vs vencido - only if NOT paid and is expense
-            const isPaid = myPaidAmount > 0 || (linkedCommitment && getPaymentAmount(linkedCommitment.id) > 0);
+            // For linked pairs: isPaid based on the expense-side commitment's payment
+            // (income side payment is separate — receiving rent doesn't mean mortgage is paid)
+            let isPaid: boolean;
+            if (linkedCommitment && flowType === 'EXPENSE') {
+                // For linked pairs as NET EXPENSE: check if the expense commitment has a payment
+                const expenseCommitment = c.flow_type === 'EXPENSE' ? c : linkedCommitment;
+                isPaid = getPaymentAmount(expenseCommitment.id) > 0;
+            } else {
+                isPaid = myPaidAmount > 0;
+            }
+
             if (!isPaid && flowType === 'EXPENSE') {
-                // Determine if past due date
-                const dueDay = term.due_day_of_month || 1;
+                // For linked pairs, use the expense side's due date
+                const expenseTerm = linkedCommitment && c.flow_type !== 'EXPENSE'
+                    ? linkedCommitment.active_term
+                    : term;
+                const dueDay = (expenseTerm?.due_day_of_month || term.due_day_of_month) || 1;
                 const dueDate = new Date(year, month, dueDay);
                 dueDate.setHours(0, 0, 0, 0);
                 if (today > dueDate) {
                     vencido += amount;
+                    overdueCount++;
+                    if (linkedCommitment) hasLinkedOverdue = true;
+                    const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                    if (daysOverdue > oldestOverdueDays) {
+                        oldestOverdueDays = daysOverdue;
+                    }
                 } else {
                     pendiente += amount;
+                    pendingCount++;
+                    if (linkedCommitment) hasLinkedPending = true;
+                    // Check if upcoming (≤ 3 days)
+                    const daysUntilDue = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                    if (daysUntilDue >= 0 && daysUntilDue <= 3) {
+                        upcomingCount++;
+                    }
                 }
+            } else if (isPaid && flowType === 'EXPENSE') {
+                paidCount++;
             }
         });
 
@@ -570,7 +607,15 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
             pagado,
             pendiente,
             vencido,
-            balance: ingresos - comprometido
+            balance: ingresos - comprometido,
+            overdueCount,
+            paidCount,
+            pendingCount,
+            upcomingCount,
+            totalActiveCount,
+            oldestOverdueDays,
+            hasLinkedOverdue,
+            hasLinkedPending,
         };
     }, [commitments, payments, isTermActiveForMonth, getAmountForPeriod]);
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { Expense, PaymentStatus } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
 import { getInstallmentAmount, isInstallmentInMonth } from '../utils/expenseCalculations';
-import { EditIcon, TrashIcon, StarIcon } from './icons';
+import { EditIcon, TrashIcon, OnTimeMedalIcon } from './icons';
 import { getCategoryIcon } from '../utils/categoryIcons';
 
 interface ExpenseCardProps {
@@ -37,9 +37,11 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
             const wasOnTime = paymentDate <= dueDateForMonth;
             const formattedDate = paymentDate.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
             return {
-                text: `Pagado ${formattedDate}`,
+                text: wasOnTime ? `A tiempo` : `Pagado ${formattedDate}`,
                 showStar: wasOnTime,
-                color: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                color: wasOnTime
+                    ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                    : 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
             };
         } else if (isOverdue) {
             const daysOverdue = Math.floor((today.getTime() - dueDateForMonth.getTime()) / (1000 * 60 * 60 * 24));
@@ -124,7 +126,7 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
                                 {statusInfo.text}
                             </span>
                             {statusInfo.showStar && (
-                                <StarIcon className="w-4 h-4 text-yellow-500" />
+                                <OnTimeMedalIcon className="w-4 h-4 text-amber-500" strokeWidth={2} />
                             )}
                         </div>
                     ) : (

@@ -18,6 +18,7 @@ import type { KPIType } from './KPISelectorModal';
 interface KPIBentoCardProps {
     type: KPIType;
     label: string;
+    subLabel?: string;
     amount: number;
     isActive: boolean;
     hasAlert?: boolean; // For vencido when > 0
@@ -86,6 +87,7 @@ const NEUTRAL_AMOUNT = 'text-slate-600 dark:text-slate-300';
 export const KPIBentoCard: React.FC<KPIBentoCardProps> = ({
     type,
     label,
+    subLabel,
     amount,
     isActive,
     hasAlert = false,
@@ -153,8 +155,9 @@ export const KPIBentoCard: React.FC<KPIBentoCardProps> = ({
 
             {/* Label & Amount */}
             <div className="flex flex-col items-start min-w-0 flex-1">
-                <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 leading-none font-medium">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 leading-none font-medium flex gap-1 items-center w-full">
                     {label}
+                    {subLabel && <span className="lowercase normal-case text-sky-500 truncate">{subLabel}</span>}
                 </span>
                 <span className={`text-sm font-semibold font-mono leading-tight truncate transition-colors duration-200 ${getAmountClasses()}`}>
                     {formatClp(amount)}

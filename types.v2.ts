@@ -298,6 +298,16 @@ export interface MonthTotals {
     pendiente: number;      // Active commitments without payment (not yet due)
     vencido: number;        // Unpaid commitments past due date
     balance: number;        // ingresos - comprometido
+    // Counts (for footer stats)
+    overdueCount: number;
+    paidCount: number;
+    pendingCount: number;
+    upcomingCount: number;   // Due within 3 days
+    totalActiveCount: number;
+    oldestOverdueDays: number;
+    // Flags for linked commitments (so UI can show "neto vinculado" indicator)
+    hasLinkedOverdue: boolean;
+    hasLinkedPending: boolean;
 }
 
 // ============================================================================

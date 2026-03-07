@@ -26,7 +26,7 @@ export const useCommitmentValue = () => {
         if (amountOriginal === null || amountOriginal === undefined) return 0;
 
         // If paid, use stored rate from payment record
-        if (payment && payment.amount_in_base) {
+        if (payment && payment.amount_in_base != null) {
             // We assume amount_in_base is always in CLP for now, 
             // or whatever the system base currency is.
             // If target is not CLP, we would need to convert back, 

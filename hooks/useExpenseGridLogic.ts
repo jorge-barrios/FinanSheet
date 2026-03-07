@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, startTransition } from 'react';
 import { useLocalization } from './useLocalization';
 import { useCurrency } from './useCurrency';
 import usePersistentState from './usePersistentState';
@@ -8,14 +8,7 @@ import { extractYearMonth, parseDateString } from '../utils/financialUtils.v2';
 import { findTermForPeriod } from '../utils/termUtils';
 import {
     getCommitmentSummary,
-    getCommitmentStatus,
-    getTerminationReason,
-    isCommitmentTerminated,
-    getLifecycleLabel,
     groupByLifecycle,
-    filterByLifecycle,
-    generateExpectedPeriods,
-    hasDebt,
     getCommitmentCounts,
     type RateConverter
 } from '../utils/commitmentStatusUtils';
@@ -63,14 +56,14 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
     // Status filter (tied to KPI carousel)
-    const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('pendiente');
+    const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all');
 
     // View mode: monthly (filtered) or inventory (all)
     const [viewMode, setViewMode] = useState<ViewMode>('monthly');
 
     // Smart sticky header state
     const [showMetrics, setShowMetrics] = useState(true);
-    const [currentKPI, setCurrentKPI] = useState<KPIType>('pendiente');
+    const [currentKPI, setCurrentKPI] = useState<KPIType>('comprometido');
     const [showKPISelector, setShowKPISelector] = useState(false);
 
     // =========================================================================
@@ -333,8 +326,8 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
                 // Vencido = solo los vencidos (para filtro específico)
                 if (!isOverdue) return false;
             } else if (selectedStatus === 'pendiente') {
-                // Pendiente = todo lo que falta por pagar (vencido + por vencer)
-                if (isPaid) return false;
+                // Pendiente = solo lo que falta por pagar que NO esté vencido
+                if (isPaid || isOverdue) return false;
             }
         }
 
@@ -365,11 +358,13 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
             visibleActive = activeCommitments.filter(passesFilters);
             visibleArchived = archivedCommitments.filter(passesFilters);
         } else {
-            // Monthly mode: Only show active commitments visible in the month range
+            // Monthly mode: Show active and archived commitments visible in the month range
             visibleActive = activeCommitments
                 .filter(c => isVisibleInRange(c))
                 .filter(passesFilters);
-            // No archived in monthly view
+            visibleArchived = archivedCommitments
+                .filter(c => isVisibleInRange(c))
+                .filter(passesFilters);
         }
 
         // Step 3: Build groups for active items
@@ -450,24 +445,26 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
 
     // KPI Change Handler
     const handleKPIChange = useCallback((kpi: KPIType) => {
-        setCurrentKPI(kpi);
-        switch (kpi) {
-            case 'pendiente':
-                setSelectedStatus('pendiente');
-                break;
-            case 'vencido':
-                setSelectedStatus('vencido');
-                break;
-            case 'pagado':
-                setSelectedStatus('pagado');
-                break;
-            case 'ingresos':
-                setSelectedStatus('ingresos');
-                break;
-            case 'comprometido':
-                setSelectedStatus('all');
-                break;
-        }
+        startTransition(() => {
+            setCurrentKPI(kpi);
+            switch (kpi) {
+                case 'pendiente':
+                    setSelectedStatus('pendiente');
+                    break;
+                case 'vencido':
+                    setSelectedStatus('vencido');
+                    break;
+                case 'pagado':
+                    setSelectedStatus('pagado');
+                    break;
+                case 'ingresos':
+                    setSelectedStatus('ingresos');
+                    break;
+                case 'comprometido':
+                    setSelectedStatus('all');
+                    break;
+            }
+        });
     }, [setCurrentKPI, setSelectedStatus]);
 
     // Scroll Handler for Sticky Header

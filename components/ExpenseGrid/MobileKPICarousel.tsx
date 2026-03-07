@@ -91,6 +91,7 @@ export const MobileKPICarousel: React.FC<MobileKPICarouselProps> = ({
         {
             id: 'pendiente' as KPIType,
             label: t('kpi.porPagar'),
+            subLabel: totals.hasLinkedPending ? '(neto)' : undefined,
             value: totals.pendiente,
             icon: Clock,
             bgColor: 'bg-amber-500/10 dark:bg-amber-500/20',
@@ -106,6 +107,7 @@ export const MobileKPICarousel: React.FC<MobileKPICarouselProps> = ({
         kpiData.push({
             id: 'vencido' as KPIType,
             label: t('kpi.vencido'),
+            subLabel: totals.hasLinkedOverdue ? '(neto)' : undefined,
             value: totals.vencido,
             icon: AlertTriangle,
             bgColor: 'bg-rose-500/10 dark:bg-rose-500/20',
@@ -135,10 +137,11 @@ export const MobileKPICarousel: React.FC<MobileKPICarouselProps> = ({
                     shadow-lg ring-1 ${currentKPIData.ringColor}
                 `}
             >
-                <div className="flex items-center gap-2 mb-1">
-                    <Icon className={`w-4 h-4 ${currentKPIData.iconColor}`} />
-                    <p className={`text-[10px] font-bold uppercase tracking-wider ${currentKPIData.textColor}`}>
+                <div className="flex items-center justify-center gap-2 mb-1 w-full truncate">
+                    <Icon className={`w-4 h-4 shrink-0 ${currentKPIData.iconColor}`} />
+                    <p className={`text-[10px] font-bold uppercase tracking-wider truncate flex gap-1 items-center ${currentKPIData.textColor}`}>
                         {currentKPIData.label}
+                        {currentKPIData.subLabel && <span className="lowercase normal-case font-normal text-sky-500">{currentKPIData.subLabel}</span>}
                     </p>
                 </div>
                 <p className={`text-2xl font-black font-mono tabular-nums tracking-tight ${currentKPIData.textColor}`}>

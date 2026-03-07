@@ -45,7 +45,7 @@ interface EditingTerm {
     is_divided_amount: boolean | null;
 }
 
-const formInputClasses = "w-full h-[36px] bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-500 text-slate-900 dark:text-white rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500";
+
 
 // Interface for new term creation form
 interface NewTermForm {
@@ -1015,21 +1015,23 @@ Los pagos existentes permanecerán en el término actual.
                                 A partir del mes siguiente, no aparecerá en tus pagos pendientes.
                             </p>
 
-                            <div>
-                                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group">
+                                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
                                     Último mes activo
                                 </label>
-                                <input
-                                    type="month"
-                                    value={pauseMonth}
-                                    min={getMinPauseMonth()}
-                                    onChange={(e) => {
-                                        setPauseMonth(e.target.value);
-                                        setError(null);
-                                    }}
-                                    className={formInputClasses}
-                                />
-                                <p className="text-xs text-slate-400 mt-1">
+                                <div className="relative flex items-center">
+                                    <input
+                                        type="month"
+                                        value={pauseMonth}
+                                        min={getMinPauseMonth()}
+                                        onChange={(e) => {
+                                            setPauseMonth(e.target.value);
+                                            setError(null);
+                                        }}
+                                        className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0"
+                                    />
+                                </div>
+                                <p className="text-[10px] font-medium text-slate-400 mt-1.5">
                                     Mínimo: {formatMonthYear(getMinPauseMonth() + '-01')} (inicio del término)
                                 </p>
                             </div>
@@ -1088,26 +1090,28 @@ Los pagos existentes permanecerán en el término actual.
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {/* Effective From */}
-                            <div>
-                                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group">
+                                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
                                     Desde (mes)
                                 </label>
-                                <input
-                                    type="month"
-                                    value={newTerm.effective_from.substring(0, 7)}
-                                    onChange={(e) => {
-                                        setNewTerm(prev => prev ? { ...prev, effective_from: e.target.value + '-01' } : null);
-                                        setPendingShortTermConfirm(false); // Reset confirmation when dates change
-                                        setError(null);
-                                    }}
-                                    className={formInputClasses}
-                                />
+                                <div className="relative flex items-center">
+                                    <input
+                                        type="month"
+                                        value={newTerm.effective_from.substring(0, 7)}
+                                        onChange={(e) => {
+                                            setNewTerm(prev => prev ? { ...prev, effective_from: e.target.value + '-01' } : null);
+                                            setPendingShortTermConfirm(false); // Reset confirmation when dates change
+                                            setError(null);
+                                        }}
+                                        className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0"
+                                    />
+                                </div>
                             </div>
 
                             {/* Effective Until */}
-                            <div>
+                            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group">
                                 <div className="flex justify-between items-center mb-1">
-                                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
                                         Hasta (mes)
                                     </label>
                                     <button
@@ -1115,67 +1119,71 @@ Los pagos existentes permanecerán en el término actual.
                                         onClick={() => setNewTerm(prev => prev ? { ...prev, effective_until: prev.effective_until ? null : (new Date().toISOString().slice(0, 7) + '-01') } : null)}
                                         className="text-[10px] font-bold text-sky-500 hover:text-sky-600 dark:hover:text-sky-400 cursor-pointer transition-colors"
                                     >
-                                        {newTerm.effective_until ? 'Hacer Indefinido' : 'Definir Término'}
+                                        {newTerm.effective_until ? 'Hacer Indefinido' : 'Definir'}
                                     </button>
                                 </div>
 
                                 {newTerm.effective_until ? (
-                                    <input
-                                        type="month"
-                                        value={newTerm.effective_until.substring(0, 7)}
-                                        onChange={(e) => {
-                                            if (e.target.value) {
-                                                const [year, month] = e.target.value.split('-').map(Number);
-                                                const lastDay = new Date(year, month, 0).getDate();
-                                                setNewTerm(prev => prev ? { ...prev, effective_until: `${e.target.value}-${String(lastDay).padStart(2, '0')}` } : null);
-                                            }
-                                            setPendingShortTermConfirm(false);
-                                            setError(null);
-                                        }}
-                                        className={formInputClasses}
-                                    />
+                                    <div className="relative flex items-center">
+                                        <input
+                                            type="month"
+                                            value={newTerm.effective_until.substring(0, 7)}
+                                            onChange={(e) => {
+                                                if (e.target.value) {
+                                                    const [year, month] = e.target.value.split('-').map(Number);
+                                                    const lastDay = new Date(year, month, 0).getDate();
+                                                    setNewTerm(prev => prev ? { ...prev, effective_until: `${e.target.value}-${String(lastDay).padStart(2, '0')}` } : null);
+                                                }
+                                                setPendingShortTermConfirm(false);
+                                                setError(null);
+                                            }}
+                                            className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0"
+                                        />
+                                    </div>
                                 ) : (
                                     <div
                                         onClick={() => setNewTerm(prev => prev ? { ...prev, effective_until: (new Date().toISOString().slice(0, 7) + '-01') } : null)}
-                                        className="w-full bg-slate-100 dark:bg-slate-700/30 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-md p-2 text-sm text-slate-500 text-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700/50 transition-colors"
+                                        className="w-full bg-slate-50 dark:bg-slate-900/50 rounded-lg p-2 text-sm font-medium text-slate-500 dark:text-slate-400 text-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5"
                                     >
-                                        <span className="flex items-center justify-center gap-1.5">
-                                            <span className="text-lg leading-none">∞</span>
-                                            <span className="text-xs font-medium">Indefinido (Siempre activo)</span>
-                                        </span>
+                                        <span className="text-lg leading-none">∞</span>
+                                        <span>Sin límite</span>
                                     </div>
                                 )}
                             </div>
 
                             {/* Amount */}
-                            <div>
-                                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group">
+                                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
                                     Monto ({newTerm.currency_original})
                                 </label>
-                                <input
-                                    type="number"
-                                    value={newTerm.amount_original}
-                                    onChange={(e) => setNewTerm(prev => prev ? { ...prev, amount_original: parseFloat(e.target.value) || 0 } : null)}
-                                    className={formInputClasses}
-                                    min="0"
-                                    step="0.01"
-                                />
+                                <div className="relative flex items-center">
+                                    <input
+                                        type="number"
+                                        value={newTerm.amount_original}
+                                        onChange={(e) => setNewTerm(prev => prev ? { ...prev, amount_original: parseFloat(e.target.value) || 0 } : null)}
+                                        className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0"
+                                        min="0"
+                                        step="0.01"
+                                    />
+                                </div>
                             </div>
 
                             {/* Due Day */}
-                            <div>
-                                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group">
+                                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
                                     Día vencimiento
                                 </label>
-                                <input
-                                    type="number"
-                                    value={newTerm.due_day_of_month || ''}
-                                    onChange={(e) => setNewTerm(prev => prev ? { ...prev, due_day_of_month: parseInt(e.target.value) || null } : null)}
-                                    className={formInputClasses}
-                                    min="1"
-                                    max="31"
-                                    placeholder="1-31"
-                                />
+                                <div className="relative flex items-center">
+                                    <input
+                                        type="number"
+                                        value={newTerm.due_day_of_month || ''}
+                                        onChange={(e) => setNewTerm(prev => prev ? { ...prev, due_day_of_month: parseInt(e.target.value) || null } : null)}
+                                        className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0"
+                                        min="1"
+                                        max="31"
+                                        placeholder="1-31"
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -1398,39 +1406,43 @@ Los pagos existentes permanecerán en el término actual.
                                     {/* Dates Row */}
                                     <div className="grid grid-cols-2 gap-6">
                                         {/* Desde */}
-                                        <div>
-                                            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
+                                        <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group">
+                                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
                                                 Desde
                                             </label>
-                                            <input
-                                                type="month"
-                                                value={editingTerm.effective_from.substring(0, 7)}
-                                                onChange={(e) => setEditingTerm(prev => prev ? { ...prev, effective_from: e.target.value + '-01' } : null)}
-                                                className={`${formInputClasses} w-full`}
-                                            />
+                                            <div className="relative flex items-center">
+                                                <input
+                                                    type="month"
+                                                    value={editingTerm.effective_from.substring(0, 7)}
+                                                    onChange={(e) => setEditingTerm(prev => prev ? { ...prev, effective_from: e.target.value + '-01' } : null)}
+                                                    className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0"
+                                                />
+                                            </div>
                                         </div>
 
                                         {/* Hasta */}
-                                        <div>
-                                            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
+                                        <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group">
+                                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
                                                 Hasta
                                             </label>
                                             {editingTerm.effective_until ? (
-                                                <input
-                                                    type="month"
-                                                    value={editingTerm.effective_until.substring(0, 7)}
-                                                    onChange={(e) => {
-                                                        if (e.target.value) {
-                                                            const [y, m] = e.target.value.split('-').map(Number);
-                                                            const lastDay = new Date(y, m, 0).getDate();
-                                                            setEditingTerm(prev => prev ? { ...prev, effective_until: `${e.target.value}-${String(lastDay).padStart(2, '0')}` } : null);
-                                                        }
-                                                    }}
-                                                    className={`${formInputClasses} w-full`}
-                                                />
+                                                <div className="relative flex items-center">
+                                                    <input
+                                                        type="month"
+                                                        value={editingTerm.effective_until.substring(0, 7)}
+                                                        onChange={(e) => {
+                                                            if (e.target.value) {
+                                                                const [y, m] = e.target.value.split('-').map(Number);
+                                                                const lastDay = new Date(y, m, 0).getDate();
+                                                                setEditingTerm(prev => prev ? { ...prev, effective_until: `${e.target.value}-${String(lastDay).padStart(2, '0')}` } : null);
+                                                            }
+                                                        }}
+                                                        className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0"
+                                                    />
+                                                </div>
                                             ) : (
-                                                <div className={`${formInputClasses} w-full flex items-center justify-center gap-2 text-slate-400`}>
-                                                    <span className="text-lg">∞</span>
+                                                <div className="w-full pt-1.5 flex items-center justify-center gap-2 text-slate-400">
+                                                    <span className="text-lg leading-none">∞</span>
                                                     <span className="text-xs">Sin límite</span>
                                                 </div>
                                             )}
@@ -1468,30 +1480,38 @@ Los pagos existentes permanecerán en el término actual.
 
                                     {/* Amount and Due Day Row - Always 2 columns */}
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Monto</label>
-                                            <input
-                                                type="tel"
-                                                inputMode="numeric"
-                                                value={editingTerm.amount_original.toLocaleString('es-CL')}
-                                                onChange={(e) => {
-                                                    const raw = e.target.value.replace(/\D/g, '');
-                                                    setEditingTerm(prev => prev ? { ...prev, amount_original: parseFloat(raw) || 0 } : null);
-                                                }}
-                                                className={`${formInputClasses} w-full`}
-                                            />
+                                        <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group">
+                                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
+                                                Monto
+                                            </label>
+                                            <div className="relative flex items-center">
+                                                <input
+                                                    type="tel"
+                                                    inputMode="numeric"
+                                                    value={editingTerm.amount_original.toLocaleString('es-CL')}
+                                                    onChange={(e) => {
+                                                        const raw = e.target.value.replace(/\D/g, '');
+                                                        setEditingTerm(prev => prev ? { ...prev, amount_original: parseFloat(raw) || 0 } : null);
+                                                    }}
+                                                    className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0"
+                                                />
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Día vencimiento</label>
-                                            <input
-                                                type="number"
-                                                value={editingTerm.due_day_of_month || ''}
-                                                onChange={(e) => setEditingTerm(prev => prev ? { ...prev, due_day_of_month: parseInt(e.target.value) || null } : null)}
-                                                className={`${formInputClasses} w-full`}
-                                                min="1"
-                                                max="31"
-                                                placeholder="1-31"
-                                            />
+                                        <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-sky-500 transition-all group">
+                                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider group-focus-within:text-sky-600 dark:group-focus-within:text-sky-400 transition-colors">
+                                                Día vencimiento
+                                            </label>
+                                            <div className="relative flex items-center">
+                                                <input
+                                                    type="number"
+                                                    value={editingTerm.due_day_of_month || ''}
+                                                    onChange={(e) => setEditingTerm(prev => prev ? { ...prev, due_day_of_month: parseInt(e.target.value) || null } : null)}
+                                                    className="w-full bg-transparent text-slate-900 dark:text-white font-medium focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 border-none p-0"
+                                                    min="1"
+                                                    max="31"
+                                                    placeholder="1-31"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
 

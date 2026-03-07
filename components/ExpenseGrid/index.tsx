@@ -135,7 +135,6 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 totals={totals}
                 selectedCategory={selectedCategory}
                 setSelectedCategory={setSelectedCategory}
-                selectedStatus={selectedStatus}
                 setSelectedStatus={setSelectedStatus}
                 availableCategories={availableCategories}
                 setShowKPISelector={setShowKPISelector}

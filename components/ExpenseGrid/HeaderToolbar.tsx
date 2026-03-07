@@ -25,7 +25,6 @@ export interface HeaderToolbarProps {
     totals: MonthTotals;
     selectedCategory: string;
     setSelectedCategory: (cat: string) => void;
-    selectedStatus: StatusFilter;
     setSelectedStatus: (status: StatusFilter) => void;
     availableCategories: string[];
     setShowKPISelector: (show: boolean) => void;
@@ -42,7 +41,6 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
     totals,
     selectedCategory,
     setSelectedCategory,
-    selectedStatus,
     setSelectedStatus,
     availableCategories,
     setShowKPISelector,
@@ -64,13 +62,13 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                         {/* View Mode Toggle */}
                         <div className="flex bg-slate-100 dark:bg-slate-900/50 rounded-lg p-0.5">
                             <button
-                                onClick={() => setViewMode('monthly')}
+                                onClick={() => React.startTransition(() => setViewMode('monthly'))}
                                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'monthly' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Mes
                             </button>
                             <button
-                                onClick={() => setViewMode('inventory')}
+                                onClick={() => React.startTransition(() => setViewMode('inventory'))}
                                 className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'inventory' ? 'bg-sky-500 shadow-sm text-white' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Todos
@@ -82,12 +80,14 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                         {/* Important Toggle */}
                         <button
                             onClick={() => {
-                                if (selectedCategory === 'FILTER_IMPORTANT') {
-                                    setSelectedCategory('all');
-                                } else {
-                                    setSelectedCategory('FILTER_IMPORTANT');
-                                    setSelectedStatus('all');
-                                }
+                                React.startTransition(() => {
+                                    if (selectedCategory === 'FILTER_IMPORTANT') {
+                                        setSelectedCategory('all');
+                                    } else {
+                                        setSelectedCategory('FILTER_IMPORTANT');
+                                        setSelectedStatus('all');
+                                    }
+                                });
                             }}
                             className={`h-7 px-2 flex items-center justify-center rounded-lg text-xs font-medium transition-all gap-1.5 ${selectedCategory === 'FILTER_IMPORTANT'
                                 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500/20'
@@ -104,8 +104,11 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                             <select
                                 value={selectedCategory === 'FILTER_IMPORTANT' ? 'all' : selectedCategory}
                                 onChange={(e) => {
-                                    setSelectedCategory(e.target.value);
-                                    setSelectedStatus('all');
+                                    const value = e.target.value;
+                                    React.startTransition(() => {
+                                        setSelectedCategory(value);
+                                        setSelectedStatus('all');
+                                    });
                                 }}
                                 className="h-7 w-[160px] appearance-none bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 text-xs font-medium pl-2 pr-8 rounded-lg cursor-pointer outline-none transition-colors border-none focus:ring-0"
                             >
@@ -169,6 +172,7 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                 <KPIBentoCard
                     type="pendiente"
                     label={t('kpi.porPagar')}
+                    subLabel={totals.hasLinkedPending ? '(neto)' : undefined}
                     amount={totals.pendiente}
                     isActive={currentKPI === 'pendiente'}
                     onClick={() => handleKPIChange(currentKPI === 'pendiente' ? 'comprometido' : 'pendiente')}
@@ -177,6 +181,7 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                 <KPIBentoCard
                     type="vencido"
                     label={t('kpi.vencido')}
+                    subLabel={totals.hasLinkedOverdue ? '(neto)' : undefined}
                     amount={totals.vencido}
                     isActive={currentKPI === 'vencido'}
                     hasAlert={totals.vencido > 0}

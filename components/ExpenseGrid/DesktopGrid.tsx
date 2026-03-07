@@ -12,14 +12,13 @@ import {
     EditIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon,
     CheckCircleIcon, ExclamationTriangleIcon, ClockIcon,
     CalendarIcon,
-    PauseIcon, PlusIcon, MoreVertical, Link2,
-    HashIcon
+    PauseIcon, MoreVertical, Link2,
+    HashIcon, OnTimeMedalIcon
 } from '../icons';
-import type { CommitmentWithTerm, Payment } from '../../types.v2';
+import type { CommitmentWithTerm, Payment, MonthTotals } from '../../types.v2';
 import { getPerPeriodAmount } from '../../utils/financialUtils.v2';
 import { getCategoryIcon } from '../../utils/categoryIcons';
-import { Sparkles, Minus, RefreshCw, Eye, Star } from 'lucide-react';
-import * as Tooltip from '@radix-ui/react-tooltip';
+import { Minus, RefreshCw, Eye, Star } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { ContextualFooter } from './ContextualFooter';
 // getCommitmentSummary removed
@@ -27,39 +26,15 @@ import { useCommitmentValue } from '../../hooks/useCommitmentValue';
 import type { Density, ViewMode, StatusFilter, CommitmentCounts } from '../../hooks/useExpenseGridLogic';
 
 // =============================================================================
-// TOOLTIP COMPONENT (same as in index.tsx)
+// DENSITY SCALE CONFIG — Single source of truth for data cell proportions
+// Cell heights: minimal=40px, compact=56px, detailed=80px
+// Scale follows ~√(cellHeight) progression for natural visual weight
 // =============================================================================
-const CompactTooltip = ({
-    children,
-    content,
-    sideOffset = 5,
-    triggerClassName = '',
-}: {
-    children: React.ReactNode;
-    content: React.ReactNode;
-    sideOffset?: number;
-    triggerClassName?: string;
-}) => (
-    <Tooltip.Provider delayDuration={200}>
-        <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-                <div className={triggerClassName}>{children}</div>
-            </Tooltip.Trigger>
-            <Tooltip.Portal>
-                <Tooltip.Content
-                    className="z-[100] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl px-3 py-2.5 text-sm"
-                    sideOffset={sideOffset}
-                    side="bottom"
-                    align="center"
-                    avoidCollisions
-                >
-                    {content}
-                    <Tooltip.Arrow className="fill-white dark:fill-slate-800 border-t border-l border-slate-200" />
-                </Tooltip.Content>
-            </Tooltip.Portal>
-        </Tooltip.Root>
-    </Tooltip.Provider>
-);
+const DENSITY_SCALE = {
+    minimal:  { icon: 'w-5 h-5', iconMinus: 'w-4 h-4', amount: 'text-[0.8rem]',  cell: 'px-0.5 py-0.5 min-h-10' },
+    compact:  { icon: 'w-5 h-5', iconMinus: 'w-4 h-4', amount: 'text-[0.95rem]', cell: 'px-1 py-1 min-h-14'     },
+    detailed: { icon: 'w-7 h-7', iconMinus: 'w-5 h-5', amount: 'text-[1.15rem]', cell: 'p-1 min-h-20'           },
+} as const;
 
 // Helper to convert Date to periodDate string (YYYY-MM-DD, first day of month)
 const dateToPeriod = (date: Date): string => {
@@ -99,13 +74,7 @@ interface DesktopGridProps {
     isCommitmentTerminated: (commitment: CommitmentWithTerm) => boolean;
     getTranslatedCategoryName: (commitment: CommitmentWithTerm) => string;
     getTerminationReason: (commitment: CommitmentWithTerm) => string | null;
-    getMonthTotals: (year: number, month: number) => {
-        comprometido: number;
-        pagado: number;
-        pendiente: number;
-        ingresos: number;
-        vencido: number;
-    };
+    getMonthTotals: (year: number, month: number) => MonthTotals;
     formatClp: (amount: number | null | undefined) => string;
     // Action callbacks
     onEditCommitment: (commitment: CommitmentWithTerm) => void;
@@ -129,7 +98,6 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
     selectedCategory,
     selectedStatus,
     // commitments removed
-    payments,
     groupedCommitments,
     visibleMonths,
     commitmentCounts,
@@ -155,7 +123,6 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
     const { getDisplayValue } = useCommitmentValue();
     const [availableHeight, setAvailableHeight] = useState<number>(400);
     const footerRef = useRef<HTMLDivElement | null>(null);
-    const pad = density === 'minimal' ? 'p-0.5' : density === 'compact' ? 'p-1' : 'p-3';
 
     // Helper: Is Current Month
     const isCurrentMonth = (date: Date) => {
@@ -209,70 +176,40 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
     // ==========================================================================
     const footerStats = useMemo(() => {
         const today = new Date();
-        // focusedPeriod removed
+        today.setHours(0, 0, 0, 0);
+        // AMOUNTS from getMonthTotals (single source of truth, matches KPI cards)
+        const totals = getMonthTotals(focusedDate.getFullYear(), focusedDate.getMonth());
+
+        // COUNTS from visible commitments (matches what user sees in the grid)
+        const visibleCommitments = groupedCommitments.active.flatMap(g => g.commitments);
 
         let overdueCount = 0;
-        let overdueAmount = 0;
-        let oldestOverdueDays = 0;
-
-        let upcomingCount = 0; // vence en < 3 días
-        let upcomingAmount = 0;
-
+        let upcomingCount = 0;
         let paidCount = 0;
-        let paidAmount = 0;
-
         let pendingCount = 0;
-        let pendingAmount = 0;
-
-        // Base count: total active commitments (for "X of Y activos" display)
-        const baseCount = commitmentCounts.active;
-
-        // Count from visible active commitments in focused month (after all filters)
-        const visibleCommitments = groupedCommitments.active.flatMap(g => g.commitments);
+        let oldestOverdueDays = 0;
 
         visibleCommitments.forEach(c => {
             const term = getTermForPeriod(c, focusedDate);
-
             if (!term) return;
             if (!isActiveInMonth(c, focusedDate)) return;
 
             const dueDay = term.due_day_of_month || 1;
-            const { isPaid, payment } = getPaymentStatus(c.id, focusedDate, dueDay);
-
-            // Calculate amount using LIVE rates via getDisplayValue
-            // This ensures footer matches grid cells exactly
-            const perPeriodOriginal = getPerPeriodAmount(term, false); // false = get original currency amount
-            const originalCurrency = term.currency_original || 'CLP';
-            const amount = getDisplayValue(perPeriodOriginal, originalCurrency, payment);
-            
+            const { isPaid } = getPaymentStatus(c.id, focusedDate, dueDay);
             const dueDate = new Date(focusedDate.getFullYear(), focusedDate.getMonth(), dueDay);
 
             if (isPaid) {
                 paidCount++;
-                // If paid, amount is already the paid amount (from getDisplayValue logic with payment)
-                // But specifically for paidAmount accumulator, we want the EXACT paid value
-                // getDisplayValue returns this, so we can use 'amount' directly.
-                paidAmount += amount;
             } else {
-                // Check if overdue
-                const isOverdue = today > dueDate && focusedDate.getMonth() <= today.getMonth() && focusedDate.getFullYear() <= today.getFullYear();
-
+                const isOverdue = today > dueDate;
                 if (isOverdue) {
                     overdueCount++;
-                    overdueAmount += amount;
                     const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-                    if (daysOverdue > oldestOverdueDays) {
-                        oldestOverdueDays = daysOverdue;
-                    }
+                    if (daysOverdue > oldestOverdueDays) oldestOverdueDays = daysOverdue;
                 } else {
-                    // Check if upcoming (< 3 days)
-                    const daysUntilDue = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                    if (daysUntilDue >= 0 && daysUntilDue <= 3) {
-                        upcomingCount++;
-                        upcomingAmount += amount;
-                    }
                     pendingCount++;
-                    pendingAmount += amount;
+                    const daysUntilDue = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                    if (daysUntilDue >= 0 && daysUntilDue <= 3) upcomingCount++;
                 }
             }
         });
@@ -296,23 +233,27 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
 
         return {
             showingCount: visibleCommitments.length,
-            totalCount: baseCount,
+            totalCount: commitmentCounts.active,
             commitmentCounts,
             viewMode,
             periodLabel: periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1),
+            // Amounts from getMonthTotals (consistent with KPI cards)
+            overdueAmount: totals.vencido,
+            paidAmount: totals.pagado,
+            pendingAmount: totals.pendiente,
+            upcomingAmount: 0,
+            hasLinkedOverdue: totals.hasLinkedOverdue,
+            hasLinkedPending: totals.hasLinkedPending,
+            // Counts from visible commitments (matches grid rows)
             overdueCount,
-            overdueAmount,
             oldestOverdueDays,
             upcomingCount,
-            upcomingAmount,
             paidCount,
-            paidAmount,
             pendingCount,
-            pendingAmount,
             activeFilter,
             hasExplicitFilter,
         };
-    }, [groupedCommitments, commitmentCounts, viewMode, focusedDate, selectedCategory, selectedStatus, getPaymentStatus, getTermForPeriod, isActiveInMonth, getDisplayValue]);
+    }, [groupedCommitments, commitmentCounts, viewMode, focusedDate, selectedCategory, selectedStatus, getMonthTotals, getPaymentStatus, getTermForPeriod, isActiveInMonth]);
 
     // ==========================================================================
     // RENDER
@@ -343,11 +284,10 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                             <div className={`
                                                     flex items-center gap-1 w-full rounded-xl transition-all duration-300 ease-out
                                                     border shadow-sm group/selector px-1.5
-                                                    bg-white dark:bg-slate-800/60 backdrop-blur-sm
-                                                    bg-gradient-to-br from-white/5 to-transparent dark:from-white/5 dark:to-transparent shadow-inner
-                                                    border-slate-200 dark:border-white/5
-                                                    hover:shadow-lg hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-white/10
-                                                    ${density === 'minimal' ? 'min-h-10 py-1' : density === 'compact' ? 'min-h-14 py-1.5' : 'min-h-20 py-2'}
+                                                    bg-sky-50/70 dark:bg-sky-900/20 backdrop-blur-sm
+                                                    border-sky-200/50 dark:border-sky-700/30
+                                                    hover:shadow-lg hover:-translate-y-0.5 hover:bg-sky-100/80 dark:hover:bg-sky-800/30 hover:border-sky-300 dark:hover:border-sky-600/40
+                                                    ${DENSITY_SCALE[density].cell}
                                                 `}>
                                                 {/* Home/Today Action - Stable (Left) */}
                                                 <button
@@ -420,11 +360,11 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                 const isFocused = month.getFullYear() === focusedDate.getFullYear() && month.getMonth() === focusedDate.getMonth();
                                                 const isCurrent = isCurrentMonth(month);
 
-                                                let cardStyle = 'bg-white dark:bg-slate-700/60 border-slate-200 dark:border-slate-600/50 hover:border-slate-300 dark:hover:border-slate-500'; // Normal
+                                                let cardStyle = 'bg-slate-50 dark:bg-slate-600/50 border-slate-200 dark:border-slate-500/40 hover:border-slate-300 dark:hover:border-slate-400/50'; // Normal - lighter than data cells
 
                                                 if (isCurrent || isFocused) {
                                                     // Commit-card style for active month
-                                                    cardStyle = 'bg-white dark:bg-slate-700/60 border border-slate-400/60 dark:border-slate-500/60 hover:bg-slate-100 dark:hover:bg-slate-700/80 shadow-sm backdrop-blur-sm';
+                                                    cardStyle = 'bg-white dark:bg-slate-600/60 border border-slate-400/60 dark:border-slate-400/40 hover:bg-slate-100 dark:hover:bg-slate-600/80 shadow-sm backdrop-blur-sm';
                                                 }
 
                                                 return (
@@ -448,9 +388,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                 <div className={`
                                                             flex flex-col items-center justify-center px-1 transition-all duration-200 cursor-pointer
                                                             hover:bg-slate-50 dark:hover:bg-slate-700/50
-                                                            ${density === 'minimal' ? 'py-1 min-h-10' :
-                                                                        density === 'compact' ? 'py-1.5 min-h-14' :
-                                                                            'py-2 min-h-20'}
+                                                            ${DENSITY_SCALE[density].cell}
                                                         `}
                                                                     onClick={() => onFocusedDateChange && onFocusedDateChange(month)}
                                                                     title={`${month.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}\nComprometido: ${formatClp(monthTotals.comprometido)}\nPagado: ${formatClp(monthTotals.pagado)}\nPendiente: ${formatClp(monthTotals.pendiente)}`}
@@ -513,8 +451,23 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                             </thead>
                             <tbody className="bg-transparent">
 
-                                {groupedCommitments.active.map(({ category, commitments: catCommitments }) => (
+                                {/* Combine active + archived groups for unified rendering */}
+                                {[...groupedCommitments.active, ...(groupedCommitments.archived.length > 0 ? [{ category: '__archived__', commitments: groupedCommitments.archived }] : [])].map(({ category, commitments: catCommitments }) => (
                                     <React.Fragment key={category}>
+                                        {/* Archived separator */}
+                                        {category === '__archived__' && (
+                                            <tr>
+                                                <td colSpan={visibleMonths.length + 1} className="py-2 px-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+                                                        <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                                                            Archivados ({catCommitments.length})
+                                                        </span>
+                                                        <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
                                         {/* Category badge is now inside each commitment card - no separator needed */}
                                         {/* Commitment rows */}
                                         {catCommitments.map((commitment) => {
@@ -537,6 +490,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                     className={`
                                                             group
                                                             transition-all duration-200 ease-out
+                                                            ${category === '__archived__' ? 'opacity-50 saturate-[0.6]' : ''}
                                                             ${terminated ? 'opacity-60 grayscale-[0.5]' : ''}
                                                         `}
                                                 >
@@ -551,7 +505,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                         {/* Inner Content - Card style matching data cells */}
                                                         <div className={`
                                                                 relative cursor-pointer group/card h-full rounded-xl
-                                                                ${density === 'minimal' ? 'min-h-10 px-2 py-1' : density === 'compact' ? 'min-h-14 px-2.5 py-1.5' : 'min-h-20 px-3 py-2'}
+                                                                ${DENSITY_SCALE[density].cell} ${density === 'minimal' ? 'px-2' : density === 'compact' ? 'px-2.5' : 'px-3'}
                                                                 bg-slate-50 dark:bg-slate-700/60 border border-slate-200/50 dark:border-slate-700/50
                                                                 hover:bg-slate-100 dark:hover:bg-slate-700/80 hover:border-slate-300 dark:hover:border-slate-500
                                                                 transition-all duration-200
@@ -580,7 +534,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                         getPaymentStatus(commitment.id, monthDate, dueDay).payment
                                                                     )))}`}
                                                                 >
-                                                                    <span className={`font-semibold truncate text-sm ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>
+                                                                    <span className={`font-semibold truncate text-sm ${terminated ? 'text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-white'}`}>
                                                                         {commitment.name}
                                                                     </span>
                                                                     <div className="flex items-center gap-1 shrink-0 ml-1">
@@ -601,7 +555,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                 <div className="flex flex-col justify-center h-full pl-3.5 pr-3">
                                                                     {/* Row 1: Name (left) + Icons right-aligned (fav, linked, frequency) */}
                                                                     <div className="flex items-center justify-between gap-1.5 min-w-0">
-                                                                        <span className={`font-semibold truncate text-sm ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
+                                                                        <span className={`font-semibold truncate text-sm ${terminated ? 'text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
                                                                             {commitment.name}
                                                                         </span>
                                                                         <div className="flex items-center gap-1 shrink-0">
@@ -673,7 +627,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                             })()}
                                                                         </div>
 
-                                                                        <span className={`font-bold truncate text-[0.9rem] leading-none ${terminated ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
+                                                                        <span className={`font-bold truncate text-[0.9rem] leading-none ${terminated ? 'text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-white'}`} title={commitment.name}>
                                                                             {commitment.name}
                                                                         </span>
                                                                     </div>
@@ -914,12 +868,14 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                 >
                                                                     {/* Payment Cell with Card Lift + Neutral Card Pattern */}
                                                                     <div className={`
-                                                                        group/cell relative overflow-hidden
+                                                                        group/cell relative ${density === 'minimal' ? 'overflow-visible z-10 hover:z-50' : 'overflow-hidden z-10'}
                                                                         rounded-xl w-full h-full cursor-pointer
                                                                         flex flex-col items-center justify-center border
                                                                         transition-all duration-300 ease-out
-                                                                        hover:shadow-lg hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-white/10
-                                                                        ${density === 'minimal' ? 'px-0.5 py-0.5 min-h-10' : density === 'compact' ? 'px-1 py-1 min-h-14' : 'p-1 min-h-20'}
+                                                                        ${density === 'detailed'
+                                                                            ? 'hover:shadow-md hover:-translate-y-0.5 hover:border-slate-400 dark:hover:border-slate-400/40'
+                                                                            : 'hover:shadow-lg hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-white/10'}
+                                                                        ${DENSITY_SCALE[density].cell}
                                                                         ${isFocused || isCurrent
                                                                             ? 'border border-slate-400/60 dark:border-slate-500/60 bg-slate-50 dark:bg-slate-800/70 ring-1 ring-slate-400/30 dark:ring-slate-400/20'
                                                                             : 'bg-slate-900/10 dark:bg-slate-800/30 border-slate-400/30 dark:border-slate-500/30'}
@@ -944,164 +900,106 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                 </div>
                                                                             </div>
                                                                         ) : (isActive || isPaid) ? (
-                                                                            /* === MINIMAL VIEW: Amount + icon only === */
+                                                                            /* === MINIMAL VIEW: Hover Pop-out Overlay === */
                                                                             density === 'minimal' ? (
-                                                                                <CompactTooltip
-                                                                                    triggerClassName="p-0"
-                                                                                    sideOffset={8}
-                                                                                    content={
-                                                                                        <div className="min-w-[130px] text-slate-800 dark:text-slate-100">
-                                                                                            <div className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 mb-1.5">
-                                                                                                {monthDate.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
-                                                                                            </div>
-                                                                                            <div className="text-base font-bold font-mono tabular-nums">
-                                                                                                {formatClp(displayAmount!)}
-                                                                                            </div>
-                                                                                            {(cuotaNumber && installmentsCount && installmentsCount > 1) && (
-                                                                                                <div className="text-[10px] text-slate-500 mt-1">
-                                                                                                    Cuota {cuotaNumber}/{installmentsCount}
-                                                                                                </div>
-                                                                                            )}
-                                                                                            <div className={`text-[10px] font-medium mt-1.5 ${isPaid ? 'text-emerald-600 dark:text-emerald-400' :
-                                                                                                isOverdue ? 'text-rose-600 dark:text-rose-400' :
-                                                                                                    'text-amber-600 dark:text-amber-400'
-                                                                                                }`}>
-                                                                                                {isPaid ? '✓ Pagado' : isOverdue ? '⚠ Vencido' : '⏱ Pendiente'}
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    }
-                                                                                >
-                                                                                    {/* Minimal cell: ONLY status icon (centered, larger for visibility) */}
+                                                                                <div className="relative w-full h-full flex items-center justify-center">
+                                                                                    {/* Base Icon */}
                                                                                     <div className="flex items-center justify-center h-full w-full">
                                                                                         {isPaid ? (
-                                                                                            <CheckCircleIcon className="w-6 h-6 text-emerald-500" />
+                                                                                            paidOnTime ? <OnTimeMedalIcon className={`${DENSITY_SCALE.minimal.icon} text-emerald-500`} strokeWidth={2} /> : <CheckCircleIcon className={`${DENSITY_SCALE.minimal.icon} text-emerald-500`} />
                                                                                         ) : isOverdue ? (
-                                                                                            <ExclamationTriangleIcon className="w-6 h-6 text-rose-500 animate-pulse" />
+                                                                                            <ExclamationTriangleIcon className={`${DENSITY_SCALE.minimal.icon} text-rose-500 animate-pulse`} />
                                                                                         ) : isPending ? (
-                                                                                            <ClockIcon className="w-6 h-6 text-amber-500" />
-                                                                                        ) : isDisabled ? (
-                                                                                            <CalendarIcon className="w-5 h-5 text-slate-400 dark:text-slate-600" />
+                                                                                            <ClockIcon className={`${DENSITY_SCALE.minimal.icon} text-slate-400 dark:text-slate-500`} />
+                                                                                        ) : (installmentsCount && installmentsCount > 1) ? (
+                                                                                            <CalendarIcon className={`${DENSITY_SCALE.minimal.icon} text-slate-400 dark:text-slate-500`} />
                                                                                         ) : (
-                                                                                            <CalendarIcon className="w-6 h-6 text-sky-400" />
+                                                                                            <Minus className={`${DENSITY_SCALE.minimal.iconMinus} text-slate-300 dark:text-slate-600`} />
                                                                                         )}
                                                                                     </div>
-                                                                                </CompactTooltip>
+
+                                                                                    {/* Pop-out Overlay Expansion */}
+                                                                                    <div className="absolute top-[-1px] bottom-[-1px] left-1/2 -translate-x-1/2 w-max min-w-[calc(100%+2px)] rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-500/60 shadow-lg opacity-0 scale-75 origin-center pointer-events-none group-hover/cell:opacity-100 group-hover/cell:scale-100 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-50 flex items-center justify-center gap-2 px-3 whitespace-nowrap">
+                                                                                        <span className="font-bold font-mono text-sm text-slate-700 dark:text-slate-100 tracking-tight">
+                                                                                            {formatClp(displayAmount!)}
+                                                                                        </span>
+                                                                                        
+                                                                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${
+                                                                                            isPaid ? 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400' :
+                                                                                            isOverdue ? 'bg-rose-100/80 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400' :
+                                                                                            'bg-amber-100/80 text-amber-700 dark:bg-amber-900/40 dark:text-amber-500' // Pending color
+                                                                                        }`}>
+                                                                                            {isPaid ? (
+                                                                                                currentPayment?.payment_date ? new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }).replace('.', '') : 'Pagado'
+                                                                                            ) : isOverdue ? (
+                                                                                                daysOverdue === 0 ? 'Hoy' : `-${daysOverdue}d`
+                                                                                            ) : daysRemaining === 0 ? (
+                                                                                                'Hoy'
+                                                                                            ) : isCurrentMonth(monthDate) ? (
+                                                                                                `${daysRemaining}d`
+                                                                                            ) : (
+                                                                                                new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }).replace('.', '')
+                                                                                            )}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
                                                                             ) :
-                                                                                /* === COMPACT VIEW: Rectangular pill badges === */
+                                                                                /* === COMPACT VIEW: Internal Slide Transform === */
                                                                                 density === 'compact' ? (
-                                                                                    <CompactTooltip
-                                                                                        triggerClassName={pad}
-                                                                                        sideOffset={14}
-                                                                                        content={
-                                                                                            <div className="min-w-[140px] text-slate-800 dark:text-slate-100">
-                                                                                                {/* --- HEADER: Fecha del período --- */}
-                                                                                                <div className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 mb-2">
-                                                                                                    {monthDate.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
-                                                                                                </div>
+                                                                                    <div className="relative flex items-center w-full h-full px-1.5 overflow-hidden">
+                                                                                        {/* Left: Status Icon (Static) */}
+                                                                                        <div className={`shrink-0 z-10 transition-opacity ${isPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                                                                                            isOverdue ? 'text-rose-500 dark:text-rose-400' :
+                                                                                                'text-slate-400 dark:text-slate-300'
+                                                                                            }`}>
+                                                                                            {isPaid ? (paidOnTime ? <OnTimeMedalIcon className={`${DENSITY_SCALE.compact.icon}`} strokeWidth={2} /> : <CheckCircleIcon className={`${DENSITY_SCALE.compact.icon}`} />) :
+                                                                                                isOverdue ? <ExclamationTriangleIcon className={`${DENSITY_SCALE.compact.icon}`} /> :
+                                                                                                    isPending ? <ClockIcon className={`${DENSITY_SCALE.compact.icon}`} /> :
+                                                                                                        (installmentsCount && installmentsCount > 1) ? <CalendarIcon className={`${DENSITY_SCALE.compact.icon}`} /> :
+                                                                                                            null}
+                                                                                        </div>
 
-                                                                                                {/* --- CONTENT: Monto + Badge en línea --- */}
-                                                                                                <div className="flex items-center justify-between gap-3 mb-1">
-                                                                                                    {/* Monto - protagonista, siempre neutro */}
-                                                                                                    <div className="text-base font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-100">
-                                                                                                        {formatClp(displayAmount!)}
-                                                                                                    </div>
-                                                                                                    {/* Badge de estado compacto */}
-                                                                                                    {isPaid ? (
-                                                                                                        <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-inset ring-emerald-500/20 px-2 py-0.5 rounded-full">
-                                                                                                            <CheckCircleIcon className="w-4 h-4" />
-                                                                                                            Pagado
-                                                                                                        </span>
-                                                                                                    ) : isOverdue ? (
-                                                                                                        <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 ring-1 ring-inset ring-red-500/20 px-2 py-0.5 rounded-full">
-                                                                                                            <ExclamationTriangleIcon className="w-4 h-4" />
-                                                                                                            Vencido
-                                                                                                        </span>
-                                                                                                    ) : isDisabled ? (
-                                                                                                        <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-full">
-                                                                                                            <CalendarIcon className="w-4 h-4" />
-                                                                                                            Futuro
-                                                                                                        </span>
-                                                                                                    ) : (
-                                                                                                        <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full">
-                                                                                                            <ClockIcon className="w-4 h-4" />
-                                                                                                            Pendiente
-                                                                                                        </span>
-                                                                                                    )}
-                                                                                                </div>
-
-                                                                                                {/* Original Currency (si aplica) */}
-                                                                                                {showOriginalCurrency && (
-                                                                                                    <div className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums mb-1">
-                                                                                                        {originalCurrency} {perPeriodOriginal?.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                                                                    </div>
-                                                                                                )}
-
-                                                                                                {/* Cuota info (si aplica) */}
-                                                                                                {(cuotaNumber && installmentsCount && installmentsCount > 1) ? (
-                                                                                                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                                                                        {term?.is_divided_amount ? 'Cuota' : 'Pago'} {cuotaNumber}/{installmentsCount}
-                                                                                                    </div>
-                                                                                                ) : term && term.effective_from && term.frequency === 'MONTHLY' && (!installmentsCount || installmentsCount <= 1) ? (
-                                                                                                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                                                                        Pago {(() => {
-                                                                                                            const [startYear, startMonth] = term.effective_from.split('-').map(Number);
-                                                                                                            const paymentNumber = (monthDate.getFullYear() - startYear) * 12 +
-                                                                                                                (monthDate.getMonth() + 1 - startMonth) + 1;
-                                                                                                            return paymentNumber > 0 ? paymentNumber : 1;
-                                                                                                        })()}/∞
-                                                                                                    </div>
-                                                                                                ) : null}
-
-                                                                                                {/* --- FOOTER: Fecha relativa + CTA --- */}
-                                                                                                <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px]">
-                                                                                                    <span className="text-slate-400 dark:text-slate-500">
-                                                                                                        {isPaid && currentPayment?.payment_date ? (
-                                                                                                            `Pagado: ${new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
-                                                                                                        ) : isOverdue ? (
-                                                                                                            `Venció hace ${daysOverdue} ${daysOverdue === 1 ? 'día' : 'días'}`
-                                                                                                        ) : daysRemaining === 0 ? (
-                                                                                                            'Vence hoy'
-                                                                                                        ) : isCurrentMonth(monthDate) ? (
-                                                                                                            `Vence en ${daysRemaining} ${daysRemaining === 1 ? 'día' : 'días'}`
-                                                                                                        ) : (
-                                                                                                            `Vence: ${new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
-                                                                                                        )}
-                                                                                                    </span>
-                                                                                                    {!isPaid && !isDisabled && (
-                                                                                                        <span className="text-sky-500 dark:text-sky-400 font-medium">
-                                                                                                            Click →
-                                                                                                        </span>
-                                                                                                    )}
-                                                                                                </div>
-                                                                                            </div>
-                                                                                        }
-                                                                                    >
-                                                                                        <div className="flex items-center justify-between w-full h-full px-1 gap-2">
-                                                                                            {/* Left: Status Icon */}
-                                                                                            <div className={`transition-opacity ${isPaid ? 'text-emerald-600 dark:text-emerald-400' :
-                                                                                                isOverdue ? 'text-rose-500 dark:text-rose-400' :
-                                                                                                    'text-slate-400 dark:text-slate-300'
-                                                                                                }`}>
-                                                                                                {isPaid ? <CheckCircleIcon className="w-5 h-5" /> :
-                                                                                                    isOverdue ? <ExclamationTriangleIcon className="w-5 h-5" /> :
-                                                                                                        isPending ? <ClockIcon className="w-5 h-5" /> :
-                                                                                                            (installmentsCount && installmentsCount > 1) ? <CalendarIcon className="w-5 h-5" /> :
-                                                                                                                null}
-                                                                                            </div>
-
-                                                                                            {/* Right: Amount + Cuota */}
-                                                                                            <div className="flex flex-col items-end leading-none">
-                                                                                                <span className="text-sm font-semibold font-mono tabular-nums text-slate-700 dark:text-slate-100">
+                                                                                        {/* Right: Content Wrapper (Sliding) */}
+                                                                                        <div className="flex-1 flex flex-col items-end justify-center relative h-full">
+                                                                                            {/* Primary State: Amount + Cuota */}
+                                                                                            <div className="flex flex-col items-end justify-center h-full transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover/cell:-translate-y-4 group-hover/cell:opacity-0">
+                                                                                                <span className={`${DENSITY_SCALE.compact.amount} font-semibold font-mono tabular-nums text-slate-700 dark:text-slate-100`}>
                                                                                                     {formatClp(displayAmount!)}
                                                                                                 </span>
                                                                                                 {(cuotaNumber && installmentsCount && installmentsCount > 1) && (
-                                                                                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                                                                                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-none mt-0.5">
                                                                                                         {cuotaNumber}/{installmentsCount}
                                                                                                     </span>
                                                                                                 )}
                                                                                             </div>
+
+                                                                                            {/* Hover State: Revealed Info */}
+                                                                                            <div className="absolute inset-0 flex flex-col items-end justify-center translate-y-4 opacity-0 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover/cell:translate-y-0 group-hover/cell:opacity-100 pointer-events-none">
+                                                                                                {showOriginalCurrency && (
+                                                                                                    <span className="text-[0.625rem] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1 w-full text-right">
+                                                                                                        {originalCurrency} {perPeriodOriginal?.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                                                    </span>
+                                                                                                )}
+                                                                                                <span className={`text-[11px] font-bold uppercase tracking-wider leading-none ${
+                                                                                                    isPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                                                                                                    isOverdue ? 'text-rose-600 dark:text-rose-400' :
+                                                                                                    'text-slate-500 dark:text-slate-400'
+                                                                                                }`}>
+                                                                                                    {isPaid ? (
+                                                                                                        currentPayment?.payment_date ? new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }).replace('.', '') : 'Pagado'
+                                                                                                    ) : isOverdue ? (
+                                                                                                        daysOverdue === 0 ? 'Hoy' : `-${daysOverdue}d`
+                                                                                                    ) : daysRemaining === 0 ? (
+                                                                                                        'Hoy'
+                                                                                                    ) : isCurrentMonth(monthDate) ? (
+                                                                                                        `${daysRemaining}d`
+                                                                                                    ) : (
+                                                                                                        new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }).replace('.', '')
+                                                                                                    )}
+                                                                                                </span>
+                                                                                            </div>
                                                                                         </div>
-                                                                                    </CompactTooltip>
+                                                                                    </div>
                                                                                 ) : (
                                                                                     /* === FULL VIEW: Balances Corners Layout === */
                                                                                     <div
@@ -1179,10 +1077,10 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
 
                                                                                         {/* MIDDLE ROW: Status Icon + Amount Stack - Main Visual */}
                                                                                         <div className="flex items-center justify-between py-1">
-                                                                                            <div className="flex-shrink-0">
-                                                                                                {isPaid && <CheckCircleIcon className="w-5 h-5 text-emerald-500" />}
-                                                                                                {isOverdue && <ExclamationTriangleIcon className="w-5 h-5 text-rose-500" />}
-                                                                                                {!isPaid && !isOverdue && <ClockIcon className="w-5 h-5 text-amber-500" />}
+                                                                                                <div className="shrink-0 pt-0.5">
+                                                                                                    {isPaid && (paidOnTime ? <OnTimeMedalIcon className={`${DENSITY_SCALE.detailed.icon} text-emerald-500`} strokeWidth={2} /> : <CheckCircleIcon className={`${DENSITY_SCALE.detailed.icon} text-emerald-500`} />)}
+                                                                                                     {isOverdue && <ExclamationTriangleIcon className={`${DENSITY_SCALE.detailed.icon} text-rose-500`} />}
+                                                                                                {!isPaid && !isOverdue && <ClockIcon className={`${DENSITY_SCALE.detailed.icon} text-slate-400 dark:text-slate-500`} />}
                                                                                             </div>
                                                                                             {/* Amount Stack: Secondary above, Primary below */}
                                                                                             <div className="flex flex-col items-end">
@@ -1200,7 +1098,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                                     <span className="text-[0.625rem] font-medium tracking-wide text-slate-400 dark:text-slate-500 uppercase">
                                                                                                         CLP
                                                                                                     </span>
-                                                                                                    <span className="font-mono tabular-nums text-xl tracking-tighter font-semibold text-slate-800 dark:text-slate-100">
+                                                                                                    <span className={`font-mono tabular-nums ${DENSITY_SCALE.detailed.amount} tracking-tighter font-semibold text-slate-800 dark:text-slate-100`}>
                                                                                                         {formatClp(displayAmount)}
                                                                                                     </span>
                                                                                                 </div>
@@ -1259,61 +1157,6 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                             </tbody>
                         </table>
 
-                        {/* Archived Section - Only in Inventory Mode */}
-                        {viewMode === 'inventory' && groupedCommitments.archived.length > 0 && (
-                            <>
-                                {/* Separator */}
-                                <div className="flex items-center gap-3 px-4 py-3 mt-2">
-                                    <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-                                    <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
-                                        Archivados ({groupedCommitments.archived.length})
-                                    </span>
-                                    <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-                                </div>
-
-                                {/* Archived Commitments - Simplified cards */}
-                                <div className="px-2 pb-4 space-y-1.5 opacity-60">
-                                    {groupedCommitments.archived.map((commitment) => {
-                                        const lifecycleLabel = getTerminationReason(commitment) === 'COMPLETED_INSTALLMENTS'
-                                            ? 'completado'
-                                            : 'pausado';
-                                        const commitmentPayments = payments.get(commitment.id) || [];
-                                        const paymentCount = commitmentPayments.filter(p => p.payment_date).length;
-
-                                        return (
-                                            <div
-                                                key={commitment.id}
-                                                onClick={() => onDetailCommitment ? onDetailCommitment(commitment) : onEditCommitment(commitment)}
-                                                className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer
-                                                        border-l-2 border-slate-400 dark:border-slate-500
-                                                        bg-slate-50/50 dark:bg-slate-800/30
-                                                        hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
-                                            >
-                                                {/* Flow indicator */}
-                                                <div className={`w-1.5 h-4 rounded-full ${commitment.flow_type === 'INCOME' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-
-                                                {/* Name + badge */}
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-medium text-sm text-slate-600 dark:text-slate-300 truncate">
-                                                            {commitment.name}
-                                                        </span>
-                                                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
-                                                            {lifecycleLabel}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Payment count */}
-                                                <span className="text-xs text-slate-400 dark:text-slate-500">
-                                                    {paymentCount} pago{paymentCount !== 1 ? 's' : ''}
-                                                </span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </>
-                        )}
                     </div>
                 </div >
 

@@ -12,7 +12,7 @@
 import React from 'react';
 import {
     CheckCircleIcon, ExclamationTriangleIcon, ClockIcon,
-    CalendarIcon, EditIcon, PlusIcon
+    CalendarIcon, EditIcon, PlusIcon, OnTimeMedalIcon
 } from '../icons';
 import { Minus } from 'lucide-react';
 import * as Tooltip from '@radix-ui/react-tooltip';
@@ -159,8 +159,8 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({
     // MINIMAL VIEW: Icon only with tooltip
     // ==========================================================================
     if (density === 'minimal') {
-        const StatusIcon = isPaid ? CheckCircleIcon : isOverdue ? ExclamationTriangleIcon : ClockIcon;
-        const iconColor = isPaid ? 'text-emerald-500' : isOverdue ? 'text-rose-500' : 'text-amber-500';
+        const StatusIcon = isPaid ? (paidOnTime ? OnTimeMedalIcon : CheckCircleIcon) : isOverdue ? ExclamationTriangleIcon : ClockIcon;
+        const iconColor = isPaid ? (paidOnTime ? 'text-amber-500' : 'text-emerald-500') : isOverdue ? 'text-rose-500' : 'text-amber-500';
 
         return (
             <CompactTooltip
@@ -179,7 +179,7 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({
                             </div>
                         )}
                         <div className={`text-[10px] font-medium mt-1.5 ${iconColor}`}>
-                            {isPaid ? '✓ Pagado' : isOverdue ? '⚠ Vencido' : '⏱ Pendiente'}
+                            {isPaid ? (paidOnTime ? '★ A tiempo' : '✓ Pagado') : isOverdue ? '⚠ Vencido' : '⏱ Pendiente'}
                         </div>
                     </div>
                 }
@@ -252,8 +252,12 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({
                     <div className="mt-1">
                         {isPaid ? (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                                <CheckCircleIcon className="w-3 h-3 text-emerald-500" />
-                                Pagado
+                                {paidOnTime ? (
+                                    <OnTimeMedalIcon className="w-3 h-3 text-amber-500" strokeWidth={2} />
+                                ) : (
+                                    <CheckCircleIcon className="w-3 h-3 text-emerald-500" />
+                                )}
+                                {paidOnTime ? 'A tiempo' : 'Pagado'}
                             </span>
                         ) : isOverdue ? (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400">
@@ -320,7 +324,8 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({
             {/* MIDDLE ROW: Status Icon + Amount */}
             <div className="flex items-center justify-between py-1 pl-2">
                 <div className="flex-shrink-0">
-                    {isPaid && <CheckCircleIcon className="w-5 h-5 text-emerald-500" />}
+                    {isPaid && paidOnTime && <OnTimeMedalIcon className="w-5 h-5 text-amber-500" />}
+                    {isPaid && !paidOnTime && <CheckCircleIcon className="w-5 h-5 text-emerald-500" />}
                     {isOverdue && <ExclamationTriangleIcon className="w-5 h-5 text-rose-500 animate-pulse" />}
                     {!isPaid && !isOverdue && isPending && <ClockIcon className="w-5 h-5 text-amber-500" />}
                     {!isPaid && !isOverdue && !isPending && <CalendarIcon className="w-5 h-5 text-slate-400" />}
@@ -356,7 +361,7 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({
                         vence {dueDay} {monthDate.toLocaleDateString('es-CL', { month: 'short' })}
                     </div>
                     <div className={`text-[10px] font-semibold
-                        ${isPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                        ${isPaid ? (paidOnTime ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-400') :
                             isOverdue ? 'text-rose-600 dark:text-rose-400' :
                                 'text-slate-500 dark:text-slate-400'}`}
                     >
