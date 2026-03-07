@@ -278,190 +278,159 @@ export function CommitmentCard({
             interactive
             compact
             onClick={onClick}
-            className={`h-full relative overflow-hidden ${customClasses} ${isInactive ? 'opacity-60 grayscale' : ''}`}
+            className={`relative overflow-hidden ${customClasses} ${isInactive ? 'opacity-60 grayscale' : ''}`}
         >
-            {/* Bottom Accent Bar - Status Indicator (more visible than lateral) */}
+            {/* Bottom Accent Bar - Status Indicator */}
             <div className={`absolute left-0 right-0 bottom-0 h-1 rounded-b-xl ${getAccentColor()}`} />
 
-            <div className="flex justify-between items-start">
-                <div className="flex items-center gap-2.5">
-                    {/* Avatar - Compact size (32px) */}
-                    <div className={`
-                        w-8 h-8 rounded-lg flex items-center justify-center
-                        shrink-0
-                        bg-slate-100 dark:bg-slate-800
-                        border border-slate-200 dark:border-slate-700
-                        ${commitment.flow_type === 'INCOME'
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : 'text-rose-600 dark:text-rose-400'}
-                    `}>
-                        <CategoryIconComponent className="w-4 h-4" />
-                    </div>
+            <div className="flex flex-col gap-1 pb-1">
+                {/* Zone 1 & 0 (Merged): Header Row: Icon + Name + Lifecycle Badge + Actions */}
+                <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                        {/* Avatar */}
+                        <div className={`
+                            w-8 h-8 rounded-lg flex items-center justify-center
+                            shrink-0 bg-slate-100 dark:bg-slate-800
+                            border border-slate-200 dark:border-slate-700
+                            ${commitment.flow_type === 'INCOME'
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-rose-600 dark:text-rose-400'}
+                        `}>
+                            <CategoryIconComponent className="w-4 h-4 opacity-90" />
+                        </div>
 
-                    {/* Name + Category Badge */}
-                    <div className="flex-1 min-w-0">
-                        <h3 className={`
+                        <div className="flex flex-wrap items-center gap-2 min-w-0">
+                            {/* Name */}
+                            <h3 className={`
                                 font-bold text-base text-[var(--dashboard-text-primary)]
-                                leading-tight line-clamp-2
+                                leading-tight line-clamp-1
                                 ${isInactive ? 'line-through opacity-60' : ''}
                             `}>
-                            {commitment.name}
-                        </h3>
-                        {/* Category Badge - Tech/Dark Style matching screenshot */}
-                        <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded-md text-[0.6rem] uppercase tracking-widest font-bold bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 text-slate-500 dark:text-slate-400">
-                            <CategoryIconComponent className="w-3 h-3 opacity-70" />
-                            {categoryName || 'Sin categoría'}
+                                {commitment.name}
+                            </h3>
+                            {/* Lifecycle Badge */}
+                            <span className={`
+                                inline-flex items-center text-[0.6rem] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider
+                                ${lifecycle.style.bg} ${lifecycle.style.text}
+                            `}>
+                                {lifecycle.label}
+                            </span>
                         </div>
                     </div>
-                </div>
-
-                {/* Header Right: Lifecycle Badge + Actions */}
-                <div className="flex items-center gap-1">
-                    {/* Lifecycle Badge (Primary Identity) */}
-                    <span className={`
-                        hidden sm:inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ml-2
-                        ${lifecycle.style.bg} ${lifecycle.style.text}
-                    `}>
-                        {lifecycle.label}
-                    </span>
 
                     {/* Actions Menu */}
                     {!isInactive && (
-                        <DropdownMenu.Root>
-                            <DropdownMenu.Trigger asChild>
-                                <button
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:bg-[var(--dashboard-surface-hover)] transition-colors"
-                                >
-                                    <MoreVertical className="w-5 h-5" />
-                                </button>
-                            </DropdownMenu.Trigger>
-                            <DropdownMenu.Portal>
-                                <DropdownMenu.Content
-                                    className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-xl p-1.5 shadow-2xl min-w-[160px] z-50"
-                                    sideOffset={5}
-                                >
-                                    {onEdit && (
-                                        <DropdownMenu.Item
-                                            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                                            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-200 hover:bg-slate-700/50 rounded-lg cursor-pointer outline-none transition-colors"
-                                        >
-                                            <Edit2 className="w-4 h-4 text-slate-400" />
-                                            Editar
-                                        </DropdownMenu.Item>
-                                    )}
-                                    {onDetail && (
-                                        <DropdownMenu.Item
-                                            onClick={(e) => { e.stopPropagation(); onDetail(); }}
-                                            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-sky-400 hover:bg-sky-500/10 rounded-lg cursor-pointer outline-none transition-colors"
-                                        >
-                                            <Eye className="w-4 h-4" />
-                                            Detalle
-                                        </DropdownMenu.Item>
-                                    )}
-                                    {!isInactive && onPause && (
-                                        <DropdownMenu.Item
-                                            onClick={(e) => { e.stopPropagation(); onPause(); }}
-                                            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/10 rounded-lg cursor-pointer outline-none transition-colors"
-                                        >
-                                            <Pause className="w-4 h-4" />
-                                            Pausar
-                                        </DropdownMenu.Item>
-                                    )}
-                                    {isInactive && onResume && (
-                                        <DropdownMenu.Item
-                                            onClick={(e) => { e.stopPropagation(); onResume(); }}
-                                            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-emerald-400 hover:bg-emerald-500/10 rounded-lg cursor-pointer outline-none transition-colors"
-                                        >
-                                            <Play className="w-4 h-4" />
-                                            Reanudar
-                                        </DropdownMenu.Item>
-                                    )}
-                                    {onDelete && (
-                                        <>
-                                            <DropdownMenu.Separator className="h-px bg-slate-700/50 my-1.5" />
-                                            <DropdownMenu.Item
-                                                onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                                                className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10 rounded-lg cursor-pointer outline-none transition-colors"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                                Eliminar
+                        <div className="-mt-1 -mr-1 shrink-0">
+                            <DropdownMenu.Root>
+                                <DropdownMenu.Trigger asChild>
+                                    <button
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:bg-[var(--dashboard-surface-hover)] transition-colors"
+                                    >
+                                        <MoreVertical className="w-5 h-5" />
+                                    </button>
+                                </DropdownMenu.Trigger>
+                                <DropdownMenu.Portal>
+                                    <DropdownMenu.Content
+                                        className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-xl p-1.5 shadow-2xl min-w-[160px] z-50 text-slate-200"
+                                        sideOffset={5}
+                                    >
+                                        {onEdit && (
+                                            <DropdownMenu.Item onClick={(e) => { e.stopPropagation(); onEdit(); }} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium hover:bg-slate-700/50 rounded-lg cursor-pointer outline-none transition-colors">
+                                                <Edit2 className="w-4 h-4 text-slate-400" /> Editar
                                             </DropdownMenu.Item>
-                                        </>
-                                    )}
-                                </DropdownMenu.Content>
-                            </DropdownMenu.Portal>
-                        </DropdownMenu.Root>
-                    )}
-                </div>
-            </div>
-
-            {/* Amount Row - Right aligned with currency prefix */}
-            <div className="mt-1.5 flex items-center justify-between">
-                {/* Left: Payment Progress */}
-                {getPaymentProgress()}
-
-                {/* Right: Amount Stack (Secondary above, Primary below) */}
-                <div className="flex flex-col items-end">
-                    {/* Secondary Currency (if exists) - Above primary */}
-                    {activeTerm?.currency_original && activeTerm.currency_original !== 'CLP' && activeTerm.amount_original && (
-                        <div className="flex items-baseline gap-1 text-[0.625rem] text-slate-500 dark:text-slate-400">
-                            <span className="font-medium uppercase">{activeTerm.currency_original}</span>
-                            <span className="font-mono tabular-nums">
-                                {activeTerm.amount_original.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
+                                        )}
+                                        {onDetail && (
+                                            <DropdownMenu.Item onClick={(e) => { e.stopPropagation(); onDetail(); }} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-sky-400 hover:bg-sky-500/10 rounded-lg cursor-pointer outline-none transition-colors">
+                                                <Eye className="w-4 h-4" /> Detalle
+                                            </DropdownMenu.Item>
+                                        )}
+                                        {!isInactive && onPause && (
+                                            <DropdownMenu.Item onClick={(e) => { e.stopPropagation(); onPause(); }} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/10 rounded-lg cursor-pointer outline-none transition-colors">
+                                                <Pause className="w-4 h-4" /> Pausar
+                                            </DropdownMenu.Item>
+                                        )}
+                                        {isInactive && onResume && (
+                                            <DropdownMenu.Item onClick={(e) => { e.stopPropagation(); onResume(); }} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-emerald-400 hover:bg-emerald-500/10 rounded-lg cursor-pointer outline-none transition-colors">
+                                                <Play className="w-4 h-4" /> Reanudar
+                                            </DropdownMenu.Item>
+                                        )}
+                                        {onDelete && (
+                                            <>
+                                                <DropdownMenu.Separator className="h-px bg-slate-700/50 my-1.5" />
+                                                <DropdownMenu.Item onClick={(e) => { e.stopPropagation(); onDelete(); }} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer outline-none transition-colors">
+                                                    <Trash2 className="w-4 h-4" /> Eliminar
+                                                </DropdownMenu.Item>
+                                            </>
+                                        )}
+                                    </DropdownMenu.Content>
+                                </DropdownMenu.Portal>
+                            </DropdownMenu.Root>
                         </div>
                     )}
-                    {/* Primary Amount with CLP prefix */}
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-[0.625rem] font-medium text-slate-500 dark:text-slate-400 uppercase">
-                            CLP
-                        </span>
-                        <span className="text-lg font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)]">
-                            {/* Monthly mode: prefer real paidAmount if available (aligns with DesktopGrid behavior) */}
-                            {mode === 'monthly' && monthlyInfo?.isPaid && monthlyInfo.paidAmount !== undefined
-                                ? formatAmount(monthlyInfo.paidAmount)
-                                : summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
-                        </span>
+                </div>
+
+                {/* Zone 2: Category + Progress */}
+                <div className="flex items-center justify-between mt-0.5 ml-10">
+                    {/* Category Badge */}
+                    <div className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[0.65rem] uppercase tracking-widest font-bold bg-[var(--dashboard-surface-hover)] border border-[var(--dashboard-border-subtle)] text-[var(--dashboard-text-muted)]">
+                        <CategoryIconComponent className="w-3 h-3 opacity-60" />
+                        {categoryName || 'General'}
+                    </div>
+
+                    {/* Zone 0 (Relocated): Payment Progress / Frequency */}
+                    <div className="shrink-0">
+                        {getPaymentProgress()}
                     </div>
                 </div>
-            </div>
 
-            {/* Simplified Footer: Just status text + date, no heavy badges */}
-            <div className="mt-2 pt-1.5 border-t border-slate-200/30 dark:border-slate-700/30 flex items-center justify-between text-xs">
-                {/* Left: Status as simple text (color from left bar reinforces this) */}
-                {financial ? (
-                    <span className={`font-medium ${financial.style.text}`}>
-                        {financial.label}
-                        {financial.detail && (
-                            <span className="text-[var(--dashboard-text-muted)] ml-1 font-normal">{financial.detail}</span>
+                {/* Zone 4 & 5: Footer Row (Status Indicators + Amounts) */}
+                <div className="mt-3 pt-2 border-t border-[var(--dashboard-border-subtle)] flex items-end justify-between">
+                    {/* Left: Status & Date Info */}
+                    <div className="flex flex-col gap-0.5">
+                        {financial ? (
+                            <div className={`flex items-center gap-1 font-semibold text-xs ${financial.style.text}`}>
+                                {financial.icon && <span className="mr-0.5">{financial.icon}</span>}
+                                {financial.label}
+                            </div>
+                        ) : (
+                            isInactive ? <span className="text-xs font-semibold text-[var(--dashboard-text-muted)]">Sin deuda</span> : <span />
                         )}
-                    </span>
-                ) : (
-                    isInactive
-                        ? <span className="text-[var(--dashboard-text-muted)]">Sin deuda</span>
-                        : <span />
-                )}
+                        
+                        {(financial?.detail || (mode === 'inventory' && (summary.nextPaymentDate || summary.lastPayment))) && (
+                            <span className="text-[0.65rem] font-medium text-[var(--dashboard-text-muted)]">
+                                {financial?.detail || (mode === 'inventory' && !isInactive && summary.nextPaymentDate && `Vence: ${summary.nextPaymentDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`)}
+                                {mode === 'inventory' && isInactive && summary.lastPayment && `Último: ${new Date(summary.lastPayment.payment_date || summary.lastPayment.period_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`}
+                            </span>
+                        )}
+                    </div>
 
-                {/* Right: Smart Date */}
-                {mode === 'inventory' && (
-                    <span className="text-[var(--dashboard-text-muted)]">
-                        {!isInactive && summary.nextPaymentDate && (
-                            <>
-                                Próx: <span className="font-medium text-[var(--dashboard-text-secondary)]">
-                                    {summary.nextPaymentDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
+                    {/* Right: Amount Stack */}
+                    <div className="flex flex-col items-end">
+                        {/* Secondary Currency (UF/USD) */}
+                        {activeTerm?.currency_original && activeTerm.currency_original !== 'CLP' && activeTerm.amount_original !== null && (
+                            <div className="flex items-baseline gap-1 text-[0.65rem] text-[var(--dashboard-text-secondary)]">
+                                <span className="font-semibold uppercase">{activeTerm.currency_original}</span>
+                                <span className="font-mono tabular-nums">
+                                    {activeTerm.amount_original.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
-                            </>
+                            </div>
                         )}
-                        {isInactive && summary.lastPayment && (
-                            <>
-                                Último: <span className="font-medium text-[var(--dashboard-text-secondary)]">
-                                    {new Date(summary.lastPayment.payment_date || summary.lastPayment.period_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
-                                </span>
-                            </>
-                        )}
-                    </span>
-                )}
+                        
+                        {/* Primary Amount CLP */}
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-[0.65rem] font-bold text-[var(--dashboard-text-muted)] uppercase">
+                                CLP
+                            </span>
+                            <span className="text-lg font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)]">
+                                {mode === 'monthly' && monthlyInfo?.isPaid && monthlyInfo.paidAmount !== undefined
+                                    ? formatAmount(monthlyInfo.paidAmount)
+                                    : summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </BentoCard>
     );
