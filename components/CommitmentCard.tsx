@@ -9,7 +9,7 @@
 import { BentoCard, BentoCardVariant } from './BentoCard';
 import { CommitmentWithTerm, Payment } from '../types.v2';
 // useLocalization removed
-import { getCommitmentSummary, getCommitmentStatus, EstadoType, getInstallmentNumber } from '../utils/commitmentStatusUtils';
+import { getCommitmentSummary, getCommitmentStatus, getInstallmentNumber } from '../utils/commitmentStatusUtils';
 import { getCategoryIcon } from '../utils/categoryIcons';
 import { MoreVertical, Edit2, Pause, Play, Trash2, Eye } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -150,8 +150,15 @@ export function CommitmentCard({
 
 
 
+    const isOverdue = mode === 'monthly'
+        ? (monthlyInfo?.daysOverdue && monthlyInfo.daysOverdue > 0)
+        : summary.estado === 'overdue';
+
     // Target visual overrides for the BentoCard container
-    const visualOverrides = '!backdrop-blur-none !bg-[var(--dashboard-surface)] dark:!bg-slate-800/40 !border-[var(--dashboard-border-subtle)] dark:!border-slate-700/30';
+    // Matching DesktopGrid cell background: 'bg-slate-900/10 dark:bg-slate-800/30'
+    const visualOverrides = isOverdue && !isInactive
+        ? '!bg-rose-50/50 md:!bg-rose-100/50 dark:!bg-rose-950/40 !border-rose-200 dark:!border-rose-900/50'
+        : '!bg-[var(--dashboard-surface)] md:!bg-slate-900/10 dark:!bg-slate-800/30 !border-[var(--dashboard-border-subtle)] dark:!border-slate-500/30';
 
     const getStatusInfo = () => {
         const status = getCommitmentStatus(commitment);
@@ -191,29 +198,29 @@ export function CommitmentCard({
             onClick={onClick}
             className={`relative overflow-hidden ${visualOverrides} ${isInactive ? 'opacity-60 grayscale' : ''}`}
         >
-            {/* Lateral Left Accent Bar */}
-            <div className={`absolute left-0 top-3 bottom-3 w-1.5 rounded-r-md ${getAccentColor()}`} />
+            {/* Bottom Accent Bar - Status Indicator (as per Design Guidelines 12.9.1) */}
+            <div className={`absolute left-0 right-0 bottom-0 h-1 rounded-b-xl ${getAccentColor()}`} />
 
-            <div className="pl-3 pb-1">
+            <div className="pl-2 pb-1">
                 {/* Protocol 1: Header (Avatar + Title + Actions) */}
                 <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3 min-w-0 pr-2">
                         {/* Avatar */}
                         <div className={`
-                            w-9 h-9 rounded-[10px] flex items-center justify-center
+                            w-8 h-8 rounded-lg flex items-center justify-center
                             shrink-0 bg-slate-200/50 dark:bg-slate-900/40
                             border border-slate-300/50 dark:border-slate-700/50
                             ${commitment.flow_type === 'INCOME'
                                 ? 'text-emerald-600 dark:text-emerald-400'
                                 : 'text-rose-600 dark:text-rose-400'}
                         `}>
-                            <CategoryIconComponent className="w-[18px] h-[18px] opacity-90" />
+                            <CategoryIconComponent className="w-4 h-4 opacity-90" />
                         </div>
 
                         <div className="flex flex-col min-w-0">
                             {/* Name */}
                             <h3 className={`
-                                font-bold text-base text-[var(--dashboard-text-primary)]
+                                font-brand font-bold text-base text-[var(--dashboard-text-primary)]
                                 leading-tight line-clamp-1
                                 ${isInactive ? 'line-through opacity-60' : ''}
                             `}>
@@ -236,7 +243,7 @@ export function CommitmentCard({
                                 </DropdownMenu.Trigger>
                                 <DropdownMenu.Portal>
                                     <DropdownMenu.Content
-                                        className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-xl p-1.5 shadow-2xl min-w-[160px] z-50 text-slate-200"
+                                        className="bg-slate-900/95 border border-slate-700/50 rounded-xl p-1.5 shadow-2xl min-w-[160px] z-50 text-slate-200"
                                         sideOffset={5}
                                     >
                                         {onEdit && (
@@ -276,17 +283,17 @@ export function CommitmentCard({
 
                 {/* Protocol 2: Badges Column */}
                 <div className="flex flex-col gap-1.5 mt-2.5">
-                    {/* Category Badge */}
-                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-200/50 dark:bg-[#1a1f2c]/80 border border-slate-300/30 dark:border-white/5 w-fit">
+                    {/* Category Badge - Match DesktopGrid Badges: bg-slate-100/50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/50 */}
+                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 w-fit">
                         <CategoryIconComponent className="w-3 h-3 text-slate-500 dark:text-slate-400" />
-                        <span className="text-[0.65rem] uppercase tracking-widest font-bold text-slate-600 dark:text-slate-300">
+                        <span className="text-[0.65rem] uppercase tracking-widest font-bold text-slate-600 dark:text-slate-400">
                             {categoryName || 'General'}
                         </span>
                     </div>
 
                     {/* Progress / Frequency Badge */}
                     {getPaymentProgress() && (
-                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-200/50 dark:bg-[#1a1f2c]/80 border border-slate-300/30 dark:border-white/5 w-fit">
+                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 w-fit">
                             {getPaymentProgress()}
                         </div>
                     )}
@@ -316,8 +323,8 @@ export function CommitmentCard({
                         {/* Secondary Currency */}
                         {activeTerm?.currency_original && activeTerm.currency_original !== 'CLP' && activeTerm.amount_original !== null && (
                             <div className="flex items-baseline gap-1 text-[0.65rem] text-[var(--dashboard-text-secondary)] mb-0.5">
-                                <span className="font-semibold uppercase">{activeTerm.currency_original}</span>
-                                <span className="font-mono tabular-nums">
+                                <span className="font-semibold uppercase font-sans">{activeTerm.currency_original}</span>
+                                <span className="font-sans tabular-nums font-semibold">
                                     {activeTerm.amount_original.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                             </div>
@@ -325,10 +332,8 @@ export function CommitmentCard({
                         
                         {/* Primary Amount CLP */}
                         <div className="flex items-baseline gap-1">
-                            <span className="text-[0.65rem] font-bold text-[var(--dashboard-text-muted)] uppercase">
-                                CLP
-                            </span>
-                            <span className="text-xl font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)] leading-none">
+                            {/* "CLP" string removed as requested in mobile redesign guidelines */}
+                            <span className="font-sans text-xl font-bold tabular-nums tracking-tight text-[var(--dashboard-text-primary)] leading-none">
                                 {mode === 'monthly' && monthlyInfo?.isPaid && monthlyInfo.paidAmount !== undefined
                                     ? formatAmount(monthlyInfo.paidAmount)
                                     : summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
