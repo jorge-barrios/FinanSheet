@@ -284,7 +284,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                             <div className={`
                                                     flex items-center gap-1 w-full rounded-xl transition-all duration-300 ease-out
                                                     border shadow-sm group/selector px-1.5
-                                                    bg-sky-50/70 dark:bg-sky-900/20 backdrop-blur-sm
+                                                    bg-sky-50/70 dark:bg-sky-900/20
                                                     border-sky-200/50 dark:border-sky-700/30
                                                     hover:shadow-lg hover:-translate-y-0.5 hover:bg-sky-100/80 dark:hover:bg-sky-800/30 hover:border-sky-300 dark:hover:border-sky-600/40
                                                     ${DENSITY_SCALE[density].cell}
@@ -364,7 +364,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
 
                                                 if (isCurrent || isFocused) {
                                                     // Commit-card style for active month
-                                                    cardStyle = 'bg-white dark:bg-slate-600/60 border border-slate-400/60 dark:border-slate-400/40 hover:bg-slate-100 dark:hover:bg-slate-600/80 shadow-sm backdrop-blur-sm';
+                                                    cardStyle = 'bg-white dark:bg-slate-600/60 border border-slate-400/60 dark:border-slate-400/40 hover:bg-slate-100 dark:hover:bg-slate-600/80 shadow-sm';
                                                 }
 
                                                 return (
@@ -739,8 +739,8 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                             </DropdownMenu.Trigger>
                                                                             <DropdownMenu.Portal>
                                                                                 <DropdownMenu.Content
-                                                                                    className="min-w-[160px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 p-1 z-50 animate-in fade-in zoom-in-95 duration-200"
-                                                                                    sideOffset={5}
+                                                                                    className="min-w-[160px] bg-white/95 dark:bg-slate-900/95 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 p-1 z-50 animate-in fade-in zoom-in-95 duration-200"
+                                                                                    sideOffset={4}
                                                                                     align="end"
                                                                                 >
                                                                                     <DropdownMenu.Item
