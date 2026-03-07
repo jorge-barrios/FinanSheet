@@ -27,7 +27,7 @@ export interface MobileCardListProps {
 
     // Hook functions
     getTermForPeriod: (c: CommitmentWithTerm, date: Date) => any;
-    getPaymentStatus: (id: string, date: Date, dueDay: number) => { isPaid: boolean; payment: any; hasPaymentRecord: boolean };
+    getPaymentStatus: (id: string, date: Date, dueDay: number) => { isPaid: boolean; payment: any; hasPaymentRecord: boolean; amount: number | null; paidOnTime: boolean };
     isActiveInMonth: (c: CommitmentWithTerm, date: Date) => boolean;
     performSmartSort: (a: CommitmentWithTerm, b: CommitmentWithTerm) => number;
     getTranslatedCategoryName: (c: CommitmentWithTerm) => string;
@@ -125,7 +125,7 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
                     const isTermActiveInMonth = !!term && (!termEnds || termEnds >= monthStart);
 
                     const dueDay = term?.due_day_of_month ?? 1;
-                    const { isPaid, payment: currentPayment, paidOnTime } = getPaymentStatus(c.id, monthDate, dueDay);
+                    const { isPaid, payment: currentPayment, paidOnTime, amount: paidAmountCLP } = getPaymentStatus(c.id, monthDate, dueDay);
 
                     const today = new Date();
                     const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
@@ -138,6 +138,8 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
                     // Prepare monthly info for CommitmentCard
                     const monthlyInfo = {
                         isPaid,
+                        // Pass the real paid amount so CommitmentCard shows the historical value (not just the committed term amount)
+                        paidAmount: isPaid && paidAmountCLP !== null ? paidAmountCLP : undefined,
                         paymentDate: currentPayment?.payment_date
                             ? parseDateString(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
                             : undefined,

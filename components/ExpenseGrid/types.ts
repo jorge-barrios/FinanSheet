@@ -31,7 +31,7 @@ export interface ExpenseCardProps {
     monthDate: Date;
     density: Density;
     payment: Payment | undefined;
-    term: CommitmentWithTerm['terms'][0] | undefined;
+    term: CommitmentWithTerm['all_terms'] extends Array<infer T> ? T : never | undefined;
     isPaid: boolean;
     isOverdue: boolean;
     isActiveThisMonth: boolean;

@@ -746,14 +746,15 @@ export function filterByLifecycle(
             return true;
         }
 
+        const commitmentStatus = getCommitmentStatus(c);
         switch (filter) {
             case 'active':
-                return status === 'ACTIVE';
+                return commitmentStatus === 'ACTIVE';
             case 'completed':
-                return status === 'COMPLETED';
+                return commitmentStatus === 'COMPLETED';
             case 'paused':
                 // PAUSED filter includes both PAUSED and TERMINATED
-                return status === 'INACTIVE';
+                return commitmentStatus === 'INACTIVE';
             default:
                 return true;
         }

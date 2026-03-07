@@ -6,7 +6,6 @@
  * Shared between InventoryView and ExpenseGrid.
  */
 
-import React from 'react';
 import { BentoCard, BentoCardVariant } from './BentoCard';
 import { CommitmentWithTerm, Payment } from '../types.v2';
 // useLocalization removed
@@ -38,6 +37,8 @@ interface CommitmentCardProps {
     /** For monthly mode: current period info */
     monthlyInfo?: {
         isPaid: boolean;
+        /** Real amount paid in CLP (from payment record). Shows instead of term amount when available. */
+        paidAmount?: number;
         paymentDate?: string;
         dueDate?: string;
         daysOverdue?: number;
@@ -417,7 +418,10 @@ export function CommitmentCard({
                             CLP
                         </span>
                         <span className="text-lg font-black tabular-nums tracking-tight text-[var(--dashboard-text-primary)]">
-                            {summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
+                            {/* Monthly mode: prefer real paidAmount if available (aligns with DesktopGrid behavior) */}
+                            {mode === 'monthly' && monthlyInfo?.isPaid && monthlyInfo.paidAmount !== undefined
+                                ? formatAmount(monthlyInfo.paidAmount)
+                                : summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
                         </span>
                     </div>
                 </div>
