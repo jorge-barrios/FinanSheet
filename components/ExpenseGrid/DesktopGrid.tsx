@@ -635,12 +635,12 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                     {/* Zone 2: Metadata Badges (Stacked) */}
                                                                     <div className="flex flex-col items-start gap-1 mt-1 shrink-0">
                                                                         {/* Category Name */}
-                                                                        <div className="inline-flex items-center px-[0.65em] py-[0.15em] rounded-[4px] text-[0.6em] uppercase tracking-widest font-bold bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 text-slate-600 dark:text-slate-400 leading-none">
-                                                                            {getTranslatedCategoryName(commitment)}
+                                                                        <div className="inline-flex items-center px-[0.65em] py-[0.15em] rounded-[4px] text-[0.6em] uppercase tracking-widest font-bold bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 leading-none">
+                                                                            <span className="truncate">{getTranslatedCategoryName(commitment)}</span>
                                                                         </div>
 
                                                                         {/* Frequency Badge - Standard */}
-                                                                        <span className="inline-flex items-center gap-[0.35em] px-[0.65em] py-[0.2em] rounded-[4px] text-[0.6em] font-bold bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 text-slate-500 dark:text-slate-400 leading-none">
+                                                                        <span className="inline-flex items-center gap-[0.35em] px-[0.65em] py-[0.2em] rounded-[4px] text-[0.6em] font-bold bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 leading-none">
                                                                             <RefreshCw className="w-[1em] h-[1em] opacity-70" />
                                                                             {(() => {
                                                                                 const freq = termForMonth?.frequency;

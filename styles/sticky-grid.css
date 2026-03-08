@@ -38,8 +38,7 @@
 
 /* Header row base - light mode */
 .expense-grid thead tr {
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+  opacity: 1 !important;
 }
 
 /* Dark mode header */
@@ -49,8 +48,7 @@
 }
 
 .dark .expense-grid thead tr {
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+  opacity: 1 !important;
 }
 
 /* Header Capsule - rounded corners on first and last cells */
@@ -69,10 +67,8 @@
 .expense-grid tbody th:first-child {
   position: sticky;
   left: 0;
-  background: rgba(255, 255, 255, 0.95) !important;
-  background-color: rgba(255, 255, 255, 0.95) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background: rgba(255, 255, 255, 1) !important;
+  background-color: rgb(255 255 255) !important;
   z-index: 10;
   opacity: 1 !important;
   box-shadow: 4px 0 12px -4px rgba(0, 0, 0, 0.08) !important;
@@ -80,10 +76,8 @@
 
 .dark .expense-grid tbody td:first-child,
 .dark .expense-grid tbody th:first-child {
-  background: rgba(15, 23, 42, 0.95) !important; /* slate-900/95 */
-  background-color: rgba(15, 23, 42, 0.95) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background: rgb(15 23 42) !important; /* slate-900 */
+  background-color: rgb(15 23 42) !important;
   opacity: 1 !important;
   box-shadow: 4px 0 12px -4px rgba(0, 0, 0, 0.3) !important;
 }
@@ -98,8 +92,6 @@ table.expense-grid thead tr th:first-child,
   left: 0 !important;
   z-index: 999 !important;
   /* Background comes from Tailwind classes for capsule continuity */
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
   opacity: 1 !important;
   box-shadow: 4px 0 12px -4px rgba(0, 0, 0, 0.1) !important;
 }
@@ -108,8 +100,6 @@ table.expense-grid thead tr th:first-child,
 .dark table.expense-grid thead tr th:first-child,
 .dark .expense-grid-container .expense-grid thead th:first-child {
   /* Uses Tailwind bg from component - slate-800/90 for capsule continuity */
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
   opacity: 1 !important;
   box-shadow: 4px 0 12px -4px rgba(0, 0, 0, 0.4) !important;
 }
@@ -195,7 +185,9 @@ table.expense-grid thead tr th:first-child,
 
 /* Tipografía tabular para números - Mejora legibilidad */
 .expense-grid .numeric-cell {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
   font-feature-settings: "tnum";
   text-align: right;
   color: rgb(15 23 42) !important;
@@ -316,17 +308,27 @@ table.expense-grid thead tr th:first-child,
 
 /* Indicador visual para celdas sticky */
 .expense-grid thead th:first-child::after {
-  content: '';
+  content: "";
   position: absolute;
   right: 0;
   top: 0;
   bottom: 0;
   width: 1px;
-  background: linear-gradient(to bottom, transparent, rgb(203 213 225), transparent);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgb(203 213 225),
+    transparent
+  );
 }
 
 .dark .expense-grid thead th:first-child::after {
-  background: linear-gradient(to bottom, transparent, rgb(71 85 105), transparent);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgb(71 85 105),
+    transparent
+  );
 }
 
 /* Sombra sutil para elementos sticky */

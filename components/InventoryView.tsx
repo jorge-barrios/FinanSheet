@@ -157,7 +157,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({
     return (
         <div className="flex flex-col min-h-0 bg-slate-50 dark:bg-slate-900/50">
             {/* Toolbar - Desktop only (mobile uses MobileControlBar) */}
-            <div className="hidden lg:block sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 p-4">
+            <div className="hidden lg:block sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4">
                 <div className="flex flex-col sm:flex-row gap-4 items-center justify-between max-w-7xl mx-auto w-full">
 
                     {/* Search & Filter */}

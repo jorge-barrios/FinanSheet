@@ -8,7 +8,6 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
 import { CommitmentCard } from '../CommitmentCard';
-import { parseDateString } from '../../utils/financialUtils.v2';
 import { dateToPeriod } from './types';
 import type { CommitmentWithTerm, Payment } from '../../types.v2';
 import type { ViewMode, StatusFilter } from '../../hooks/useExpenseGridLogic';
@@ -140,9 +139,8 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
                         isPaid,
                         // Pass the real paid amount so CommitmentCard shows the historical value (not just the committed term amount)
                         paidAmount: isPaid && paidAmountCLP !== null ? paidAmountCLP : undefined,
-                        paymentDate: currentPayment?.payment_date
-                            ? parseDateString(currentPayment.payment_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
-                            : undefined,
+                        // Pass raw ISO string date so CommitmentCard can parse it
+                        paymentDate: currentPayment?.payment_date,
                         dueDate: !isPaid && isTermActiveInMonth
                             ? `Vence: ${dueDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
                             : undefined,

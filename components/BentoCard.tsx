@@ -40,43 +40,42 @@ const variantStyles: Record<BentoCardVariant, {
 }> = {
     default: {
         border: 'border-[var(--dashboard-border)]',
-        background: 'bg-gradient-to-br from-[var(--dashboard-surface)] via-[var(--dashboard-surface)] to-[var(--dashboard-surface-elevated)]',
+        background: 'bg-[var(--dashboard-surface)]',
         accentText: 'text-[var(--dashboard-text-primary)]',
     },
     hero: {
         border: 'border-[var(--dashboard-border)]',
-        // Stronger gradient for Hero: Darker/Richer in dark mode, defined in CSS usually but approximated here with util classes
-        background: 'bg-gradient-to-br from-[var(--dashboard-surface)] to-[var(--dashboard-surface-elevated)]',
+        background: 'bg-[var(--dashboard-surface)]',
         topAccentClass: 'bg-gradient-to-r from-[var(--dashboard-accent)] to-[var(--dashboard-positive)]',
         accentText: 'text-[var(--dashboard-accent)]',
     },
     positive: {
         border: 'border-[var(--dashboard-border)]',
-        background: 'bg-gradient-to-br from-[var(--dashboard-surface)] to-[var(--dashboard-positive-light)]',
+        background: 'bg-[var(--dashboard-surface)]',
         topAccentClass: 'bg-[var(--dashboard-positive)]',
         accentText: 'text-[var(--dashboard-positive)]',
     },
     negative: {
         border: 'border-[var(--dashboard-border)]',
-        background: 'bg-gradient-to-br from-[var(--dashboard-surface)] to-[var(--dashboard-negative-light)]',
+        background: 'bg-[var(--dashboard-surface)]',
         topAccentClass: 'bg-[var(--dashboard-negative)]',
         accentText: 'text-[var(--dashboard-negative)]',
     },
     accent: {
         border: 'border-[var(--dashboard-border)]',
-        background: 'bg-gradient-to-br from-[var(--dashboard-surface)] to-[var(--dashboard-accent-light)]',
+        background: 'bg-[var(--dashboard-surface)]',
         topAccentClass: 'bg-[var(--dashboard-accent)]',
         accentText: 'text-[var(--dashboard-accent)]',
     },
     warning: {
         border: 'border-[var(--dashboard-border)]',
-        background: 'bg-gradient-to-br from-[var(--dashboard-surface)] to-[var(--dashboard-warning-light)]',
+        background: 'bg-[var(--dashboard-surface)]',
         topAccentClass: 'bg-[var(--dashboard-warning)]',
         accentText: 'text-[var(--dashboard-warning)]',
     },
     neutral: {
         border: 'border-[var(--dashboard-border)]',
-        background: 'bg-gradient-to-br from-[var(--dashboard-surface)] to-[var(--dashboard-neutral-light)]',
+        background: 'bg-[var(--dashboard-surface)]',
         topAccentClass: 'bg-[var(--dashboard-neutral)]',
         accentText: 'text-[var(--dashboard-neutral)]',
     },
@@ -103,24 +102,19 @@ export function BentoCard({
                 group relative overflow-hidden rounded-xl
                 ${styles.background}
                 border ${styles.border}
-                backdrop-blur-xl
                 transition-all duration-200 ease-out
                 ${isClickable ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-lg hover:border-[var(--dashboard-border-strong)]' : ''}
                 ${className}
             `.trim().replace(/\s+/g, ' ')}
             style={{
-                backgroundBlendMode: 'overlay', // Helps blend the gradient with the base surface color
                 boxShadow: isClickable ? 'var(--dashboard-shadow-sm)' : undefined
             }}
         >
             {/* Top Accent Bar - DISABLED: Using left lateral bar instead (see CommitmentCard) */}
             {/* Note: Left lateral status indicator is now handled by the parent component */}
 
-            {/* Glass shine effect on hover (optional, enhances hybrid feel) */}
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none bg-gradient-to-tr from-white/0 via-white/5 to-white/0" />
-
             {/* Content - Responsive padding */}
-            <div className={`relative ${compact ? 'p-3' : 'p-4'}`}>
+            <div className={`relative ${compact ? 'p-4' : 'p-5'}`}>
                 {(header || title) && (
                     <div className="mb-3">
                         {header && <div className="mb-2">{header}</div>}

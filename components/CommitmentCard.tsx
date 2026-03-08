@@ -9,9 +9,10 @@
 import { BentoCard, BentoCardVariant } from './BentoCard';
 import { CommitmentWithTerm, Payment } from '../types.v2';
 // useLocalization removed
-import { getCommitmentSummary, getCommitmentStatus, getInstallmentNumber } from '../utils/commitmentStatusUtils';
+import { getCommitmentSummary, getInstallmentNumber } from '../utils/commitmentStatusUtils';
 import { getCategoryIcon } from '../utils/categoryIcons';
-import { MoreVertical, Edit2, Pause, Play, Trash2, Eye } from 'lucide-react';
+import { Edit2, Pause, Play, Trash2, Eye, Star } from 'lucide-react';
+import { OnTimeMedalIcon, ExclamationTriangleIcon, CheckCircleIcon } from './icons';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 
 
@@ -100,8 +101,8 @@ export function CommitmentCard({
             if (installmentInfo) {
                 return (
                     <div className="flex items-center gap-1.5 text-[0.65rem] text-slate-300 dark:text-slate-400 font-bold uppercase tracking-widest">
-                        <span className="opacity-70">Cuota</span>
-                        <span>{installmentInfo.current} / {installmentInfo.totalLabel}</span>
+                        <span className="opacity-70">Pago</span>
+                        <span>{installmentInfo.current} de {installmentInfo.totalLabel}</span>
                     </div>
                 );
             }
@@ -110,8 +111,8 @@ export function CommitmentCard({
         if (summary.isInstallmentBased && summary.installmentsCount) {
             return (
                 <div className="flex items-center gap-1.5 text-[0.65rem] text-slate-300 dark:text-slate-400 font-bold uppercase tracking-widest">
-                    <span className="opacity-70">Cuota</span>
-                    <span>{summary.paymentCount} / {summary.installmentsCount}</span>
+                    <span className="opacity-70">Pago</span>
+                    <span>{summary.paymentCount} de {summary.installmentsCount}</span>
                 </div>
             );
         }
@@ -132,63 +133,125 @@ export function CommitmentCard({
 
     const variant: BentoCardVariant = 'neutral';
 
-    const getAccentColor = () => {
-        if (isInactive) return 'bg-slate-400 dark:bg-slate-600';
-        if (mode === 'monthly' && monthlyInfo) {
-            if (monthlyInfo.isPaid) return 'bg-emerald-500';
-            if (monthlyInfo.daysOverdue && monthlyInfo.daysOverdue > 0) return 'bg-rose-500';
-            return 'bg-amber-400';
-        }
-        switch (summary.estado) {
-            case 'overdue': return 'bg-rose-500';
-            case 'pending': return 'bg-amber-400';
-            case 'ok': return 'bg-emerald-500';
-            case 'completed': return 'bg-sky-500';
-            default: return 'bg-slate-400 dark:bg-slate-600';
-        }
-    };
-
-
-
     const isOverdue = mode === 'monthly'
         ? (monthlyInfo?.daysOverdue && monthlyInfo.daysOverdue > 0)
         : summary.estado === 'overdue';
 
     // Target visual overrides for the BentoCard container
-    // Matching DesktopGrid cell background: 'bg-slate-900/10 dark:bg-slate-800/30'
+    // Matching Desktop reference card background
     const visualOverrides = isOverdue && !isInactive
-        ? '!bg-rose-50/50 md:!bg-rose-100/50 dark:!bg-rose-950/40 !border-rose-200 dark:!border-rose-900/50'
-        : '!bg-[var(--dashboard-surface)] md:!bg-slate-900/10 dark:!bg-slate-800/30 !border-[var(--dashboard-border-subtle)] dark:!border-slate-500/30';
+        ? '!bg-rose-100/60 md:!bg-rose-100/60 dark:!bg-rose-900/30 !border-rose-200 dark:!border-rose-900/50'
+        : '!bg-slate-900/10 dark:!bg-slate-800/30 !border-slate-200 dark:!border-slate-700/50';
 
-    const getStatusInfo = () => {
-        const status = getCommitmentStatus(commitment);
 
-        let financial = null;
+    const CategoryIconComponent = getCategoryIcon(commitment.category?.name || categoryName || '');
+
+    // Helpers for Smart Avatar and Semantic Text
+    const getShortMonth = (dateStr: string) => {
+        if (!dateStr) return '';
+        const datePart = dateStr.split('T')[0];
+        const [, month, day] = datePart.split('-');
+        if (!month || !day) return '';
+        const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+        const numMonth = parseInt(month, 10);
+        return `${parseInt(day, 10)} ${months[numMonth - 1] || month}`;
+    };
+
+    const isDueSoon = mode === 'monthly' && (monthlyInfo?.daysOverdue === 0);
+
+    const getSemanticStatusText = () => {
+        if (isInactive) return { label: 'ESTADO', text: 'Sin deuda', color: 'text-slate-400 dark:text-slate-500' };
 
         if (mode === 'monthly' && monthlyInfo) {
-            if (monthlyInfo.daysOverdue && monthlyInfo.daysOverdue > 0) {
-                financial = { label: 'Vencido', detail: `hace ${monthlyInfo.daysOverdue}d`, style: { bg: 'bg-transparent', text: 'text-rose-600 dark:text-rose-400' } };
-            } else if (!monthlyInfo.isPaid) {
-                financial = { label: 'Pendiente', detail: monthlyInfo.dueDate || '', style: { bg: 'bg-transparent', text: 'text-amber-600 dark:text-amber-400' } };
-            } else {
-                financial = { label: monthlyInfo.paidOnTime ? 'A tiempo' : 'Pagado', detail: monthlyInfo.paymentDate || '', style: { bg: 'bg-transparent', text: monthlyInfo.paidOnTime ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' } };
+            if (monthlyInfo.isPaid) {
+                return {
+                    label: 'PAGADO',
+                    text: monthlyInfo.paymentDate ? getShortMonth(monthlyInfo.paymentDate) : 'Sí',
+                    color: 'text-emerald-500 font-bold'
+                };
             }
-        } else {
-            if (summary.estado === 'overdue') {
-                financial = { label: 'Vencido', detail: summary.estadoDetail, style: { bg: 'bg-transparent', text: 'text-rose-600 dark:text-rose-400' } };
-            } else if (summary.estado === 'pending') {
-                const pendingDetail = summary.nextPaymentDate ? `Vence ${summary.nextPaymentDate.getDate()} ${['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][summary.nextPaymentDate.getMonth()]}` : summary.estadoDetail;
-                financial = { label: 'Pendiente', detail: pendingDetail, style: { bg: 'bg-transparent', text: 'text-amber-600 dark:text-amber-400' } };
-            } else if (summary.estado === 'ok' && status === 'ACTIVE') {
-                financial = { label: summary.paidOnTime ? 'A tiempo' : 'Al día', detail: '', style: { bg: 'bg-transparent', text: summary.paidOnTime ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' } };
+            if (monthlyInfo.daysOverdue !== undefined && monthlyInfo.daysOverdue > 0) {
+                return {
+                    label: 'VENCIDO',
+                    text: `hace ${monthlyInfo.daysOverdue} d.`,
+                    color: 'text-rose-500 font-bold'
+                };
+            }
+            if (activeTerm?.due_day_of_month) {
+                const monthText = viewDate 
+                    ? getShortMonth(`${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}-${String(activeTerm.due_day_of_month).padStart(2, '0')}`) 
+                    : `día ${activeTerm.due_day_of_month}`;
+                
+                return {
+                    label: 'PENDIENTE',
+                    text: isDueSoon ? 'Hoy' : `Venc. ${monthText}`,
+                    color: isDueSoon ? 'text-amber-500 font-bold' : 'text-slate-500 dark:text-slate-400 font-bold'
+                };
+            }
+        }
+        
+        if (summary.estado === 'overdue') {
+            return { label: 'VENCIDO', text: 'Sí', color: 'text-rose-500 font-bold' };
+        }
+
+        return { label: 'PENDIENTE', text: '-', color: 'text-slate-400 font-bold' };
+    };
+
+    const semanticStatus = getSemanticStatusText();
+
+
+
+    const renderSmartAvatar = () => {
+        if (!isInactive && mode === 'monthly' && monthlyInfo) {
+            if (monthlyInfo.isPaid) {
+                return monthlyInfo.paidOnTime ? (
+                    <OnTimeMedalIcon className="w-[1.35rem] h-[1.35rem] text-emerald-500" strokeWidth={2} />
+                ) : (
+                    <CheckCircleIcon className="w-[1.35rem] h-[1.35rem] text-emerald-500" />
+                );
+            }
+            if (monthlyInfo.daysOverdue && monthlyInfo.daysOverdue > 0) {
+                return <ExclamationTriangleIcon className="w-[1.35rem] h-[1.35rem] text-rose-500" />;
+            }
+            if (isDueSoon && activeTerm?.due_day_of_month) {
+                return (
+                    <div className="flex flex-col items-center justify-center bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-900/60 rounded overflow-hidden shadow-sm w-[1.4rem] h-[1.4rem]">
+                        <div className="bg-amber-500 w-full text-center py-[0.5px]">
+                            <span className="text-[0.35rem] font-bold text-white uppercase tracking-wider leading-none block pb-[0.5px]">Hoy</span>
+                        </div>
+                        <div className="flex-1 flex items-center justify-center">
+                            <span className="text-[0.65rem] font-bold font-mono text-slate-700 dark:text-slate-300 leading-none">
+                                {activeTerm.due_day_of_month}
+                            </span>
+                        </div>
+                    </div>
+                );
             }
         }
 
-        return { financial };
+        return commitment.is_important ? (
+            <Star className="w-[1.15rem] h-[1.15rem] text-amber-500 fill-amber-500 opacity-90" />
+        ) : (
+            <CategoryIconComponent className="w-[1.125rem] h-[1.125rem] opacity-90" />
+        );
     };
 
-    const { financial } = getStatusInfo();
-    const CategoryIconComponent = getCategoryIcon(commitment.category?.name || categoryName || '');
+    const getAvatarContainerStyles = () => {
+        const base = "w-10 h-10 rounded-[0.80rem] flex items-center justify-center shrink-0 shadow-sm border transition-colors";
+        if (isInactive) return `${base} bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-60 text-slate-400`;
+        
+        if (mode === 'monthly' && monthlyInfo) {
+            if (monthlyInfo.isPaid) return `${base} bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/30`;
+            if (monthlyInfo.daysOverdue && monthlyInfo.daysOverdue > 0) return `${base} bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800/30`;
+            if (isDueSoon) return `${base} bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/30`;
+        }
+
+        const defaultColor = commitment.flow_type === 'INCOME'
+            ? 'text-emerald-500 dark:text-emerald-400'
+            : 'text-rose-500 dark:text-rose-400';
+            
+        return `${base} bg-slate-100 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700/50 ${defaultColor}`;
+    };
 
     return (
         <BentoCard
@@ -198,53 +261,30 @@ export function CommitmentCard({
             onClick={onClick}
             className={`relative overflow-hidden ${visualOverrides} ${isInactive ? 'opacity-60 grayscale' : ''}`}
         >
-            {/* Bottom Accent Bar - Status Indicator (as per Design Guidelines 12.9.1) */}
-            <div className={`absolute left-0 right-0 bottom-0 h-1 rounded-b-xl ${getAccentColor()}`} />
 
-            <div className="pl-2 pb-1">
-                {/* Protocol 1: Header (Avatar + Title + Actions) */}
-                <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                        {/* Avatar */}
-                        <div className={`
-                            w-8 h-8 rounded-lg flex items-center justify-center
-                            shrink-0 bg-slate-200/50 dark:bg-slate-900/40
-                            border border-slate-300/50 dark:border-slate-700/50
-                            ${commitment.flow_type === 'INCOME'
-                                ? 'text-emerald-600 dark:text-emerald-400'
-                                : 'text-rose-600 dark:text-rose-400'}
-                        `}>
-                            <CategoryIconComponent className="w-4 h-4 opacity-90" />
-                        </div>
-
-                        <div className="flex flex-col min-w-0">
-                            {/* Name */}
-                            <h3 className={`
-                                font-brand font-bold text-base text-[var(--dashboard-text-primary)]
-                                leading-tight line-clamp-1
-                                ${isInactive ? 'line-through opacity-60' : ''}
-                            `}>
-                                {commitment.name}
-                            </h3>
-                        </div>
-                    </div>
-
-                    {/* Actions Menu */}
-                    {!isInactive && (
-                        <div className="-mt-1 -mr-1 shrink-0">
+            
+            <div>
+                {/* SECTION 1: HEADER & IDENTITY (2-Row Layout) */}
+                <div className="flex justify-between items-center gap-3">
+                    {/* Left: Avatar (occupies 2 rows) & Texts */}
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                        {/* Smart Avatar with Context Menu */}
+                        {!isInactive ? (
                             <DropdownMenu.Root>
                                 <DropdownMenu.Trigger asChild>
-                                    <button
+                                    <div 
+                                        className={`${getAvatarContainerStyles()} hover:scale-105 active:scale-95 cursor-pointer ring-offset-2 ring-offset-transparent hover:ring-2 hover:ring-slate-400/20`}
                                         onClick={(e) => e.stopPropagation()}
-                                        className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:bg-[var(--dashboard-surface-hover)] transition-colors"
+                                        title="Opciones"
                                     >
-                                        <MoreVertical className="w-5 h-5" />
-                                    </button>
+                                        {renderSmartAvatar()}
+                                    </div>
                                 </DropdownMenu.Trigger>
                                 <DropdownMenu.Portal>
                                     <DropdownMenu.Content
-                                        className="bg-slate-900/95 border border-slate-700/50 rounded-xl p-1.5 shadow-2xl min-w-[160px] z-50 text-slate-200"
-                                        sideOffset={5}
+                                        className="bg-slate-900/95 border border-slate-700/50 rounded-xl p-1.5 shadow-2xl min-w-[160px] z-[100] text-slate-200"
+                                        sideOffset={8}
+                                        align="start"
                                     >
                                         {onEdit && (
                                             <DropdownMenu.Item onClick={(e) => { e.stopPropagation(); onEdit(); }} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium hover:bg-slate-700/50 rounded-lg cursor-pointer outline-none transition-colors">
@@ -268,7 +308,7 @@ export function CommitmentCard({
                                         )}
                                         {onDelete && (
                                             <>
-                                                <DropdownMenu.Separator className="h-px bg-slate-700/50 my-1.5" />
+                                                <DropdownMenu.Separator className="h-[1px] bg-slate-700/50 my-1" />
                                                 <DropdownMenu.Item onClick={(e) => { e.stopPropagation(); onDelete(); }} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer outline-none transition-colors">
                                                     <Trash2 className="w-4 h-4" /> Eliminar
                                                 </DropdownMenu.Item>
@@ -277,68 +317,81 @@ export function CommitmentCard({
                                     </DropdownMenu.Content>
                                 </DropdownMenu.Portal>
                             </DropdownMenu.Root>
-                        </div>
-                    )}
-                </div>
-
-                {/* Protocol 2: Badges Column */}
-                <div className="flex flex-col gap-1.5 mt-2.5">
-                    {/* Category Badge - Match DesktopGrid Badges: bg-slate-100/50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/50 */}
-                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 w-fit">
-                        <CategoryIconComponent className="w-3 h-3 text-slate-500 dark:text-slate-400" />
-                        <span className="text-[0.65rem] uppercase tracking-widest font-bold text-slate-600 dark:text-slate-400">
-                            {categoryName || 'General'}
-                        </span>
-                    </div>
-
-                    {/* Progress / Frequency Badge */}
-                    {getPaymentProgress() && (
-                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100/50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 w-fit">
-                            {getPaymentProgress()}
-                        </div>
-                    )}
-                </div>
-
-                {/* Protocol 3: Footer (Status & Amount) */}
-                <div className="mt-2.5 pt-2 flex items-end justify-between">
-                    {/* Status Text (Left) */}
-                    <div className="flex flex-col gap-0.5">
-                        {financial ? (
-                            <span className={`font-semibold text-xs ${financial.style.text}`}>
-                                {financial.label}
-                                {financial.detail && <span className="text-[var(--dashboard-text-muted)] ml-1 font-medium">{financial.detail}</span>}
-                            </span>
                         ) : (
-                            isInactive ? <span className="text-xs font-semibold text-[var(--dashboard-text-muted)]">Sin deuda</span> : <span />
-                        )}
-                        {mode === 'inventory' && !isInactive && summary.nextPaymentDate && (
-                            <span className="text-[0.65rem] font-medium text-[var(--dashboard-text-muted)]">
-                                Vence: {summary.nextPaymentDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
-                            </span>
-                        )}
-                    </div>
-
-                    {/* Amount Block (Right) */}
-                    <div className="flex flex-col items-end">
-                        {/* Secondary Currency */}
-                        {activeTerm?.currency_original && activeTerm.currency_original !== 'CLP' && activeTerm.amount_original !== null && (
-                            <div className="flex items-baseline gap-1 text-[0.65rem] text-[var(--dashboard-text-secondary)] mb-0.5">
-                                <span className="font-semibold uppercase font-sans">{activeTerm.currency_original}</span>
-                                <span className="font-sans tabular-nums font-semibold">
-                                    {activeTerm.amount_original.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </span>
+                            <div className={getAvatarContainerStyles()}>
+                                {renderSmartAvatar()}
                             </div>
                         )}
-                        
-                        {/* Primary Amount CLP */}
-                        <div className="flex items-baseline gap-1">
-                            {/* "CLP" string removed as requested in mobile redesign guidelines */}
-                            <span className="font-sans text-xl font-bold tabular-nums tracking-tight text-[var(--dashboard-text-primary)] leading-none">
-                                {mode === 'monthly' && monthlyInfo?.isPaid && monthlyInfo.paidAmount !== undefined
-                                    ? formatAmount(monthlyInfo.paidAmount)
-                                    : summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
+
+                        {/* Texts (Name & Category) */}
+                        <div className="flex flex-col min-w-0 justify-center gap-0.5">
+                            <h3 className={`
+                                font-brand font-bold text-[1.05rem] text-[var(--dashboard-text-primary)]
+                                leading-tight line-clamp-1 tracking-tight
+                                ${isInactive ? 'line-through opacity-60' : ''}
+                            `}>
+                                {commitment.name}
+                            </h3>
+                            <span className="text-[0.65rem] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-400">
+                                {categoryName || 'General'}
                             </span>
                         </div>
+                    </div>
+
+
+
+                    {/* Right: Actions & Amount */}
+                    <div className="flex flex-col items-end shrink-0 gap-1 mt-[-2px]">
+                        {/* Primary Amount */}
+                        <div className="flex flex-col items-end">
+                            {/* Secondary Currency (Small & above) */}
+                            {activeTerm?.currency_original && activeTerm.currency_original !== 'CLP' && activeTerm.amount_original !== null && (
+                                <div className="flex items-baseline gap-1 text-[0.625rem] text-slate-400 dark:text-slate-500 mb-0.5">
+                                    <span className="font-semibold uppercase font-mono">{activeTerm.currency_original}</span>
+                                    <span className="font-mono tabular-nums font-semibold">
+                                        {activeTerm.amount_original.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                            )}
+                            
+                            {/* Primary Amount CLP PROTAGONIST */}
+                            <div className="flex items-baseline gap-1 mt-0.5">
+                                <span className="text-[0.65rem] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                    CLP
+                                </span>
+                                <span className="font-mono text-xl font-bold tabular-nums tracking-tighter text-slate-800 dark:text-slate-100 leading-none">
+                                    {mode === 'monthly' && monthlyInfo?.isPaid && monthlyInfo.paidAmount !== undefined
+                                        ? formatAmount(monthlyInfo.paidAmount)
+                                        : summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* SECTION 2: METADATA & STATUS ICONS (Footer replacement) */}
+                <div className="mt-3 flex items-center justify-between pl-2">
+                    {/* Left: Metadata Box (Payment Day & Installment Progress) */}
+                    <div className="flex items-center gap-1.5">
+                        {isInactive ? (
+                            <span className="text-xs font-semibold text-slate-400">Sin deuda</span>
+                        ) : (
+                            getPaymentProgress() && (
+                                <div className="inline-flex items-center gap-1 px-1.5 py-[0.1rem] rounded border border-slate-200 dark:border-slate-700/60 bg-transparent w-fit [&_span]:!text-slate-400 dark:[&_span]:!text-slate-400 [&_span]:!font-bold [&_span]:!text-[0.65rem] [&_span]:uppercase [&_span]:tracking-wider [&_span]:!font-mono [&_svg]:!w-3 [&_svg]:!h-3 [&_svg]:!text-slate-400">
+                                    {getPaymentProgress()}
+                                </div>
+                            )
+                        )}
+                    </div>
+
+                    {/* Right: Semantic Status Text */}
+                    <div className="flex items-center gap-1.5 text-right">
+                        <span className="text-[0.65rem] uppercase tracking-widest font-bold text-slate-400 dark:text-slate-500 opacity-80">
+                            {semanticStatus.label}
+                        </span>
+                        <span className={`text-[0.7rem] uppercase tracking-wider ${semanticStatus.color}`}>
+                            {semanticStatus.text}
+                        </span>
                     </div>
                 </div>
             </div>
