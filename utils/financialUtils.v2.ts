@@ -8,7 +8,6 @@
 import type {
     Term,
     Payment,
-    Frequency,
     Period,
     CommitmentWithTerm,
     MonthlyCommitmentSummary,

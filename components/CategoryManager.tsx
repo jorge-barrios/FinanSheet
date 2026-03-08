@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocalization } from '../hooks/useLocalization';
-import { PlusIcon, EditIcon, TrashIcon, CheckIcon, XMarkIcon, CategoryIcon } from './icons';
+import { PlusIcon, EditIcon, TrashIcon, CheckIcon, XMarkIcon } from './icons';
 import { getCategoryIcon } from '../utils/categoryIcons';
 import type { Category } from '../services/categoryService.v2';
 import * as Dialog from '@radix-ui/react-dialog';

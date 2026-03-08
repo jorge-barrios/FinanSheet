@@ -46,7 +46,7 @@ const identidadPalette: ColorSwatch[] = [
   { name: 'Alabaster', cssVar: '--id-alabaster', hex: '#FAFAF8', description: 'Warm white background' },
 ];
 
-const ColorSwatchCard: React.FC<{ color: ColorSwatch; isDark?: boolean }> = ({ color, isDark }) => (
+const ColorSwatchCard: React.FC<{ color: ColorSwatch }> = ({ color }) => (
   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
     <div
       className="w-12 h-12 rounded-lg shadow-inner flex-shrink-0 border border-white/10"
@@ -127,7 +127,7 @@ export const ColorPaletteShowcase: React.FC = () => {
             </p>
             <div className="space-y-2">
               {(isDarkMode ? currentPaletteDark : currentPalette).map((color) => (
-                <ColorSwatchCard key={color.name} color={color} isDark={isDarkMode} />
+                <ColorSwatchCard key={color.name} color={color} />
               ))}
             </div>
           </div>

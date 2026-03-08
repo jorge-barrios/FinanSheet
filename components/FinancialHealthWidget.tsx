@@ -5,8 +5,8 @@
  * Shows actual vs target distribution with visual progress bars and status.
  */
 
-import React, { useMemo } from 'react';
-import type { FinancialHealthAnalysis, BudgetDistribution } from '../types.v2';
+import React from 'react';
+import type { FinancialHealthAnalysis } from '../types.v2';
 import { PieChart, TrendingUp, TrendingDown, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface FinancialHealthWidgetProps {
@@ -137,7 +137,7 @@ export const FinancialHealthWidget: React.FC<FinancialHealthWidgetProps> = ({
         );
     }
 
-    const { income, totalExpenses, actual, target, percentages, diff, suggestion, status } = analysis;
+    const { income, totalExpenses, actual, target, percentages, suggestion, status } = analysis;
 
     // Color scheme for categories
     const colors = {

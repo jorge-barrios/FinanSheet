@@ -105,7 +105,10 @@ const ExpenseCard: React.FC<ExpenseCardProps> = ({ expense, paymentStatus, curre
                 <div>
                     <h3 className="font-bold dark:text-white text-slate-800 text-lg">{expense.name}</h3>
                     <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                        {getCategoryIcon(expense.category)}
+                        {(() => {
+                            const CategoryIcon = getCategoryIcon(expense.category);
+                            return <CategoryIcon className="w-4 h-4" />;
+                        })()}
                         <span>{expense.category}</span>
                     </div>
                 </div>

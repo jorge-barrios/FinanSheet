@@ -8,14 +8,14 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 export function PWAUpdateNotifier() {
     const {
         needRefresh: [needRefresh, setNeedRefresh],
-        updateServiceWorker
+        updateServiceWorker,
     } = useRegisterSW({
-        onRegistered(r) {
-            console.log('[PWA] Service Worker registered');
+        onRegistered() {
+            console.log('SW Registered');
         },
         onRegisterError(error) {
-            console.error('[PWA] Service Worker registration error:', error);
-        }
+            console.error('SW registration error', error);
+        },
     });
 
     const close = () => {

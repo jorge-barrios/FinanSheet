@@ -2,11 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Expense, ExpenseType, PaymentFrequency, PaymentUnit } from '../types';
 import { useLocalization } from '../hooks/useLocalization';
 
-// Tipo para el modo de cálculo de cuotas
-type InstallmentCalculationMode = 'total' | 'installment';
-
-// Tipo para el paso del formulario
-type FormStep = 'type-selection' | 'expense-details';
 
 interface ExpenseFormProps {
     isOpen: boolean;
@@ -27,11 +22,10 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
     const today = new Date().toISOString().split('T')[0];
     
     // Estados del formulario
-    const [currentStep, setCurrentStep] = useState<FormStep>('type-selection');
-    const [selectedType, setSelectedType] = useState<ExpenseType | null>(null);
-    
-    // Estados comunes
     const [name, setName] = useState('');
+    const [originalAmount, setOriginalAmount] = useState('');
+    const [type, setType] = useState<ExpenseType>(ExpenseType.VARIABLE);
+    const [dueDate, setDueDate] = useState('1');
     const [category, setCategory] = useState(categories[0] || '');
     const [originalCurrency, setOriginalCurrency] = useState<PaymentUnit>('CLP');
     const [isImportant, setIsImportant] = useState(false);
@@ -41,29 +35,17 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
     const [linkRole, setLinkRole] = useState<'primary' | 'secondary'>('primary');
     
     // Estados para gastos únicos
-    const [variableAmount, setVariableAmount] = useState('');
+    // Estados para gastos únicos
     const [expenseDate, setExpenseDate] = useState(today);
-    const [variableDueDate, setVariableDueDate] = useState('');
     
     // Estados para gastos recurrentes
-    const [recurringAmount, setRecurringAmount] = useState('');
     const [paymentFrequency, setPaymentFrequency] = useState<PaymentFrequency>(PaymentFrequency.MONTHLY);
     const [startMonth, setStartMonth] = useState(new Date().getMonth());
     const [startYear, setStartYear] = useState(new Date().getFullYear());
     const [isOngoing, setIsOngoing] = useState(true);
-    const [endMonth, setEndMonth] = useState(new Date().getMonth());
-    const [endYear, setEndYear] = useState(new Date().getFullYear() + 1);
-    const [recurringDueDay, setRecurringDueDay] = useState('1');
     
     // Estados para gastos en cuotas
-    const [calculationMode, setCalculationMode] = useState<InstallmentCalculationMode>('total');
-    const [totalAmount, setTotalAmount] = useState('');
-    const [installmentAmount, setInstallmentAmount] = useState('');
     const [numberOfInstallments, setNumberOfInstallments] = useState('12');
-    const [installmentFrequency, setInstallmentFrequency] = useState<PaymentFrequency>(PaymentFrequency.MONTHLY);
-    const [firstInstallmentMonth, setFirstInstallmentMonth] = useState(new Date().getMonth());
-    const [firstInstallmentYear, setFirstInstallmentYear] = useState(new Date().getFullYear());
-    const [installmentDueDay, setInstallmentDueDay] = useState('1');
 
     const monthOptions = useMemo(() => getLocalizedMonths('long'), [getLocalizedMonths]);
     const yearOptions = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i);
@@ -73,14 +55,8 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
         if (!expenses) return [];
 
         // Determinar el monto actual según el tipo de gasto
-        let currentAmount = 0;
-        if (selectedType === 'VARIABLE') {
-            currentAmount = parseFloat(variableAmount || '0');
-        } else if (selectedType === 'RECURRING') {
-            currentAmount = parseFloat(recurringAmount || '0');
-        } else if (selectedType === 'INSTALLMENT') {
-            currentAmount = parseFloat(totalAmount || installmentAmount || '0');
-        }
+        // Determinar el monto actual
+        const currentAmount = parseFloat(originalAmount || '0');
 
         // Determinar si el expense actual es ingreso o gasto
         const currentIsIncome = originalCurrency === 'CLP'
@@ -112,7 +88,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
 
             return a.name.localeCompare(b.name);
         });
-    }, [expenses, expenseToEdit, selectedType, recurringAmount, variableAmount, installmentAmount, totalAmount, originalCurrency, name, paymentFrequency]);
+    }, [expenses, expenseToEdit, type, originalAmount, originalCurrency, name, paymentFrequency]);
 
     const resetForm = () => {
         const today = new Date().toISOString().split('T')[0];
@@ -125,7 +101,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
         setPaymentFrequency(PaymentFrequency.MONTHLY);
         setStartMonth(new Date().getMonth());
         setStartYear(new Date().getFullYear());
-        setInstallments('12');
+        setNumberOfInstallments('12');
         setDueDate(today);
         setIsImportant(false);
         setIsOngoing(false);
@@ -144,22 +120,15 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
 
                 setName(expenseToEdit.name);
                 setOriginalAmount(expenseToEdit.originalAmount.toString());
-                setOriginalCurrency(expenseToEdit.originalCurrency);
+                setOriginalCurrency(expenseToEdit.originalCurrency as PaymentUnit);
                 setExpenseDate(expenseToEdit.expenseDate); // Expects YYYY-MM-DD
-                setSelectedType(expenseToEdit.type);
+                setType(expenseToEdit.type);
                 setCategory(categories.includes(expenseCategory) ? expenseCategory : (categories[0] || ''));
                 setPaymentFrequency(expenseToEdit.paymentFrequency);
                 setStartMonth(startMonth - 1); // Adjust to 0-indexed
                 setStartYear(startYear);
                 setNumberOfInstallments(expenseToEdit.installments === 999 ? '12' : expenseToEdit.installments.toString());
-                // Set the appropriate due date based on expense type
-                if (expenseToEdit.type === 'RECURRING') {
-                    setRecurringDueDay(expenseToEdit.dueDate.toString());
-                } else if (expenseToEdit.type === 'VARIABLE') {
-                    setVariableDueDate(expenseToEdit.dueDate.toString());
-                } else if (expenseToEdit.type === 'INSTALLMENT') {
-                    setInstallmentDueDay(expenseToEdit.dueDate.toString());
-                }
+                setDueDate(expenseToEdit.dueDate.toString());
                 setIsImportant(expenseToEdit.isImportant);
                 setIsOngoing(expenseToEdit.installments === 999);
                 setLinkedExpenseId(expenseToEdit.linkedExpenseId);
@@ -172,7 +141,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
 
     useEffect(() => {
         if (paymentFrequency === PaymentFrequency.ONCE) {
-            setInstallments('1');
+            setNumberOfInstallments('1');
             setIsOngoing(false);
         }
     }, [paymentFrequency]);
@@ -305,7 +274,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
                         <div>
                              <label htmlFor="type" className={formLabelClasses}>{t('form.typeLabel')}</label>
                             <select id="type" value={type} onChange={e => setType(e.target.value as ExpenseType)} className={formSelectClasses}>
-                                <option value={ExpenseType.FIXED}>{t('form.type.fixed')}</option>
+                                <option value={ExpenseType.RECURRING}>{t('form.type.recurring') || 'Recurrente'}</option>
                                 <option value={ExpenseType.VARIABLE}>{t('form.type.variable')}</option>
                             </select>
                         </div>
@@ -422,15 +391,8 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ isOpen, onClose, onSave, expe
                                                 const linked = expenses.find(e => e.id === linkedExpenseId);
                                                 if (!linked) return 'Expense vinculado no encontrado';
 
-                                                // Determinar el monto actual según el tipo de gasto
-                                                let currentAmount = 0;
-                                                if (selectedType === 'VARIABLE') {
-                                                    currentAmount = parseFloat(variableAmount || '0');
-                                                } else if (selectedType === 'RECURRING') {
-                                                    currentAmount = parseFloat(recurringAmount || '0');
-                                                } else if (selectedType === 'INSTALLMENT') {
-                                                    currentAmount = parseFloat(totalAmount || installmentAmount || '0');
-                                                }
+                                                // Determinar el monto actual
+                                                const currentAmount = parseFloat(originalAmount || '0');
 
                                                 const netAmount = linkRole === 'primary'
                                                     ? Math.abs(currentAmount) - Math.abs(linked.amountInClp)

@@ -15,7 +15,7 @@ interface FeatureFlagsSettingsProps {
 
 export const FeatureFlagsSettings: React.FC<FeatureFlagsSettingsProps> = ({ isOpen, onClose }) => {
     const { flags, setFlag, resetFlags } = useFeatureFlags();
-    const { t } = useLocalization();
+    useLocalization(); // Or just remove useLocalization completely
 
     if (!isOpen) return null;
 

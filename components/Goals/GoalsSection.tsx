@@ -11,7 +11,7 @@ export const GoalsSection: React.FC = () => {
     // Wizard State
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [wizardIncome, setWizardIncome] = useState<number>(0);
-    const [showIncomeInput, setShowIncomeInput] = useState(false);
+
 
     // New Goal Form State
     const [newName, setNewName] = useState('');

@@ -1,9 +1,9 @@
 import React from 'react';
-import { ChevronLeftIcon, ChevronRightIcon, MenuIcon, PlusIcon, HomeIcon, MagnifyingGlassIcon } from './icons';
+import { ChevronLeftIcon, ChevronRightIcon, MenuIcon, PlusIcon, HomeIcon, SearchIcon } from './icons';
 import { View } from '../types';
 
 interface MobileControlBarProps {
-    view: View;
+    view: View | 'inventory';
     focusedDate: Date;
     onDateChange: (date: Date) => void;
     onMenuOpen: () => void;
@@ -57,9 +57,7 @@ const MobileControlBar: React.FC<MobileControlBarProps> = ({
                 {view === 'inventory' ? (
                     /* Inventory Mode: Search Input */
                     <div className="relative w-full">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <MagnifyingGlassIcon className="h-4 w-4 text-slate-400" />
-                        </div>
+                            <SearchIcon className="h-4 w-4 text-slate-400" />
                         <input
                             type="text"
                             value={searchTerm}

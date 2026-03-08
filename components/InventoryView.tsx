@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { CommitmentWithTerm, Category, Payment } from '../types.v2';
-import { SearchIcon, TrashIcon, PauseIcon, ArrowPathIcon, EditIcon, PlayIcon, OnTimeMedalIcon } from './icons';
+import { SearchIcon, TrashIcon, PauseIcon, ArrowPathIcon, EditIcon } from './icons';
 import { Sparkles } from 'lucide-react';
 import { SwipeableItem } from './ui/SwipeableItem';
 import { useLocalization } from '../hooks/useLocalization';
@@ -211,12 +211,6 @@ const InventoryView: React.FC<InventoryViewProps> = ({
                             {/* MOBILE: CARDS VIEW (< lg) */}
                             <div className="lg:hidden space-y-3">
                                 {sortedCommitments.map((commitment) => {
-                                    // Determine Swipe Actions
-                                    const activeTerm = commitment.active_term;
-                                    const { estado } = getCommitmentDetails(commitment);
-                                    const isPaid = estado !== 'pending' && estado !== 'overdue';
-                                    const isTerminated = !activeTerm || (activeTerm.effective_until && activeTerm.effective_until < new Date().toISOString().split('T')[0]);
-                                    
                                     // Swipe Logic Redesign (Consistent with Dashboard)
                                     // Swipe Right -> Details (Blue)
                                     // Swipe Left -> Edit (Slate)

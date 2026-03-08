@@ -70,9 +70,9 @@ const App: React.FC = () => {
     const [viewingCommitment, setViewingCommitment] = useState<CommitmentWithTerm | null>(null);
 
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterType, setFilterType] = useState<'all' | ExpenseType>('all');
-    const [filterImportance, setFilterImportance] = useState<'all' | 'important'>('all');
+    const [searchTerm, _setSearchTerm] = useState('');
+    const [filterType, _setFilterType] = useState<'all' | ExpenseType>('all');
+    const [filterImportance, _setFilterImportance] = useState<'all' | 'important'>('all');
     const [view, setView] = useState<View>('table');
     const [theme, setTheme] = usePersistentState<Theme>('finansheet-theme', 'dark');
     const [visibleMonthsCount, setVisibleMonthsCount] = usePersistentState<number>('finansheet-visible-months', 6);
@@ -291,7 +291,7 @@ const App: React.FC = () => {
         setExpenseToDelete(null);
     }, []);
 
-    const handleSaveExpense = useCallback(async (expense: Omit<Expense, 'id' | 'createdAt'> & { id?: string }) => {
+    const handleSaveExpense = useCallback(async (_expense: Omit<Expense, 'id' | 'createdAt'> & { id?: string }) => {
         // [LEGACY] This function referenced the dropped 'expenses' and 'payment_details' tables.
         // V2 commitments are saved via CommitmentForm.v2 -> CommitmentService/PaymentService.
         console.warn('[LEGACY] handleSaveExpense called - expenses table no longer exists. Use CommitmentForm.v2 instead.');

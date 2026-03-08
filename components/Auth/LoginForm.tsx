@@ -16,7 +16,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [_success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isResetMode, setIsResetMode] = useState(false);
 

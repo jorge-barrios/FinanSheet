@@ -21,7 +21,7 @@ import { FlowType } from '../types.v2';
 import type { CommitmentWithTerm, Payment, PaymentFormData, Term } from '../types.v2';
 import { XMarkIcon, CheckCircleIcon, TrashIcon, ExclamationTriangleIcon, OnTimeMedalIcon } from './icons';
 import { Calendar, Wallet, FileText, Save, CalendarClock, Pencil } from 'lucide-react';
-import DatePicker, { registerLocale } from 'react-datepicker';
+import { registerLocale } from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { es } from 'date-fns/locale/es';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
@@ -56,7 +56,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
 }) => {
     const { formatClp } = useLocalization();
     const { getDisplayValue } = useCommitmentValue();
-    const { convertAmount, getFxRateToBase, refresh } = useCurrency();
+    const { getFxRateToBase, refresh } = useCurrency();
 
     // Parse year and month from periodDate string (YYYY-MM-DD)
     const [year, month] = React.useMemo(() => {
@@ -71,8 +71,6 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     // Currency type
     type CurrencyType = 'CLP' | 'USD' | 'EUR' | 'UF' | 'UTM';
 
-    // Ref for date pickers
-    const datePickerRef = React.useRef<DatePicker>(null);
 
     // Computed effective due date from term
     const effectiveDueDate = React.useMemo(() => {
@@ -241,7 +239,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                 />
                 <div className="relative bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200/50 dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden z-20 animate-in zoom-in-95 duration-200">
                      {/* ... paused message content ... */}
-                     <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+                     <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-800">
                         <div className="flex items-center gap-3">
                             <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
                                 <ExclamationTriangleIcon className="w-5 h-5" />
@@ -515,9 +513,9 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                        : 'text-emerald-500 dark:text-emerald-400'
                                }`}>
                                    {(daysDiff !== null && daysDiff >= 0) ? (
-                                       <OnTimeMedalIcon className="w-14 h-14 sm:w-16 sm:h-16" strokeWidth={1} />
+                                       <OnTimeMedalIcon className="w-5 h-5 text-indigo-400" />
                                    ) : (
-                                       <CheckCircleIcon className="w-14 h-14 sm:w-16 sm:h-16" strokeWidth={1} />
+                                       <CheckCircleIcon className="w-14 h-14 sm:w-16 sm:h-16" />
                                    )}
                                </div>
                                

@@ -10,14 +10,14 @@ import '../styles/commitmentFormAnimations.css';
 import { useLocalization } from '../hooks/useLocalization';
 import { useCurrency } from '../hooks/useCurrency';
 import { ArrowTrendingDownIcon, ArrowTrendingUpIcon, StarIcon } from './icons';
-import { Infinity, CalendarCheck, Hash, ChevronDown, Link as LinkIcon, Calendar, CalendarClock, FileText } from 'lucide-react';
+import { Infinity, CalendarCheck, Hash, ChevronDown, Link as LinkIcon, CalendarClock } from 'lucide-react';
 import {
     FlowType,
     Frequency,
 } from '../types.v2';
 // TermsListView removed - terms editing now in CommitmentDetailModal only
-import { TermService, PaymentService } from '../services/dataService.v2';
-import type { Term, Payment } from '../types.v2';
+import { PaymentService } from '../services/dataService.v2';
+import type { Payment } from '../types.v2';
 // import { getPerPeriodAmount } from '../utils/financialUtils.v2';
 import type {
     CommitmentFormData,
@@ -56,8 +56,8 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     // onCategoriesChange,
     openWithPauseForm,
     openWithResumeForm,
-    onCommitmentUpdated,
-    onPaymentClick,
+    onCommitmentUpdated: _onCommitmentUpdated,
+    onPaymentClick: _onPaymentClick,
     commitmentToEdit
 }) => {
     const { t } = useLocalization();
@@ -66,11 +66,7 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
 
     // Date formatting utilities for native inputs
-    const formatDateShort = (dateString: string) => {
-        if (!dateString) return '';
-        const [year, month, day] = dateString.split('-');
-        return `${day}/${month}/${year}`;
-    };
+
 
     const getDayName = (dateString: string) => {
         if (!dateString) return '';
@@ -162,10 +158,8 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
 
 
     // Detect if commitment has multiple terms (history) - if so, term fields should be read-only
-    const hasTermsHistory = commitmentToEdit && (commitmentToEdit.all_terms?.length || 0) > 1;
 
     // Show terms section ALWAYS if we are editing a commitment (allows viewing payment history)
-    const shouldShowTermsSection = !!commitmentToEdit;
 
     // When editing existing commitment: term fields are disabled unless reactivating
     // Also disable if manually showing terms history (e.g. for pausing)
@@ -315,23 +309,6 @@ export const CommitmentFormV2: React.FC<CommitmentFormV2Props> = ({
     }, [showTermsHistory, effectiveCommitment]);
 
     // Reload commitment data (terms) from the database
-    const reloadCommitmentData = async () => {
-        if (!commitmentToEdit) return;
-        try {
-            const terms = await TermService.getTerms(commitmentToEdit.id);
-            // Sort by version DESC to get active term first
-            const sortedTerms = [...terms].sort((a, b) => b.version - a.version);
-            const activeTerm = sortedTerms[0] || null;
-
-            setLocalCommitment({
-                ...commitmentToEdit,
-                active_term: activeTerm,
-                all_terms: sortedTerms,
-            });
-        } catch (error) {
-            console.error('Error reloading commitment data:', error);
-        }
-    };
 
     const loadPayments = async () => {
         if (!effectiveCommitment) return;

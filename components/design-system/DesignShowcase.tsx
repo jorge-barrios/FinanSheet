@@ -675,7 +675,6 @@ export const DonutChartEnhanced: React.FC<DonutChartEnhancedProps> = ({
               const percentage = (segment.value / total) * 100;
               const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
               const strokeDashoffset = -((cumulativePercentage / 100) * circumference);
-              const currentCumulative = cumulativePercentage;
               cumulativePercentage += percentage;
 
               const isHovered = hoveredIndex === index;
@@ -740,7 +739,7 @@ export const DonutChartEnhanced: React.FC<DonutChartEnhancedProps> = ({
             Top Categorías
           </h4>
           <div className="space-y-3">
-            {topCategories.map((cat, idx) => (
+            {topCategories.map((cat) => (
               <div
                 key={cat.label}
                 className={`

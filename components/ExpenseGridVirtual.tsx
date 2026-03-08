@@ -4,8 +4,7 @@ import { useLocalization } from '../hooks/useLocalization';
 import usePersistentState from '../hooks/usePersistentState';
 import ExpenseCard from './ExpenseCard';
 import { IconProps, EditIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, PlusIcon, MinusIcon, CheckCircleIcon, ExclamationTriangleIcon, ClockIcon, RibbonIcon, CalendarIcon, InfinityIcon, ChartBarIcon, HomeIcon, TransportIcon, DebtIcon, HealthIcon, SubscriptionIcon, MiscIcon, CategoryIcon } from './icons';
-import { getInstallmentAmount, getInstallmentNumber, isInstallmentInMonth, getAmountForMonth } from '../utils/expenseCalculations';
-import CurrencyService from '../services/currencyService';
+import { getInstallmentNumber, isInstallmentInMonth, getAmountForMonth } from '../utils/expenseCalculations';
 
 interface ExpenseGridVirtualProps {
     expenses: Expense[];
