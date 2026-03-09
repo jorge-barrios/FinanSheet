@@ -156,6 +156,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 viewMode={viewMode}
                 selectedCategory={selectedCategory}
                 selectedStatus={selectedStatus}
+                searchQuery={searchQuery}
                 groupedCommitments={groupedCommitments}
                 getTermForPeriod={getTermForPeriod}
                 getPaymentStatus={getPaymentStatus}

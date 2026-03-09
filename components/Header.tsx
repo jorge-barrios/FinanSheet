@@ -113,15 +113,15 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
                     </h1>
 
                     {/* Search Bar (Mobile only) */}
-                    <div className="lg:hidden relative w-full max-w-[180px] sm:max-w-xs transition-all duration-300 group">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <SearchIcon className="h-4 w-4 text-slate-400 group-focus-within:text-sky-500 transition-colors" />
+                    <div className="lg:hidden relative w-full max-w-[220px] transition-all duration-300 group">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-sky-500 transition-colors">
+                            <SearchIcon className="h-4 w-4" />
                         </div>
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => onSearchChange?.(e.target.value)}
-                            className="block w-full pl-9 pr-3 py-1.5 md:py-2 border border-transparent rounded-full leading-5 bg-slate-100 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 sm:text-sm transition-all"
+                            className="block w-full pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm leading-5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 text-xs transition-all"
                             placeholder={t('header.search', 'Buscar compromisos...')}
                         />
                     </div>

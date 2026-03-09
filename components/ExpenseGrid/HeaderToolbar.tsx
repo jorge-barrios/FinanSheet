@@ -126,9 +126,9 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                     </div>
 
                     {/* DESKTOP SEARCH BAR */}
-                    <div className="hidden lg:flex relative w-64 max-w-sm transition-all duration-300 group ml-2">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg className="h-4 w-4 text-slate-400 group-focus-within:text-sky-500 transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <div className="hidden lg:flex relative items-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-1 ml-2 w-64 group transition-all duration-300">
+                        <div className="absolute left-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-sky-500 transition-colors">
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                             </svg>
                         </div>
@@ -136,7 +136,7 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                             type="text"
                             value={searchQuery}
                             onChange={(e) => onSearchChange?.(e.target.value)}
-                            className="block w-full pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-700/50 rounded-xl leading-5 bg-white/50 dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 text-xs transition-all shadow-sm"
+                            className="block w-full h-7 pl-7 pr-2 bg-transparent text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none border-none focus:ring-0 text-xs font-medium"
                             placeholder={t('header.search', 'Buscar compromisos...')}
                         />
                     </div>
