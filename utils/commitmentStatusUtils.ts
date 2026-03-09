@@ -518,6 +518,7 @@ export function generateExpectedPeriods(
                     id: `virtual-${term.id}-${currentPeriod}`,
                     period_date: currentPeriod,
                     payment_date: null, // Marks as pending
+                    is_skipped: false, // Pending payments are not skipped
                     amount_original: term.is_divided_amount && term.installments_count
                         ? (term.amount_original / term.installments_count)
                         : term.amount_original,

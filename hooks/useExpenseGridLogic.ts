@@ -308,7 +308,8 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
             if (!term) return false;
 
             const dueDay = term.due_day_of_month || 1;
-            const { isPaid } = getPaymentStatus(c.id, focusedDate, dueDay);
+            const { isPaid, payment } = getPaymentStatus(c.id, focusedDate, dueDay);
+            const isSkipped = payment?.is_skipped === true;
 
             // Calculate if overdue
             const today = new Date();
@@ -316,7 +317,7 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
             const dueDate = new Date(focusedDate.getFullYear(), focusedDate.getMonth(), dueDay);
             dueDate.setHours(23, 59, 59);
 
-            const isOverdue = !isPaid && today > dueDate &&
+            const isOverdue = !isPaid && !isSkipped && today > dueDate &&
                 (focusedDate.getFullYear() < today.getFullYear() ||
                     (focusedDate.getFullYear() === today.getFullYear() && focusedDate.getMonth() <= today.getMonth()));
 
@@ -327,7 +328,7 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
                 if (!isOverdue) return false;
             } else if (selectedStatus === 'pendiente') {
                 // Pendiente = solo lo que falta por pagar que NO esté vencido
-                if (isPaid || isOverdue) return false;
+                if (isPaid || isOverdue || isSkipped) return false;
             }
         }
 

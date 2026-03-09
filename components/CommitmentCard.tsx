@@ -12,7 +12,7 @@ import { CommitmentWithTerm, Payment } from '../types.v2';
 import { getCommitmentSummary, getInstallmentNumber } from '../utils/commitmentStatusUtils';
 import { getCategoryIcon } from '../utils/categoryIcons';
 import { Edit2, Pause, Play, Trash2, Eye, Star } from 'lucide-react';
-import { OnTimeMedalIcon, ExclamationTriangleIcon, CheckCircleIcon } from './icons';
+import { OnTimeMedalIcon, ExclamationTriangleIcon, CheckCircleIcon, CalendarIcon } from './icons';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 
 
@@ -38,6 +38,7 @@ interface CommitmentCardProps {
     /** For monthly mode: current period info */
     monthlyInfo?: {
         isPaid: boolean;
+        isSkipped?: boolean;
         /** Real amount paid in CLP (from payment record). Shows instead of term amount when available. */
         paidAmount?: number;
         paymentDate?: string;
@@ -163,6 +164,13 @@ export function CommitmentCard({
         if (isInactive) return { label: 'ESTADO', text: 'Sin deuda', color: 'text-slate-400 dark:text-slate-500' };
 
         if (mode === 'monthly' && monthlyInfo) {
+            if (monthlyInfo.isSkipped) {
+                return {
+                    label: 'ESTADO',
+                    text: 'Sin cobro',
+                    color: 'text-slate-500 dark:text-slate-400 font-bold'
+                };
+            }
             if (monthlyInfo.isPaid) {
                 return {
                     label: 'PAGADO',
@@ -203,6 +211,9 @@ export function CommitmentCard({
 
     const renderSmartAvatar = () => {
         if (!isInactive && mode === 'monthly' && monthlyInfo) {
+            if (monthlyInfo.isSkipped) {
+                return <CalendarIcon className="w-[1.35rem] h-[1.35rem] text-slate-500" />;
+            }
             if (monthlyInfo.isPaid) {
                 return monthlyInfo.paidOnTime ? (
                     <OnTimeMedalIcon className="w-[1.35rem] h-[1.35rem] text-emerald-500" strokeWidth={2} />
@@ -241,6 +252,7 @@ export function CommitmentCard({
         if (isInactive) return `${base} bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-60 text-slate-400`;
         
         if (mode === 'monthly' && monthlyInfo) {
+            if (monthlyInfo.isSkipped) return `${base} bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/30`;
             if (monthlyInfo.isPaid) return `${base} bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/30`;
             if (monthlyInfo.daysOverdue && monthlyInfo.daysOverdue > 0) return `${base} bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800/30`;
             if (isDueSoon) return `${base} bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/30`;
@@ -359,7 +371,7 @@ export function CommitmentCard({
                                 <span className="text-[0.65rem] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                     CLP
                                 </span>
-                                <span className="font-mono text-xl font-bold tabular-nums tracking-tighter text-slate-800 dark:text-slate-100 leading-none">
+                                <span className={`font-mono text-xl font-bold tabular-nums tracking-tighter leading-none ${monthlyInfo?.isSkipped ? 'text-slate-400 dark:text-slate-500 line-through decoration-slate-300 dark:decoration-slate-600 decoration-1' : 'text-slate-800 dark:text-slate-100'}`}>
                                     {mode === 'monthly' && monthlyInfo?.isPaid && monthlyInfo.paidAmount !== undefined
                                         ? formatAmount(monthlyInfo.paidAmount)
                                         : summary.perPeriodAmount !== null ? formatAmount(summary.perPeriodAmount) : '-'}

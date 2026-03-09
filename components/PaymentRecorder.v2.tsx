@@ -98,9 +98,11 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
     // Edit mode state: default to true only if NOT paid
     const [isEditMode, setIsEditMode] = useState(true);
     const [markAsPaid, setMarkAsPaid] = useState(true);
+    const [markAsSkipped, setMarkAsSkipped] = useState(false);
 
     // Derived: is currently marked as paid?
     const isPaid = existingPayment?.payment_date != null;
+    const isSkipped = existingPayment?.is_skipped === true;
 
     // Use centralized logic for value calculation (same as DesktopGrid)
 
@@ -167,8 +169,11 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                         setIsDueDateOverridden(false);
                     }
                     
-                    // If already paid, start in View Mode
-                    if (payment.payment_date) {
+                    setMarkAsSkipped(payment.is_skipped || false);
+                    setMarkAsPaid(payment.payment_date != null);
+
+                    // If already paid or skipped, start in View Mode
+                    if (payment.payment_date || payment.is_skipped) {
                         setIsEditMode(false);
                     } else {
                         setIsEditMode(true);
@@ -185,6 +190,8 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                     setAmountCurrency('CLP');
                     setNotes('');
                     setIsEditMode(true);
+                    setMarkAsSkipped(false);
+                    setMarkAsPaid(true);
                 }
             } catch (err) {
                 console.error('Error fetching existing payment:', err);
@@ -282,7 +289,8 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
 
             const paymentData: PaymentFormData = {
                 period_date: periodDate,
-                payment_date: null, // Explicitly pending
+                payment_date: null, // Explicitly pending or skipped
+                is_skipped: markAsSkipped,
                 amount_original: amountValue,
                 currency_original: amountCurrency,
                 fx_rate_to_base: getFxRateToBase(amountCurrency),
@@ -318,6 +326,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
             const paymentData: PaymentFormData = {
                 period_date: periodDate,
                 payment_date: paymentDate, // Mark as paid
+                is_skipped: false, // If paying, it's not skipped
                 amount_original: amountValue,
                 currency_original: amountCurrency,
                 fx_rate_to_base: getFxRateToBase(amountCurrency),
@@ -504,20 +513,23 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                        // --- RECEIPT VIEW (Read-Only) ---
                        <div className="space-y-6 py-4 animate-in fade-in duration-300">
                            
-                           {/* 1. Hero Card - Asymmetrical Horizontal Layout */}
-                           <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 p-5 sm:p-6 flex items-center justify-between gap-4 sm:gap-6">
-                               {/* Left: Huge Status Icon (Outlined) - Conditional Medal for On-Time */}
-                               <div className={`flex-shrink-0 flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 ${
-                                   (daysDiff !== null && daysDiff >= 0) 
-                                       ? 'text-amber-500 dark:text-amber-400' 
-                                       : 'text-emerald-500 dark:text-emerald-400'
-                               }`}>
-                                   {(daysDiff !== null && daysDiff >= 0) ? (
-                                       <OnTimeMedalIcon className="w-5 h-5 text-indigo-400" />
-                                   ) : (
-                                       <CheckCircleIcon className="w-14 h-14 sm:w-16 sm:h-16" />
-                                   )}
-                               </div>
+                            {/* 1. Hero Card - Asymmetrical Horizontal Layout */}
+                            <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-white/60 dark:bg-slate-800/40 p-5 sm:p-6 flex items-center justify-between gap-4 sm:gap-6">
+                                {/* Left: Huge Status Icon (Outlined) - Conditional Medal for On-Time */}
+                                <div className={`flex-shrink-0 flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 ${
+                                    isSkipped ? 'text-slate-400 dark:text-slate-500' :
+                                    (daysDiff !== null && daysDiff >= 0) 
+                                        ? 'text-amber-500 dark:text-amber-400' 
+                                        : 'text-emerald-500 dark:text-emerald-400'
+                                }`}>
+                                    {isSkipped ? (
+                                        <CalendarClock className="w-14 h-14 sm:w-16 sm:h-16 opacity-80" />
+                                    ) : (daysDiff !== null && daysDiff >= 0) ? (
+                                        <OnTimeMedalIcon className="w-14 h-14 sm:w-16 sm:h-16 text-emerald-500" />
+                                    ) : (
+                                        <CheckCircleIcon className="w-14 h-14 sm:w-16 sm:h-16" />
+                                    )}
+                                </div>
                                
                                {/* Right: Data Stack */}
                                <div className="flex flex-col items-end text-right flex-1 min-w-0 space-y-1">
@@ -527,15 +539,21 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                    </div>
                                    
                                    {/* Amount */}
-                                   <div className="text-3xl sm:text-4xl font-mono font-bold tabular-nums text-slate-900 dark:text-white tracking-tight leading-none">
-                                       <span className="text-base sm:text-lg font-mono font-medium text-slate-400 mr-1.5">{amountCurrency}</span>
-                                       {amountCurrency === 'CLP' 
-                                           ? Number(amount).toLocaleString('es-CL') 
-                                           : Number(amount).toLocaleString('es-CL', { minimumFractionDigits: 2 })}
-                                   </div>
+                                   {isSkipped ? (
+                                       <div className="text-xl sm:text-2xl font-bold text-slate-500 tracking-tight leading-none mt-2">
+                                           Sin cobro
+                                       </div>
+                                   ) : (
+                                       <div className="text-3xl sm:text-4xl font-mono font-bold tabular-nums text-slate-900 dark:text-white tracking-tight leading-none">
+                                           <span className="text-base sm:text-lg font-mono font-medium text-slate-400 mr-1.5">{amountCurrency}</span>
+                                           {amountCurrency === 'CLP' 
+                                               ? Number(amount).toLocaleString('es-CL') 
+                                               : Number(amount).toLocaleString('es-CL', { minimumFractionDigits: 2 })}
+                                       </div>
+                                   )}
 
                                    {/* Achievement indicator */}
-                                   {daysDiff !== null && (
+                                   {!isSkipped && daysDiff !== null && (
                                        <div className={`flex items-center justify-end gap-1.5 text-xs sm:text-sm font-semibold mt-1 ${daysDiffColorClass}`}>
                                            <span>{getDaysDiffText(daysDiff)}</span>
                                        </div>
@@ -557,16 +575,18 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                        </span>
                                    </div>
                                    {/* Diferencia */}
+                                   {!isSkipped && (
+                                       <div className="flex justify-between items-center px-5 py-3">
+                                           <span className="text-slate-500 dark:text-slate-400 font-medium">Diferencia</span>
+                                           <span className={`font-mono font-bold tabular-nums ${diffColorClass}`}>
+                                               <span className="font-medium opacity-70 mr-1">CLP</span>
+                                               {diffSign}{diffAmountInClp.toLocaleString('es-CL')}
+                                           </span>
+                                       </div>
+                                   )}
+                                   {/* Fecha de Pago/Registro */}
                                    <div className="flex justify-between items-center px-5 py-3">
-                                       <span className="text-slate-500 dark:text-slate-400 font-medium">Diferencia</span>
-                                       <span className={`font-mono font-bold tabular-nums ${diffColorClass}`}>
-                                           <span className="font-medium opacity-70 mr-1">CLP</span>
-                                           {diffSign}{diffAmountInClp.toLocaleString('es-CL')}
-                                       </span>
-                                   </div>
-                                   {/* Fecha de Pago */}
-                                   <div className="flex justify-between items-center px-5 py-3">
-                                       <span className="text-slate-500 dark:text-slate-400 font-medium">Fecha Pago</span>
+                                       <span className="text-slate-500 dark:text-slate-400 font-medium">{isSkipped ? 'Fecha Registro' : 'Fecha Pago'}</span>
                                        <span className="font-medium text-slate-700 dark:text-slate-300">
                                            {formatDateShort(paymentDate)}
                                            <span className="text-slate-400 dark:text-slate-500 ml-1.5 capitalize text-xs">{getDayName(paymentDate)}</span>
@@ -640,6 +660,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                 )}
 
                                 {/* Fecha de Pago (Editable - Primary, highlighted) */}
+                                {!markAsSkipped && (
                                 <div className="relative p-3 rounded-xl border transition-all duration-300 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/60 hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 focus-within:-translate-y-0.5 focus-within:shadow-md focus-within:ring-2 focus-within:ring-sky-500/50 focus-within:border-sky-500 shadow-sm">
                                     <label className="block text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-1">
                                         Fecha de Pago
@@ -661,9 +682,11 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                         </div>
                                     </div>
                                 </div>
+                                )}
                             </div>
 
                             {/* Amount Input */}
+                            {!markAsSkipped && (
                             <div
                                 className="p-4 rounded-xl border transition-all duration-300 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/60 hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 focus-within:-translate-y-0.5 focus-within:shadow-md focus-within:ring-2 focus-within:ring-sky-500/50 focus-within:border-sky-500 shadow-sm"
                             >    <label className="block text-[10px] sm:text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-3">
@@ -704,6 +727,7 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                                     )}
                                 </div>
                             </div>
+                            )}
 
                             {/* Nota (Optional) */}
                             <div className="p-4 rounded-xl border transition-all duration-300 bg-slate-50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-700/50 hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 focus-within:-translate-y-0.5 focus-within:shadow-md focus-within:ring-2 focus-within:ring-slate-500/50 focus-within:border-slate-500 mt-3">
@@ -745,23 +769,46 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                 {/* Footer - Sticky Actions (always visible) */}
                 <div className="p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800 z-10 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     {isEditMode ? (
-                        <>
-                        {/* Paid/Pending toggle (only for new payments) */}
-                        {!isPaid && (
-                            <button
-                                type="button"
-                                onClick={() => setMarkAsPaid(!markAsPaid)}
-                                className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 transition-colors"
-                            >
-                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Marcar como pagado</span>
-                                <div className={`relative w-11 h-6 rounded-full transition-colors ${
-                                    markAsPaid ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
-                                }`}>
-                                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
-                                        markAsPaid ? 'translate-x-[22px]' : 'translate-x-0.5'
-                                    }`} />
-                                </div>
-                            </button>
+                        <div className="space-y-2">
+                        {/* Paid/Pending/Skipped toggles (only for new payments or editing) */}
+                        {!isPaid && !isSkipped && (
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setMarkAsPaid(!markAsPaid);
+                                        if (!markAsPaid) setMarkAsSkipped(false);
+                                    }}
+                                    className="w-full flex items-center justify-between px-3 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 transition-colors"
+                                >
+                                    <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">Pagado</span>
+                                    <div className={`relative w-11 h-6 shrink-0 rounded-full transition-colors ${
+                                        markAsPaid ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
+                                    }`}>
+                                        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                                            markAsPaid ? 'translate-x-[22px]' : 'translate-x-0.5'
+                                        }`} />
+                                    </div>
+                                </button>
+                                
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setMarkAsSkipped(!markAsSkipped);
+                                        if (!markAsSkipped) setMarkAsPaid(false);
+                                    }}
+                                    className="w-full flex items-center justify-between px-3 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 transition-colors"
+                                >
+                                    <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">Sin cobro</span>
+                                    <div className={`relative w-11 h-6 shrink-0 rounded-full transition-colors ${
+                                        markAsSkipped ? 'bg-slate-500 dark:bg-slate-400' : 'bg-slate-300 dark:bg-slate-600'
+                                    }`}>
+                                        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                                            markAsSkipped ? 'translate-x-[22px]' : 'translate-x-0.5'
+                                        }`} />
+                                    </div>
+                                </button>
+                            </div>
                         )}
                         {/* Single adaptive CTA */}
                         <button
@@ -770,23 +817,28 @@ const PaymentRecorder: React.FC<PaymentRecorderProps> = ({
                             className={`w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold active:scale-[0.98] shadow-lg transition-all disabled:opacity-50 disabled:scale-100 ${
                                 markAsPaid || isPaid
                                     ? 'text-white bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
-                                    : 'text-white bg-slate-600 hover:bg-slate-500 dark:bg-slate-700 dark:hover:bg-slate-600 shadow-slate-600/20'
+                                    : markAsSkipped || isSkipped
+                                        ? 'text-white bg-slate-600 hover:bg-slate-500 shadow-slate-600/20'
+                                        : 'text-slate-700 bg-slate-200 hover:bg-slate-300 dark:text-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 shadow-slate-600/10'
                             }`}
                         >
                             {isLoading ? (
                                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             ) : markAsPaid || isPaid ? (
                                 <CheckCircleIcon className="w-5 h-5" />
+                            ) : markAsSkipped || isSkipped ? (
+                                <CalendarClock className="w-5 h-5" />
                             ) : (
                                 <Save className="w-4 h-4" />
                             )}
                             <span>{
-                                isPaid ? 'Actualizar Pago' 
+                                isPaid || isSkipped ? 'Actualizar Registro' 
                                 : markAsPaid ? 'Confirmar Pago' 
+                                : markAsSkipped ? 'Omitir Pago'
                                 : 'Guardar Pendiente'
                             }</span>
                         </button>
-                        </>
+                        </div>
                     ) : (
                         <button 
                             onClick={() => setIsEditMode(true)}

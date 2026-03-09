@@ -253,7 +253,7 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({
                         {isPaid ? (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
                                 {paidOnTime ? (
-                                    <OnTimeMedalIcon className="w-3 h-3 text-amber-500" strokeWidth={2} />
+                                    <OnTimeMedalIcon className="w-3 h-3 text-emerald-500" strokeWidth={2} />
                                 ) : (
                                     <CheckCircleIcon className="w-3 h-3 text-emerald-500" />
                                 )}
@@ -324,7 +324,7 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({
             {/* MIDDLE ROW: Status Icon + Amount */}
             <div className="flex items-center justify-between py-1 pl-2">
                 <div className="flex-shrink-0">
-                    {isPaid && paidOnTime && <OnTimeMedalIcon className="w-5 h-5 text-amber-500" />}
+                    {isPaid && paidOnTime && <OnTimeMedalIcon className="w-5 h-5 text-emerald-500" />}
                     {isPaid && !paidOnTime && <CheckCircleIcon className="w-5 h-5 text-emerald-500" />}
                     {isOverdue && <ExclamationTriangleIcon className="w-5 h-5 text-rose-500 animate-pulse" />}
                     {!isPaid && !isOverdue && isPending && <ClockIcon className="w-5 h-5 text-amber-500" />}

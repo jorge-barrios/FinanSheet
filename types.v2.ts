@@ -57,6 +57,7 @@ export interface Profile {
     budget_needs_pct: number;   // Default 50
     budget_wants_pct: number;   // Default 30
     budget_savings_pct: number; // Default 20
+    tracking_start_date: string | null; // ISO date (YYYY-MM-DD) - ignore periods before this globally
     created_at: string; // ISO 8601 timestamp
     updated_at: string;
 }
@@ -130,6 +131,7 @@ export interface Payment {
     term_id: string; // Which term was active for this payment
     period_date: string; // ISO date - which period this payment is for (YYYY-MM-DD)
     payment_date: string | null; // ISO date - when actually paid
+    is_skipped: boolean; // true = marked as "Sin cobro / Omitido"
     currency_original: string;
     amount_original: number; // NUMERIC(15,2)
     fx_rate_to_base: number; // NUMERIC(15,6)
@@ -384,6 +386,7 @@ export interface TermFormData {
 export interface PaymentFormData {
     period_date: string; // YYYY-MM-DD
     payment_date: string | null; // YYYY-MM-DD
+    is_skipped?: boolean; // Skipped payments
     amount_original: number;
     currency_original: string;
     fx_rate_to_base?: number; // Exchange rate to CLP

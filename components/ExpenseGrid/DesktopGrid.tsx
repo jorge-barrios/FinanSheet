@@ -837,15 +837,17 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                 }
                                                             }
 
+                                                            const isSkipped = currentPayment?.is_skipped ?? false;
                                                             const today = new Date();
                                                             const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
-                                                            const isOverdue = !!term && !isPaid && dueDate < today && monthDate <= today;
-                                                            const isPending = !!term && !isPaid && !isOverdue && isCurrentMonth(monthDate);
-                                                            const isGap = !term && !isPaid;
+                                                            const isOverdue = !!term && !isPaid && !isSkipped && dueDate < today && monthDate <= today;
+                                                            const isPending = !!term && !isPaid && !isSkipped && !isOverdue && isCurrentMonth(monthDate);
+                                                            const isGap = !term && !isPaid && !isSkipped;
 
                                                             // Check if this is a future month (after current month)
                                                             // BUT don't dim if there's a payment record (pre-registered amount)
                                                             const isFutureMonth = monthDate > today && !isCurrentMonth(monthDate) && !hasPaymentRecord;
+
 
                                                             // Days overdue/remaining calculation
                                                             const daysOverdue = isOverdue
@@ -905,7 +907,11 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                 <div className="relative w-full h-full flex items-center justify-center">
                                                                                     {/* Base Icon */}
                                                                                     <div className="flex items-center justify-center h-full w-full">
-                                                                                        {isPaid ? (
+                                                                                        {isSkipped ? (
+                                                                                            <span title="Sin cobro">
+                                                                                                <CalendarIcon className={`${DENSITY_SCALE.minimal.icon} text-slate-400 dark:text-slate-500`} />
+                                                                                            </span>
+                                                                                        ) : isPaid ? (
                                                                                             paidOnTime ? <OnTimeMedalIcon className={`${DENSITY_SCALE.minimal.icon} text-emerald-500`} strokeWidth={2} /> : <CheckCircleIcon className={`${DENSITY_SCALE.minimal.icon} text-emerald-500`} />
                                                                                         ) : isOverdue ? (
                                                                                             <ExclamationTriangleIcon className={`${DENSITY_SCALE.minimal.icon} text-rose-500 animate-pulse`} />
@@ -925,11 +931,12 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                         </span>
                                                                                         
                                                                                         <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${
+                                                                                            isSkipped ? 'bg-slate-100/80 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400' :
                                                                                             isPaid ? 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400' :
                                                                                             isOverdue ? 'bg-rose-100/80 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400' :
                                                                                             'bg-amber-100/80 text-amber-700 dark:bg-amber-900/40 dark:text-amber-500' // Pending color
                                                                                         }`}>
-                                                                                            {isPaid ? (
+                                                                                            {isSkipped ? 'Sin cobro' : isPaid ? (
                                                                                                 currentPayment?.payment_date ? new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }).replace('.', '') : 'Pagado'
                                                                                             ) : isOverdue ? (
                                                                                                 daysOverdue === 0 ? 'Hoy' : `-${daysOverdue}d`
@@ -948,11 +955,14 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                 density === 'compact' ? (
                                                                                     <div className="relative flex items-center w-full h-full px-1.5 overflow-hidden">
                                                                                         {/* Left: Status Icon (Static) */}
-                                                                                        <div className={`shrink-0 z-10 transition-opacity ${isPaid ? 'text-emerald-600 dark:text-emerald-400' :
+                                                                                        <div className={`shrink-0 z-10 transition-opacity ${
+                                                                                            isSkipped ? 'text-slate-400 dark:text-slate-500' :
+                                                                                            isPaid ? 'text-emerald-600 dark:text-emerald-400' :
                                                                                             isOverdue ? 'text-rose-500 dark:text-rose-400' :
                                                                                                 'text-slate-400 dark:text-slate-300'
                                                                                             }`}>
-                                                                                            {isPaid ? (paidOnTime ? <OnTimeMedalIcon className={`${DENSITY_SCALE.compact.icon}`} strokeWidth={2} /> : <CheckCircleIcon className={`${DENSITY_SCALE.compact.icon}`} />) :
+                                                                                            {isSkipped ? <span title="Sin cobro"><CalendarIcon className={`${DENSITY_SCALE.compact.icon}`} /></span> :
+                                                                                                isPaid ? (paidOnTime ? <OnTimeMedalIcon className={`${DENSITY_SCALE.compact.icon}`} strokeWidth={2} /> : <CheckCircleIcon className={`${DENSITY_SCALE.compact.icon}`} />) :
                                                                                                 isOverdue ? <ExclamationTriangleIcon className={`${DENSITY_SCALE.compact.icon}`} /> :
                                                                                                     isPending ? <ClockIcon className={`${DENSITY_SCALE.compact.icon}`} /> :
                                                                                                         (installmentsCount && installmentsCount > 1) ? <CalendarIcon className={`${DENSITY_SCALE.compact.icon}`} /> :
@@ -963,7 +973,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                         <div className="flex-1 flex flex-col items-end justify-center relative h-full">
                                                                                             {/* Primary State: Amount + Cuota */}
                                                                                             <div className="flex flex-col items-end justify-center h-full transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover/cell:-translate-y-4 group-hover/cell:opacity-0">
-                                                                                                <span className={`${DENSITY_SCALE.compact.amount} font-semibold font-mono tabular-nums text-slate-700 dark:text-slate-100`}>
+                                                                                                <span className={`${DENSITY_SCALE.compact.amount} font-semibold font-mono tabular-nums ${isSkipped ? 'text-slate-400 dark:text-slate-500 line-through decoration-slate-300 dark:decoration-slate-600 decoration-1' : 'text-slate-700 dark:text-slate-100'}`}>
                                                                                                     {formatClp(displayAmount!)}
                                                                                                 </span>
                                                                                                 {(cuotaNumber && installmentsCount && installmentsCount > 1) && (
@@ -981,11 +991,12 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                                     </span>
                                                                                                 )}
                                                                                                 <span className={`text-[11px] font-bold uppercase tracking-wider leading-none ${
+                                                                                                    isSkipped ? 'text-slate-500 dark:text-slate-400' :
                                                                                                     isPaid ? 'text-emerald-600 dark:text-emerald-400' :
                                                                                                     isOverdue ? 'text-rose-600 dark:text-rose-400' :
                                                                                                     'text-slate-500 dark:text-slate-400'
                                                                                                 }`}>
-                                                                                                    {isPaid ? (
+                                                                                                    {isSkipped ? 'Sin cobro' : isPaid ? (
                                                                                                         currentPayment?.payment_date ? new Date(currentPayment.payment_date).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }).replace('.', '') : 'Pagado'
                                                                                                     ) : isOverdue ? (
                                                                                                         daysOverdue === 0 ? 'Hoy' : `-${daysOverdue}d`
@@ -1032,7 +1043,9 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                         <div className="flex items-start justify-between min-h-[16px]">
                                                                                             {/* Left: Financial Insight / Variance / Tag */}
                                                                                             <div className="text-[10px] font-medium truncate pr-1">
-                                                                                                {isPaid && currentPayment ? (
+                                                                                                {isSkipped ? (
+                                                                                                    <span className="text-slate-500 dark:text-slate-600 text-[10px]">Sin cobro</span>
+                                                                                                ) : isPaid && currentPayment ? (
                                                                                                     (() => {
                                                                                                         // Variance Analysis
                                                                                                         // Use live rate for expected amount to show accurate variance
@@ -1078,9 +1091,17 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                         {/* MIDDLE ROW: Status Icon + Amount Stack - Main Visual */}
                                                                                         <div className="flex items-center justify-between py-1">
                                                                                                 <div className="shrink-0 pt-0.5">
-                                                                                                    {isPaid && (paidOnTime ? <OnTimeMedalIcon className={`${DENSITY_SCALE.detailed.icon} text-emerald-500`} strokeWidth={2} /> : <CheckCircleIcon className={`${DENSITY_SCALE.detailed.icon} text-emerald-500`} />)}
-                                                                                                     {isOverdue && <ExclamationTriangleIcon className={`${DENSITY_SCALE.detailed.icon} text-rose-500`} />}
-                                                                                                {!isPaid && !isOverdue && <ClockIcon className={`${DENSITY_SCALE.detailed.icon} text-slate-400 dark:text-slate-500`} />}
+                                                                                                    {isSkipped ? (
+                                                                                                        <span title="Sin cobro">
+                                                                                                            <CalendarIcon className={`${DENSITY_SCALE.detailed.icon} text-slate-400 dark:text-slate-500`} />
+                                                                                                        </span>
+                                                                                                    ) : isPaid ? (
+                                                                                                        paidOnTime ? <OnTimeMedalIcon className={`${DENSITY_SCALE.detailed.icon} text-emerald-500`} strokeWidth={2} /> : <CheckCircleIcon className={`${DENSITY_SCALE.detailed.icon} text-emerald-500`} />
+                                                                                                    ) : isOverdue ? (
+                                                                                                        <ExclamationTriangleIcon className={`${DENSITY_SCALE.detailed.icon} text-rose-500`} />
+                                                                                                    ) : (
+                                                                                                        <ClockIcon className={`${DENSITY_SCALE.detailed.icon} text-slate-400 dark:text-slate-500`} />
+                                                                                                    )}
                                                                                             </div>
                                                                                             {/* Amount Stack: Secondary above, Primary below */}
                                                                                             <div className="flex flex-col items-end">
@@ -1095,10 +1116,10 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
                                                                                                 )}
                                                                                                 {/* Primary Amount with CLP prefix */}
                                                                                                 <div className="flex items-baseline gap-1">
-                                                                                                    <span className="text-[0.625rem] font-medium tracking-wide text-slate-400 dark:text-slate-500 uppercase">
+                                                                                                    <span className={`text-[0.625rem] font-medium tracking-wide ${isSkipped ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400 dark:text-slate-500'} uppercase`}>
                                                                                                         CLP
                                                                                                     </span>
-                                                                                                    <span className={`font-mono tabular-nums ${DENSITY_SCALE.detailed.amount} tracking-tighter font-semibold text-slate-800 dark:text-slate-100`}>
+                                                                                                    <span className={`font-mono tabular-nums ${DENSITY_SCALE.detailed.amount} tracking-tighter font-semibold ${isSkipped ? 'text-slate-400 dark:text-slate-500 line-through decoration-slate-300 dark:decoration-slate-600 decoration-1' : 'text-slate-800 dark:text-slate-100'}`}>
                                                                                                         {formatClp(displayAmount)}
                                                                                                     </span>
                                                                                                 </div>
@@ -1116,7 +1137,7 @@ export const DesktopGrid: React.FC<DesktopGridProps> = ({
 
                                                                                                 {/* Line 2: Status/Context - Neutral text, icons carry the color */}
                                                                                                 <div className="text-[11px] font-semibold tracking-tight text-slate-600 dark:text-slate-300">
-                                                                                                    {isPaid ? (
+                                                                                                    {isSkipped ? 'Sin cobro' : isPaid ? (
                                                                                                         currentPayment?.payment_date
                                                                                                             ? `Pagado: ${new Date(currentPayment.payment_date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
                                                                                                             : 'Pagado'

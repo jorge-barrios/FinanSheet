@@ -1,13 +1,5 @@
-/**
- * CommitmentsContext
- * 
- * Centralized context for v2 data (commitments, terms, payments).
- * Provides shared state and refresh functionality across all components.
- * Eliminates duplicate fetching between Grid and Dashboard.
- */
-
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, ReactNode, useRef } from 'react';
-import { CommitmentService, PaymentService, getCurrentUserId } from '../services/dataService.v2';
+import { CommitmentService, PaymentService, getCurrentUserId, ProfileService } from '../services/dataService.v2';
 import type { CommitmentWithTerm, Payment, FlowType, MonthTotals } from '../types.v2';
 import { extractYearMonth, getPerPeriodAmount, getCuotaNumber } from '../utils/financialUtils.v2';
 import { useAuth } from './AuthContext';
@@ -49,6 +41,7 @@ interface CommitmentsContextValue {
     // Raw data
     commitments: CommitmentWithTerm[];
     payments: Map<string, Payment[]>;
+    trackingStartDate: string | null;
 
     // Loading state
     loading: boolean;
@@ -89,6 +82,7 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
     const { user } = useAuth(); // SECURITY: Monitor user changes
     const [commitments, setCommitments] = useState<CommitmentWithTerm[]>([]);
     const [payments, setPayments] = useState<Map<string, Payment[]>>(new Map());
+    const [trackingStartDate, setTrackingStartDate] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const now = new Date();
@@ -111,8 +105,8 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
 
         // Stale time check: avoid unnecessary refreshes on visibility change / token refresh
         // Skip this check if force is true (explicit user action like saving a payment)
-        const now = Date.now();
-        if (silent && !force && now - lastRefreshRef.current < STALE_TIME_MS) {
+        const nowMs = Date.now();
+        if (silent && !force && nowMs - lastRefreshRef.current < STALE_TIME_MS) {
             console.log('CommitmentsContext: Data is fresh, skipping silent refresh');
             return;
         }
@@ -129,6 +123,10 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
                 setLoading(false);
                 return;
             }
+
+            // Fetch profile for tracking_start_date
+            const profile = await ProfileService.getProfile(userId);
+            setTrackingStartDate(profile?.tracking_start_date || null);
 
             // First, fetch commitments to determine the date range for payments
             const commitmentsData = await CommitmentService.getCommitmentsWithTerms(userId);
@@ -279,9 +277,9 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
     const isPaymentMade = useCallback((commitmentId: string, year: number, month: number): boolean => {
         const commitmentPayments = payments.get(commitmentId) || [];
         const periodStr = periodToString({ year, month: month + 1 });
-        // Only consider it "paid" if payment_date exists (not just registered)
+        // Consider it "paid" if payment_date exists OR is_skipped is true
         return commitmentPayments.some(p =>
-            p.period_date.substring(0, 7) === periodStr && !!p.payment_date
+            p.period_date.substring(0, 7) === periodStr && (!!p.payment_date || p.is_skipped)
         );
     }, [payments]);
 
@@ -320,6 +318,14 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
             if (!term) return;
             if (commitment.flow_type !== 'EXPENSE') return;
             if (!isTermActiveForMonth(term, yearForMonth, actualMonth)) return;
+
+            // Check tracking start date
+            const targetPeriodDate = `${yearForMonth}-${String(actualMonth + 1).padStart(2, '0')}-01`;
+            const isBeforeTracking = trackingStartDate && targetPeriodDate < trackingStartDate;
+            const hasAnyPaymentRecord = payments.get(commitment.id)?.some(p => p.period_date.substring(0, 7) === targetPeriodDate.substring(0, 7));
+            
+            if (isBeforeTracking && !hasAnyPaymentRecord) return;
+
             if (isPaymentMade(commitment.id, yearForMonth, actualMonth)) return;
 
             const dueDay = term.due_day_of_month || 1;
@@ -371,6 +377,13 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
 
                 // Stop if before commitment started
                 if (!isTermActiveForMonth(term, checkYear, checkMonth)) continue;
+
+                // Check tracking start date
+                const checkPeriodDate = `${checkYear}-${String(checkMonth + 1).padStart(2, '0')}-01`;
+                const isBeforeTracking = trackingStartDate && checkPeriodDate < trackingStartDate;
+                const hasAnyPaymentRecord = payments.get(commitment.id)?.some(p => p.period_date.substring(0, 7) === checkPeriodDate.substring(0, 7));
+
+                if (isBeforeTracking && !hasAnyPaymentRecord) continue;
 
                 // Skip if already paid
                 if (isPaymentMade(commitment.id, checkYear, checkMonth)) continue;
@@ -487,6 +500,14 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
             // Check if active in this month (handles start/end dates and frequency)
             if (!isTermActiveForMonth(term, year, month)) return;
 
+            // Optional: Skip if before tracking start date and no payment/skip record exists
+            const isBeforeTracking = trackingStartDate && `${targetPeriod}-01` < trackingStartDate;
+            const hasAnyPaymentRecord = payments.get(c.id)?.some(p => p.period_date.substring(0, 7) === targetPeriod);
+            
+            if (isBeforeTracking && !hasAnyPaymentRecord) {
+                return; // Ignore ancient untracked commitments for this month's totals
+            }
+
             // Handle linked commitments (bidirectional) - calculate NET only once per pair
             const linkedId = c.linked_commitment_id;
             const linkedCommitment = linkedId ? commitmentMap.get(linkedId) : null;
@@ -536,9 +557,11 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
                 const pmnts = payments.get(commitmentId) || [];
                 const record = pmnts.find(p => {
                     const pPeriod = p.period_date.substring(0, 7);
-                    return pPeriod === targetPeriod && !!p.payment_date;
+                    return pPeriod === targetPeriod;
                 });
                 if (!record) return 0;
+                if (record.is_skipped || !record.payment_date) return 0; // Skipped / Pending = 0 paid
+
                 return record.currency_original === 'CLP'
                     ? record.amount_original || 0
                     : record.amount_in_base ?? record.amount_original ?? 0;
@@ -562,15 +585,25 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
             // For linked pairs: isPaid based on the expense-side commitment's payment
             // (income side payment is separate — receiving rent doesn't mean mortgage is paid)
             let isPaid: boolean;
+            let isSkipped: boolean = false;
+            
             if (linkedCommitment && flowType === 'EXPENSE') {
                 // For linked pairs as NET EXPENSE: check if the expense commitment has a payment
                 const expenseCommitment = c.flow_type === 'EXPENSE' ? c : linkedCommitment;
                 isPaid = getPaymentAmount(expenseCommitment.id) > 0;
+                
+                const pmnts = payments.get(expenseCommitment.id) || [];
+                const record = pmnts.find(p => p.period_date.substring(0, 7) === targetPeriod);
+                isSkipped = record?.is_skipped || false;
             } else {
                 isPaid = myPaidAmount > 0;
+                
+                const pmnts = payments.get(c.id) || [];
+                const record = pmnts.find(p => p.period_date.substring(0, 7) === targetPeriod);
+                isSkipped = record?.is_skipped || false;
             }
 
-            if (!isPaid && flowType === 'EXPENSE') {
+            if (!isPaid && !isSkipped && flowType === 'EXPENSE') {
                 // For linked pairs, use the expense side's due date
                 const expenseTerm = linkedCommitment && c.flow_type !== 'EXPENSE'
                     ? linkedCommitment.active_term
@@ -596,7 +629,7 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
                         upcomingCount++;
                     }
                 }
-            } else if (isPaid && flowType === 'EXPENSE') {
+            } else if (isPaid && !isSkipped && flowType === 'EXPENSE') {
                 paidCount++;
             }
         });
@@ -657,6 +690,7 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
     const value = useMemo<CommitmentsContextValue>(() => ({
         commitments,
         payments,
+        trackingStartDate,
         loading,
         error,
         refresh,
@@ -671,10 +705,12 @@ export const CommitmentsProvider: React.FC<CommitmentsProviderProps> = ({ childr
     }), [
         commitments,
         payments,
+        trackingStartDate,
         loading,
         error,
         refresh,
         displayYear,
+        displayMonth,
         getUpcomingPayments,
         getMonthlyData,
         getMonthTotals,

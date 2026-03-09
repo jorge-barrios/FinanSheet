@@ -96,20 +96,21 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
 
                     const activeTerm = getTermForPeriod(c, focusedDate);
                     const dueDay = activeTerm?.due_day_of_month ?? 1;
-                    const { isPaid } = getPaymentStatus(c.id, focusedDate, dueDay);
+                    const { isPaid, payment } = getPaymentStatus(c.id, focusedDate, dueDay);
+                    const isSkipped = payment?.is_skipped === true;
 
                     // Calculate if overdue
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
                     const dueDate = new Date(focusedDate.getFullYear(), focusedDate.getMonth(), dueDay);
                     dueDate.setHours(23, 59, 59);
-                    const isOverdue = !isPaid && today > dueDate &&
+                    const isOverdue = !isPaid && !isSkipped && today > dueDate &&
                         (focusedDate.getFullYear() < today.getFullYear() ||
                             (focusedDate.getFullYear() === today.getFullYear() && focusedDate.getMonth() <= today.getMonth()));
 
                     if (selectedStatus === 'pagado') return isPaid;
                     if (selectedStatus === 'vencido') return isOverdue;
-                    if (selectedStatus === 'pendiente') return !isPaid;
+                    if (selectedStatus === 'pendiente') return !isPaid && !isSkipped && !isOverdue;
                     return true;
                 }).sort(performSmartSort);
 
@@ -125,10 +126,12 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
 
                     const dueDay = term?.due_day_of_month ?? 1;
                     const { isPaid, payment: currentPayment, paidOnTime, amount: paidAmountCLP } = getPaymentStatus(c.id, monthDate, dueDay);
+                    const isSkipped = currentPayment?.is_skipped ?? false;
 
                     const today = new Date();
                     const dueDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), dueDay);
-                    const isOverdue = isTermActiveInMonth && !isPaid && dueDate < today && monthDate <= today;
+                    // If skipped, it's considered resolved, so it's not overdue
+                    const isOverdue = isTermActiveInMonth && !isPaid && !isSkipped && dueDate < today && monthDate <= today;
 
                     const daysOverdue = isOverdue
                         ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
@@ -137,6 +140,7 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
                     // Prepare monthly info for CommitmentCard
                     const monthlyInfo = {
                         isPaid,
+                        isSkipped,
                         // Pass the real paid amount so CommitmentCard shows the historical value (not just the committed term amount)
                         paidAmount: isPaid && paidAmountCLP !== null ? paidAmountCLP : undefined,
                         // Pass raw ISO string date so CommitmentCard can parse it
