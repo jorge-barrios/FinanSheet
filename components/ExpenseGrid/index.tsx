@@ -142,7 +142,6 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 setSelectedCategory={setSelectedCategory}
                 setSelectedStatus={setSelectedStatus}
                 availableCategories={availableCategories}
-                setShowKPISelector={setShowKPISelector}
                 formatClp={safeFormatClp as any} // Cast to satisfy strict typing if needed, or update types
                 searchQuery={searchQuery}
                 onSearchChange={onSearchChange}

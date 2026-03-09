@@ -7,8 +7,8 @@
 
 import React from 'react';
 import { Minus, ChevronDown, Star, Menu, Pause as PauseLucide } from 'lucide-react';
-import { MobileKPICarousel } from './MobileKPICarousel';
 import { KPIBentoCard } from './KPIBentoCard';
+import { MobileFilterTabs, type FilterTab } from './MobileFilterTabs';
 import { useLocalization } from '../../hooks/useLocalization';
 import type { MonthTotals } from '../../types.v2';
 import type { KPIType } from './KPISelectorModal';
@@ -27,7 +27,6 @@ export interface HeaderToolbarProps {
     setSelectedCategory: (cat: string) => void;
     setSelectedStatus: (status: StatusFilter) => void;
     availableCategories: string[];
-    setShowKPISelector: (show: boolean) => void;
     formatClp: (amount: number) => string;
     searchQuery?: string;
     onSearchChange?: (query: string) => void;
@@ -45,20 +44,34 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
     setSelectedCategory,
     setSelectedStatus,
     availableCategories,
-    setShowKPISelector,
     formatClp,
     searchQuery = '',
     onSearchChange,
 }) => {
     const { t } = useLocalization();
 
+    // Map the string categories to Tab objects for MobileFilterTabs
+    const filterTabs: FilterTab[] = [
+        { id: 'all', label: 'Todos' },
+        { id: 'FILTER_IMPORTANT', label: 'Importantes', icon: <Star className="w-3.5 h-3.5" /> },
+        ...availableCategories.filter(c => c !== 'all' && c !== 'FILTER_IMPORTANT').map(cat => ({
+            id: cat,
+            label: cat
+        }))
+    ];
+
+    const activeFilterTabId = selectedCategory === 'all' && currentKPI !== 'comprometido' // If user selected a KPI in mobile previously? We handle KPI separately now, we just pass category
+        ? 'all' // We only filter categories on tabs now
+        : selectedCategory;
+
+
     return (
-        <div className="sticky top-0 z-50 flex flex-col bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm transition-all duration-300">
+        <div className="sticky top-0 z-50 flex flex-col bg-slate-50 dark:bg-slate-900 shadow-sm transition-all duration-300">
 
             {/* ═══════════════════════════════════════════════════════════════════
                 ROW 1: FILTERS + DENSITY (Funnel UI: Navigation layer)
             ═══════════════════════════════════════════════════════════════════ */}
-            <div className="w-full flex items-center justify-between gap-4 py-2.5 px-4">
+            <div className="w-full flex items-center justify-between gap-4 py-2.5 px-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
 
                 {/* [Left] Filter Capsule */}
                 <div className="hidden lg:flex items-center">
@@ -211,14 +224,18 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
             </div>
 
             {/* ═══════════════════════════════════════════════════════════════════
-                ROW 2 MOBILE: Carousel
+                ROW 2 MOBILE: Category Filter Tabs
             ═══════════════════════════════════════════════════════════════════ */}
-            <div className="lg:hidden w-full pt-3 pb-2 px-2">
-                <MobileKPICarousel
-                    totals={totals}
-                    currentKPI={currentKPI}
-                    onKPIChange={handleKPIChange}
-                    onSelectorOpen={() => setShowKPISelector(true)}
+            <div className="lg:hidden w-full">
+                <MobileFilterTabs
+                    tabs={filterTabs}
+                    activeTab={activeFilterTabId}
+                    onChange={(id) => {
+                        React.startTransition(() => {
+                            setSelectedCategory(id);
+                            setSelectedStatus('all'); // Reset specific status when category changes
+                        });
+                    }}
                 />
             </div>
         </div>
