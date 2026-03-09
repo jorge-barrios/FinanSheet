@@ -29,6 +29,8 @@ export interface HeaderToolbarProps {
     availableCategories: string[];
     setShowKPISelector: (show: boolean) => void;
     formatClp: (amount: number) => string;
+    searchQuery?: string;
+    onSearchChange?: (query: string) => void;
 }
 
 export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
@@ -45,6 +47,8 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
     availableCategories,
     setShowKPISelector,
     formatClp,
+    searchQuery = '',
+    onSearchChange,
 }) => {
     const { t } = useLocalization();
 
@@ -119,6 +123,22 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                             </select>
                             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
                         </div>
+                    </div>
+
+                    {/* DESKTOP SEARCH BAR */}
+                    <div className="hidden lg:flex relative w-64 max-w-sm transition-all duration-300 group ml-2">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg className="h-4 w-4 text-slate-400 group-focus-within:text-sky-500 transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                            </svg>
+                        </div>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => onSearchChange?.(e.target.value)}
+                            className="block w-full pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-700/50 rounded-xl leading-5 bg-white/50 dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 text-xs transition-all shadow-sm"
+                            placeholder={t('header.search', 'Buscar compromisos...')}
+                        />
                     </div>
                 </div>
 

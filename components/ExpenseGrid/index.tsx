@@ -45,6 +45,7 @@ interface ExpenseGridV2Props {
     onCloseMobileFilters?: () => void;
     // Search Prop
     searchQuery?: string;
+    onSearchChange?: (query: string) => void;
 }
 
 
@@ -64,6 +65,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     showMobileFilters = false, // Default to false if not controlled
     onCloseMobileFilters = () => { }, // Default no-op
     searchQuery = '',
+    onSearchChange,
 }) => {
     // Logic extracted to custom hook
     const {
@@ -142,6 +144,8 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
                 availableCategories={availableCategories}
                 setShowKPISelector={setShowKPISelector}
                 formatClp={safeFormatClp as any} // Cast to satisfy strict typing if needed, or update types
+                searchQuery={searchQuery}
+                onSearchChange={onSearchChange}
             />
 
 

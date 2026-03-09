@@ -22,6 +22,7 @@ export interface MobileCardListProps {
     viewMode: ViewMode;
     selectedCategory: string;
     selectedStatus: StatusFilter;
+    searchQuery?: string;
     groupedCommitments: { archived: CommitmentWithTerm[];[key: string]: any };
 
     // Hook functions
@@ -51,6 +52,7 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
     viewMode,
     selectedCategory,
     selectedStatus,
+    searchQuery = '',
     groupedCommitments,
     getTermForPeriod,
     getPaymentStatus,
@@ -89,6 +91,13 @@ export const MobileCardList: React.FC<MobileCardListProps> = ({
                     if (selectedCategory === 'all') return true;
                     if (selectedCategory === 'FILTER_IMPORTANT') return c.is_important;
                     return getTranslatedCategoryName(c) === selectedCategory;
+                }).filter(c => {
+                    // Aplicar búsqueda de texto
+                    if (!searchQuery || searchQuery.trim() === '') return true;
+                    const query = searchQuery.toLowerCase();
+                    const nameMatch = c.name.toLowerCase().includes(query);
+                    const catMatch = getTranslatedCategoryName(c).toLowerCase().includes(query);
+                    return nameMatch || catMatch;
                 }).filter(c => {
                     // Aplicar filtro de status (pendiente/pagado/vencido)
                     if (selectedStatus === 'all') return true;

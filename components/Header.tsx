@@ -105,10 +105,15 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
             data-app-header
         >
             <div className="w-full mx-auto flex items-center justify-between relative">
-                {/* LEFT ZONE: Utility (Search, Theme Toggle, Settings Menu) */}
-                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                    {/* Search Bar (Replaces Logo) */}
-                    <div className="relative w-full max-w-xs transition-all duration-300 group">
+                {/* LEFT ZONE: Utility (Logo, Search, Theme Toggle, Settings Menu) */}
+                <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+                    {/* Brand Logo - visible on desktop */}
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight hidden lg:block mr-2">
+                        FinanSheet
+                    </h1>
+
+                    {/* Search Bar (Mobile only) */}
+                    <div className="lg:hidden relative w-full max-w-[180px] sm:max-w-xs transition-all duration-300 group">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <SearchIcon className="h-4 w-4 text-slate-400 group-focus-within:text-sky-500 transition-colors" />
                         </div>

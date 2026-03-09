@@ -571,6 +571,7 @@ const App: React.FC = () => {
                                         showMobileFilters={showMobileFilters}
                                         onCloseMobileFilters={() => setShowMobileFilters(false)}
                                         searchQuery={searchTerm}
+                                        onSearchChange={setSearchTerm}
                                     />
                                 ) : (
                                     <TableView
@@ -594,6 +595,7 @@ const App: React.FC = () => {
                                     onYearChange={(y) => setFocusedDate(prev => new Date(y, prev.getMonth(), 1))}
                                     onOpenPaymentRecorder={handleOpenPaymentRecorder}
                                     searchQuery={searchTerm}
+                                    onSearchChange={setSearchTerm}
                                 />
                             )}
                             {view === 'calendar' && !useV2Dashboard && (

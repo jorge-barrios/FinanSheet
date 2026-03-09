@@ -15,10 +15,10 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ currentView, onViewC
 
     return (
         <div 
-            className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pb-[env(safe-area-inset-bottom)]"
-            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px))' }}
+            className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-            <div className="flex items-center justify-around h-16 px-1 relative">
+            <div className="flex items-center justify-around h-14 px-1 relative">
                 
                 {/* Grilla Tab */}
                 <button
@@ -65,7 +65,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ currentView, onViewC
                 <button
                     onClick={onAddExpense}
                     className="
-                        absolute left-1/2 -ml-7 -top-6
+                        absolute left-1/2 -ml-7 -top-5
                         flex items-center justify-center
                         w-14 h-14
                         rounded-full

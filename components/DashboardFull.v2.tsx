@@ -42,6 +42,7 @@ interface DashboardFullV2Props {
     onYearChange?: (year: number) => void;
     onOpenPaymentRecorder?: (commitmentId: string, periodDate: string) => void; // periodDate: YYYY-MM-DD
     searchQuery?: string;
+    onSearchChange?: (query: string) => void;
 }
 
 interface CategorySummary {
