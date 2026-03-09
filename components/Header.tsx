@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { DownloadIcon, MenuIcon, LanguageIcon, ChevronDownIcon, SunIcon, MoonIcon, PlusIcon, TagIcon, ArrowRightOnRectangleIcon, ArrowPathIcon } from './icons';
+import { DownloadIcon, MenuIcon, LanguageIcon, ChevronDownIcon, SunIcon, MoonIcon, PlusIcon, TagIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, SearchIcon } from './icons';
 import { useLocalization } from '../hooks/useLocalization';
 import ViewSwitcher from './ViewSwitcher';
 import { View } from '../types';
@@ -19,9 +19,11 @@ interface HeaderProps {
     onViewChange: (view: View) => void;
     onOpenCategoryManager: () => void;
     onToggleMobileFilters?: () => void;
+    searchQuery?: string;
+    onSearchChange?: (query: string) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeChange, view, onViewChange, onOpenCategoryManager, onToggleMobileFilters }) => {
+const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeChange, view, onViewChange, onOpenCategoryManager, onToggleMobileFilters, searchQuery = '', onSearchChange }) => {
     const { language, setLanguage, t } = useLocalization();
     const { lastUpdated, refresh, loading: currencyLoading } = useCurrency();
     const { signOut, user } = useAuth();
@@ -103,9 +105,21 @@ const Header: React.FC<HeaderProps> = ({ onAddExpense, onExport, theme, onThemeC
             data-app-header
         >
             <div className="w-full mx-auto flex items-center justify-between relative">
-                {/* LEFT ZONE: Utility (Logo, Theme Toggle, Settings Menu) */}
-                <div className="flex items-center gap-2 sm:gap-3">
-                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight hidden md:block">FinanSheet</h1>
+                {/* LEFT ZONE: Utility (Search, Theme Toggle, Settings Menu) */}
+                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                    {/* Search Bar (Replaces Logo) */}
+                    <div className="relative w-full max-w-xs transition-all duration-300 group">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <SearchIcon className="h-4 w-4 text-slate-400 group-focus-within:text-sky-500 transition-colors" />
+                        </div>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => onSearchChange?.(e.target.value)}
+                            className="block w-full pl-9 pr-3 py-1.5 md:py-2 border border-transparent rounded-full leading-5 bg-slate-100 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 sm:text-sm transition-all"
+                            placeholder={t('header.search', 'Buscar compromisos...')}
+                        />
+                    </div>
 
                     {/* Theme Toggle (Quick Access) */}
                     <button

@@ -41,6 +41,7 @@ interface DashboardFullV2Props {
     onMonthChange?: (month: number) => void;
     onYearChange?: (year: number) => void;
     onOpenPaymentRecorder?: (commitmentId: string, periodDate: string) => void; // periodDate: YYYY-MM-DD
+    searchQuery?: string;
 }
 
 interface CategorySummary {
@@ -67,6 +68,7 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
     onMonthChange,
     onYearChange,
     onOpenPaymentRecorder,
+    searchQuery = '',
 }) => {
     const { formatClp, language } = useLocalization();
     const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -145,6 +147,12 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
         const currentMonth = displayMonth; // 0-indexed
 
         return commitments
+            .filter(c => {
+                if (!searchQuery || searchQuery.trim() === '') return true;
+                const query = searchQuery.toLowerCase();
+                const categoryName = (c.category as any)?.name || 'Varios';
+                return c.name.toLowerCase().includes(query) || categoryName.toLowerCase().includes(query);
+            })
             .map(c => {
                 const summary = getCommitmentSummary(c, payments.get(c.id) || []);
 
@@ -321,6 +329,14 @@ export const DashboardFullV2: React.FC<DashboardFullV2Props> = ({
         };
 
         commitments.forEach(commitment => {
+            if (searchQuery && searchQuery.trim() !== '') {
+                const query = searchQuery.toLowerCase();
+                const categoryNameSearch = (commitment.category as any)?.name || 'Varios';
+                if (!commitment.name.toLowerCase().includes(query) && !categoryNameSearch.toLowerCase().includes(query)) {
+                    return;
+                }
+            }
+            
             const term = commitment.active_term;
             if (!term) return;
 

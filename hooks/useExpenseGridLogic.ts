@@ -25,9 +25,10 @@ export type { CommitmentCounts } from '../utils/commitmentStatusUtils';
 interface UseExpenseGridLogicProps {
     focusedDate: Date;
     onFocusedDateChange?: (date: Date) => void;
+    searchQuery?: string;
 }
 
-export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) => {
+export const useExpenseGridLogic = ({ focusedDate, searchQuery }: UseExpenseGridLogicProps) => {
     const { t, language } = useLocalization();
     const { convertAmount } = useCurrency(); // Import currency converter
     const {
@@ -297,6 +298,14 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
             return false;
         }
 
+        // Search filter
+        if (searchQuery && searchQuery.trim() !== '') {
+            const query = searchQuery.toLowerCase();
+            const nameMatch = c.name.toLowerCase().includes(query);
+            const catMatch = categoryName.toLowerCase().includes(query);
+            if (!nameMatch && !catMatch) return false;
+        }
+
         // Status filters (payment status for the focused month)
         if (selectedStatus === 'ingresos') {
             if (c.flow_type !== 'INCOME') return false;
@@ -333,7 +342,7 @@ export const useExpenseGridLogic = ({ focusedDate }: UseExpenseGridLogicProps) =
         }
 
         return true;
-    }, [selectedCategory, selectedStatus, getTranslatedCategoryName, focusedDate, isActiveInMonth, getTermForPeriod, getPaymentStatus]);
+    }, [selectedCategory, selectedStatus, getTranslatedCategoryName, focusedDate, isActiveInMonth, getTermForPeriod, getPaymentStatus, searchQuery]);
 
     // Helper: Check if commitment is visible in current month range
     const isVisibleInRange = useCallback((c: CommitmentWithTerm): boolean => {

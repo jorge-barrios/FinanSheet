@@ -15,9 +15,9 @@ const PauseCommitmentModal = React.lazy(() => import('./components/PauseCommitme
 import CategoryManager from './components/CategoryManager';
 import ConfirmationModal from './components/ConfirmationModal';
 import { CommitmentDetailModal } from './components/CommitmentDetailModal';
-import { FloatingActionButton } from './components/FloatingActionButton';
 import { PWAUpdateNotifier } from './components/PWAUpdateNotifier';
 import { AppLoadingSkeleton } from './components/AppLoadingSkeleton';
+import { BottomNavBar } from './components/BottomNavBar';
 import { Expense, PaymentStatus, ExpenseType, View, PaymentDetails } from './types';
 import type { CommitmentWithTerm } from './types.v2';
 import type { Category } from './services/categoryService.v2';
@@ -70,7 +70,7 @@ const App: React.FC = () => {
     const [viewingCommitment, setViewingCommitment] = useState<CommitmentWithTerm | null>(null);
 
     const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
-    const [searchTerm, _setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
     const [filterType, _setFilterType] = useState<'all' | ExpenseType>('all');
     const [filterImportance, _setFilterImportance] = useState<'all' | 'important'>('all');
     const [view, setView] = useState<View>('table');
@@ -536,8 +536,10 @@ const App: React.FC = () => {
                     onViewChange={setView}
                     onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
                     onToggleMobileFilters={() => setShowMobileFilters(prev => !prev)}
+                    searchQuery={searchTerm}
+                    onSearchChange={setSearchTerm}
                 />
-                <main className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+                <main className="flex-1 min-h-0 pb-16 md:pb-0 overflow-y-auto lg:overflow-hidden">
                     <div className={`max-w-screen-2xl mx-auto min-h-0 px-4 pt-3 md:pt-4 ${view === 'graph' ? 'lg:h-full' : 'lg:h-full'}`}>
                         <React.Suspense fallback={<div className="p-6 text-slate-500 dark:text-slate-400">Cargando…</div>}>
                             {view === 'table' && (
@@ -568,6 +570,7 @@ const App: React.FC = () => {
                                         // Mobile Filter Props
                                         showMobileFilters={showMobileFilters}
                                         onCloseMobileFilters={() => setShowMobileFilters(false)}
+                                        searchQuery={searchTerm}
                                     />
                                 ) : (
                                     <TableView
@@ -590,6 +593,7 @@ const App: React.FC = () => {
                                     onMonthChange={(m) => setFocusedDate(prev => new Date(prev.getFullYear(), m, 1))}
                                     onYearChange={(y) => setFocusedDate(prev => new Date(y, prev.getMonth(), 1))}
                                     onOpenPaymentRecorder={handleOpenPaymentRecorder}
+                                    searchQuery={searchTerm}
                                 />
                             )}
                             {view === 'calendar' && !useV2Dashboard && (
@@ -603,8 +607,13 @@ const App: React.FC = () => {
                     </div>
                 </main>
             </div>
-            {/* Mobile Floating Action Button */}
-            <FloatingActionButton onClick={handleAddExpenseClick} />
+            {/* Nav Inferior Móvil */}
+            <BottomNavBar 
+                currentView={view} 
+                onViewChange={setView} 
+                onAddExpense={handleAddExpenseClick}
+                onOpenSettings={() => document.dispatchEvent(new CustomEvent('open-profile-settings'))}
+            />
             {/* Detail View Modal */}
             {viewingCommitment && (
                 <CommitmentDetailModal

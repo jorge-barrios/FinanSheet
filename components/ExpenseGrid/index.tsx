@@ -43,6 +43,8 @@ interface ExpenseGridV2Props {
     // New Controlled Props for Mobile Filter
     showMobileFilters?: boolean;
     onCloseMobileFilters?: () => void;
+    // Search Prop
+    searchQuery?: string;
 }
 
 
@@ -61,6 +63,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
     onFocusedDateChange,
     showMobileFilters = false, // Default to false if not controlled
     onCloseMobileFilters = () => { }, // Default no-op
+    searchQuery = '',
 }) => {
     // Logic extracted to custom hook
     const {
@@ -75,7 +78,7 @@ const ExpenseGridVirtual2: React.FC<ExpenseGridV2Props> = ({
         getPaymentStatus, performSmartSort, isActiveInMonth, getTranslatedCategoryName,
         formatClp, getTermForPeriod, getTerminationReason, isCommitmentTerminated,
         t, getMonthTotals, rateConverter
-    } = useExpenseGridLogic({ focusedDate, onFocusedDateChange });
+    } = useExpenseGridLogic({ focusedDate, onFocusedDateChange, searchQuery });
 
     // Local state for Mobile Filters removed - now controlled by parent
 
